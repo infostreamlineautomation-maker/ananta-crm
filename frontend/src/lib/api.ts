@@ -1,5 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+let cachedCsrfToken: string | null = null;
+
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
@@ -9,9 +11,25 @@ function getCookie(name: string): string | null {
 /** DRF+SessionAuthentication requires a csrftoken cookie before any mutating
  * request — the Django backend has no CSRF exemption anywhere (unlike the
  * legacy PHP app), so this has to run before the first POST/PUT/PATCH/DELETE. */
-export async function ensureCsrf(): Promise<void> {
-  if (getCookie("csrftoken")) return;
-  await fetch(`${API_URL}/api/auth/csrf/`, { credentials: "include" });
+export async function ensureCsrf(): Promise<string | null> {
+  const cookieToken = getCookie("csrftoken");
+  if (cookieToken) {
+    cachedCsrfToken = cookieToken;
+    return cookieToken;
+  }
+  try {
+    const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === "object" && "csrfToken" in data && typeof data.csrfToken === "string") {
+        cachedCsrfToken = data.csrfToken;
+        return data.csrfToken;
+      }
+    }
+  } catch {
+    // ignore network errors
+  }
+  return getCookie("csrftoken") || cachedCsrfToken;
 }
 
 export class ApiError extends Error {
@@ -37,8 +55,7 @@ export async function apiFetch<T = unknown>(path: string, options: RequestInit =
     headers.set("Content-Type", "application/json");
   }
   if (isMutating) {
-    await ensureCsrf();
-    const token = getCookie("csrftoken");
+    const token = (await ensureCsrf()) || cachedCsrfToken || getCookie("csrftoken");
     if (token) headers.set("X-CSRFToken", token);
   }
 
