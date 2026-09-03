@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Suppliers - Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for data tables to maintain clean look */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e9bcb9;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #946e6c;
+        }
+        
+        /* Table hover reveal for actions */
+        .table-row-group .table-row {
+             transition: background-color 0.15s ease;
+        }
+        .table-row-group .table-row:hover {
+             background-color: #fff0ef; /* surface-container-low */
+        }
+        .table-row-group .table-row .row-actions {
+             opacity: 0;
+             transition: opacity 0.15s ease;
+        }
+        .table-row-group .table-row:hover .row-actions {
+             opacity: 1;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#ffdad8",
+                        "secondary-fixed": "#ffdad8",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#ffdad7",
+                        "tertiary-container": "#008092",
+                        "on-background": "#2a1615",
+                        "surface-bright": "#fff8f7",
+                        "inverse-surface": "#412b29",
+                        "tertiary": "#006574",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#fd5c5d",
+                        "on-secondary-container": "#60000c",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-tertiary-container": "#f8fdff",
+                        "on-primary-fixed-variant": "#930018",
+                        "surface-container-highest": "#ffdad7",
+                        "secondary": "#b4262e",
+                        "outline": "#946e6c",
+                        "surface-container-high": "#ffe1df",
+                        "on-surface": "#2a1615",
+                        "on-primary-container": "#fffbff",
+                        "primary-fixed-dim": "#ffb3af",
+                        "surface-container-low": "#fff0ef",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "surface-container": "#ffe9e7",
+                        "primary-container": "#e9002d",
+                        "surface": "#fff8f7",
+                        "inverse-primary": "#ffb3af",
+                        "primary": "#bb0022",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#410006",
+                        "surface-tint": "#bf0023",
+                        "on-error-container": "#93000a",
+                        "background": "#fff8f7",
+                        "on-surface-variant": "#5f3e3d",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#ffedeb",
+                        "on-tertiary-fixed": "#001f25",
+                        "surface-dim": "#f7d1cf",
+                        "outline-variant": "#e9bcb9",
+                        "on-primary-fixed": "#410006",
+                        "tertiary-fixed": "#a2eeff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "gutter": "16px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "unit": "4px",
+                        "container-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md text-body-md antialiased overflow-x-hidden min-h-screen">
+<!-- Shell: TopNavBar -->
+<header class="bg-surface border-b border-outline-variant h-16 fixed top-0 right-0 left-0 md:left-[260px] flex justify-between items-center px-container-padding transition-all duration-150 z-20">
+<!-- Mobile Menu Toggle (Hidden on Desktop) -->
+<button class="md:hidden p-2 -ml-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<!-- Search Bar (Left aligned) -->
+<div class="hidden md:flex flex-1 max-w-md">
+<div class="relative w-full">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-[20px]">search</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-2 border border-outline-variant rounded-lg leading-5 bg-surface-container-lowest placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-body-sm text-body-sm sm:text-sm transition duration-150 ease-in-out" placeholder="Search suppliers..." type="text"/>
+</div>
+</div>
+<!-- Mobile Search Icon -->
+<button class="md:hidden p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low p-2 rounded-full transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1 right-1 block h-2 w-2 rounded-full bg-primary ring-2 ring-surface"></span>
+</button>
+<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low p-2 rounded-full transition-colors hidden sm:block">
+<span class="material-symbols-outlined text-[20px]">help_outline</span>
+</button>
+<div class="h-8 w-8 rounded-full border border-outline-variant overflow-hidden bg-surface-container-high ml-2 cursor-pointer">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A professional headshot of a corporate user, smiling slightly, well-lit studio lighting, neutral background, crisp and modern." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdJuz-oeUKXIVCKeRs0CrgMx5Dv-pZrYeiRBZ-FWbqAA1K_a7ZPqQi-1pQu8_Mzp0oE2BkyzP-GJ88XqyyB1-yArnDyV27GX3CWyvcaOB8fdsc6sxqKGPKxbV2B4uInBFrpwhSwFKVAJhHkjJwS6CazGY_FVJmMfYXKvc3qG8hchsRfpdsip736fn0JMc_p9yF4P4xhc6-FaYRjKHAk8DV8qSS0HGqYNohK4_46YrnLZ7PxBnpuce8"/>
+</div>
+</div>
+</header>
+<!-- Shell: SideNavBar -->
+<aside class="w-sidebar-width h-screen fixed left-0 top-0 bg-surface border-r border-outline-variant transition-all duration-200 ease-in-out z-30 hidden md:flex flex-col py-container-padding">
+<!-- Brand Header -->
+<div class="px-container-padding mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-on-primary font-bold">A</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Ananta CRM</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mt-0.5">Printing &amp; Graphics</p>
+</div>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex-1 overflow-y-auto w-full px-2">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-body-sm text-body-sm font-semibold">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">person</span>
+<span class="font-body-sm text-body-sm font-semibold">Clients</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">business</span>
+<span class="font-body-sm text-body-sm font-semibold">Companies</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">inventory_2</span>
+<span class="font-body-sm text-body-sm font-semibold">Products</span>
+</a>
+</li>
+<!-- ACTIVE TAB: Suppliers -->
+<li class="relative">
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-primary rounded-r-full"></div>
+<a class="flex items-center gap-3 px-4 py-2 ml-1 rounded-r-lg bg-surface-container-low text-primary font-bold" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+<span class="font-body-sm text-body-sm">Suppliers</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">assignment</span>
+<span class="font-body-sm text-body-sm font-semibold">Projects</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">description</span>
+<span class="font-body-sm text-body-sm font-semibold">Quotations</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">payments</span>
+<span class="font-body-sm text-body-sm font-semibold">Costing</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">assessment</span>
+<span class="font-body-sm text-body-sm font-semibold">Reports</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors group mt-4" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">settings</span>
+<span class="font-body-sm text-body-sm font-semibold">Settings</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- Sidebar CTA Bottom -->
+<div class="px-4 mt-auto pt-4">
+<button class="w-full bg-primary hover:bg-surface-tint text-on-primary font-body-sm text-body-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Project
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:pl-[260px] pt-16 min-h-screen bg-background flex flex-col">
+<!-- Page Header Area -->
+<div class="px-container-padding py-6 lg:py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background m-0">Suppliers</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Manage printing partners, paper vendors, and raw material providers.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low text-on-surface font-body-sm text-body-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                    Export
+                </button>
+<button class="bg-[#C31432] hover:bg-[#a01029] text-white font-body-sm text-body-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-[#C31432] focus:ring-offset-2 focus:ring-offset-background">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add Supplier
+                </button>
+</div>
+</div>
+<!-- Data List Container -->
+<div class="px-container-padding pb-8 flex-1 flex flex-col min-h-0">
+<!-- Table Controls / Filters -->
+<div class="bg-surface border border-outline-variant rounded-t-lg p-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+<!-- Internal Page Search -->
+<div class="relative w-full sm:w-72">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-[18px]">search</span>
+</div>
+<input class="block w-full pl-9 pr-3 py-1.5 border border-outline-variant rounded-md leading-5 bg-surface-container-lowest placeholder-outline focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-body-sm text-body-sm transition duration-150 ease-in-out" placeholder="Filter by name, email, or source..." type="text"/>
+</div>
+<!-- Filters -->
+<div class="flex items-center gap-2 w-full sm:w-auto">
+<select class="block w-full sm:w-auto pl-3 pr-8 py-1.5 text-body-sm border border-outline-variant rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-surface-container-lowest text-on-surface-variant">
+<option>All Sources</option>
+<option>Domestic</option>
+<option>International</option>
+<option>Direct</option>
+</select>
+<button class="p-1.5 border border-outline-variant rounded-md text-on-surface-variant hover:bg-surface-container-low transition-colors bg-surface-container-lowest" title="Filter options">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+</button>
+</div>
+</div>
+<!-- The Table -->
+<div class="bg-surface border-x border-b border-outline-variant rounded-b-lg flex-1 overflow-auto overflow-x-auto relative">
+<table class="min-w-full text-left border-collapse">
+<thead class="sticky top-0 bg-surface-container-low border-b border-outline-variant z-10">
+<tr>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" scope="col">Supplier Name</th>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" scope="col">Owner / Contact</th>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" scope="col">Contact Number</th>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" scope="col">Source</th>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" scope="col">Email</th>
+<th class="px-6 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right" scope="col">Actions</th>
+</tr>
+</thead>
+<tbody class="table-row-group bg-surface divide-y divide-outline-variant font-table-data text-table-data text-on-surface">
+<!-- Row 1 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Apex Printing Supplies Co.</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Marcus Vance
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +1 (555) 019-2834
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary-fixed-dim">
+                                    Domestic
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                m.vance@apexsupplies.com
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Global Ink &amp; Toner Corp.</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Sarah Jenkins
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +44 20 7123 4567
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-secondary-fixed text-on-secondary-fixed-variant border border-secondary-fixed-dim">
+                                    International
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                s.jenkins@globalink.co.uk
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Valley Paper Mills</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                David Chen
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +1 (555) 342-9981
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-surface-container-high text-on-surface border border-outline-variant">
+                                    Direct
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                orders@valleypaper.net
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Sunrise Bindery Equip.</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Elena Rodriguez
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +1 (555) 781-0022
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary-fixed-dim">
+                                    Domestic
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                elena.r@sunrisebindery.com
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Kanto Specialty Films</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Kenji Sato
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +81 3 1234 5678
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-secondary-fixed text-on-secondary-fixed-variant border border-secondary-fixed-dim">
+                                    International
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                ksato@kanto-films.jp
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Metro Litho Supplies</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Amanda Smith
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +1 (555) 443-2210
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary-fixed-dim">
+                                    Domestic
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                asmith@metrolitho.com
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 7 -->
+<tr class="table-row">
+<td class="px-6 py-3 whitespace-nowrap">
+<a class="font-semibold text-primary hover:text-surface-tint underline decoration-transparent hover:decoration-current transition-colors" href="#">Precision Plates Inc.</a>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                Thomas Baker
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant font-mono text-xs">
+                                +1 (555) 998-1122
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-surface-container-high text-on-surface border border-outline-variant">
+                                    Direct
+                                </span>
+</td>
+<td class="px-6 py-3 whitespace-nowrap text-on-surface-variant">
+                                t.baker@precisionplates.net
+                            </td>
+<td class="px-6 py-3 whitespace-nowrap text-right">
+<div class="flex items-center justify-end gap-2 row-actions">
+<button class="text-outline hover:text-primary transition-colors p-1" title="Edit Supplier">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline hover:text-error transition-colors p-1" title="Delete Supplier">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="bg-surface border border-t-0 border-outline-variant rounded-b-lg px-4 py-3 flex items-center justify-between sm:px-6 shrink-0 mt-[-1px]">
+<div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+<div>
+<p class="text-sm text-on-surface-variant font-body-sm">
+                            Showing <span class="font-medium text-on-surface">1</span> to <span class="font-medium text-on-surface">7</span> of <span class="font-medium text-on-surface">42</span> results
+                        </p>
+</div>
+<div>
+<nav aria-label="Pagination" class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+<a class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-outline-variant bg-surface-container-lowest text-sm font-medium text-outline hover:bg-surface-container-low transition-colors" href="#">
+<span class="sr-only">Previous</span>
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</a>
+<a aria-current="page" class="z-10 bg-primary-fixed border-primary-fixed-dim text-on-primary-fixed-variant relative inline-flex items-center px-4 py-2 border text-sm font-medium" href="#">
+                                1
+                            </a>
+<a class="bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors" href="#">
+                                2
+                            </a>
+<a class="bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors" href="#">
+                                3
+                            </a>
+<span class="relative inline-flex items-center px-4 py-2 border border-outline-variant bg-surface-container-lowest text-sm font-medium text-outline">
+                                ...
+                            </span>
+<a class="bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors" href="#">
+                                6
+                            </a>
+<a class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-outline-variant bg-surface-container-lowest text-sm font-medium text-outline hover:bg-surface-container-low transition-colors" href="#">
+<span class="sr-only">Next</span>
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</a>
+</nav>
+</div>
+</div>
+<!-- Mobile Pagination -->
+<div class="flex items-center justify-between w-full sm:hidden">
+<a class="relative inline-flex items-center px-4 py-2 border border-outline-variant text-sm font-medium rounded-md text-on-surface bg-surface-container-lowest hover:bg-surface-container-low" href="#">
+                        Previous
+                    </a>
+<span class="text-sm text-on-surface-variant">Page 1 of 6</span>
+<a class="ml-3 relative inline-flex items-center px-4 py-2 border border-outline-variant text-sm font-medium rounded-md text-on-surface bg-surface-container-lowest hover:bg-surface-container-low" href="#">
+                        Next
+                    </a>
+</div>
+</div>
+</div>
+</main>
+</body></html>

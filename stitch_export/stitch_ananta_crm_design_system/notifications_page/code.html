@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ananta CRM - Notifications</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#2a1615",
+                        "tertiary-container": "#008092",
+                        "primary": "#bb0022",
+                        "background": "#fff8f7",
+                        "surface": "#fff8f7",
+                        "on-primary-container": "#fffbff",
+                        "surface-container": "#ffe9e7",
+                        "on-secondary-container": "#60000c",
+                        "secondary": "#b4262e",
+                        "on-tertiary": "#ffffff",
+                        "surface-bright": "#fff8f7",
+                        "on-tertiary-fixed": "#001f25",
+                        "on-surface-variant": "#5f3e3d",
+                        "surface-container-highest": "#ffdad7",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "primary-container": "#e9002d",
+                        "tertiary": "#006574",
+                        "primary-fixed": "#ffdad8",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#ffdad8",
+                        "on-background": "#2a1615",
+                        "surface-container-low": "#fff0ef",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#ffb3af",
+                        "on-tertiary-container": "#f8fdff",
+                        "on-primary": "#ffffff",
+                        "inverse-surface": "#412b29",
+                        "secondary-container": "#fd5c5d",
+                        "outline": "#946e6c",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#bf0023",
+                        "surface-dim": "#f7d1cf",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#410006",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "outline-variant": "#e9bcb9",
+                        "surface-container-high": "#ffe1df",
+                        "on-primary-fixed-variant": "#930018",
+                        "tertiary-fixed": "#a2eeff",
+                        "surface-variant": "#ffdad7",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#ffedeb",
+                        "on-primary-fixed": "#410006",
+                        "inverse-primary": "#ffb3af"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "gutter": "16px",
+                        "unit": "4px",
+                        "container-padding": "24px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased flex h-screen overflow-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen fixed left-0 top-0 w-sidebar-width bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-outline z-40 py-stack-md">
+<div class="px-gutter mb-8 flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary-container flex items-center justify-center text-on-primary-container font-bold shadow-sm">A</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed leading-tight">Ananta CRM</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Printing &amp; Graphics</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto scrollbar-hide flex flex-col gap-1 px-2">
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">groups</span>
+<span class="font-body-md text-body-md">Clients</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">business</span>
+<span class="font-body-md text-body-md">Companies</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span>
+<span class="font-body-md text-body-md">Products</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">conveyor_belt</span>
+<span class="font-body-md text-body-md">Suppliers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">account_tree</span>
+<span class="font-body-md text-body-md">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">request_quote</span>
+<span class="font-body-md text-body-md">Quotations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">calculate</span>
+<span class="font-body-md text-body-md">Costing</span>
+</a>
+</div>
+<div class="px-4 mt-auto">
+<div class="p-4 bg-surface-container rounded-lg border border-outline-variant flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-sm">JD</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-sm text-body-sm font-semibold truncate">John Doe</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant truncate">Admin</p>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[18px]">logout</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-sidebar-width flex flex-col h-screen w-full relative">
+<!-- TopNavBar -->
+<header class="h-16 w-full sticky top-0 z-30 bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline flex justify-between items-center px-gutter flex-shrink-0">
+<!-- Mobile Menu Toggle & Brand (Visible only on mobile) -->
+<div class="flex md:hidden items-center gap-3">
+<button class="text-on-surface-variant hover:text-on-surface p-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold text-primary">Ananta CRM</span>
+</div>
+<!-- Search Bar (Desktop) -->
+<div class="hidden md:flex items-center flex-1 max-w-md">
+<div class="relative w-full group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full h-10 pl-10 pr-4 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/60" placeholder="Search orders, clients, projects..." type="text"/>
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-2">
+<button aria-label="History" class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-full p-2 transition-colors relative">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button aria-label="Notifications" class="text-primary font-bold border-b-2 border-primary pb-1 relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-surface"></span>
+</button>
+<div class="ml-2 w-8 h-8 rounded-full overflow-hidden border border-outline-variant cursor-pointer hidden md:block">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A small, professional headshot of a person in a corporate setting, looking directly at the camera, neutral lighting, simple background, red and white tones subtle, UI avatar placeholder." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAe7udz5wuirG8c16A9RLeDVKROqLGQj3aMswhKwVs8YAAzpTYRE6ZHppaOiZ3B14OZLg0d6aHqmNm6u3rvyQiL82-ncre7cxH6_nY4iIyeyJRCUxcgelONaykIqzaS0KQ-eet2hjam7Hbm4jUm6qe_2pqxGPGJ0O9fsTxqE91ZzoN_UhgPju9SBGlKTPGMH3dL3edMbdqSXbBBhNCCKlWntQUw81utMyAtL3CKg-y9DmXyJF3KV_oc"/>
+</div>
+</div>
+</header>
+<!-- Page Content: Notifications -->
+<div class="flex-1 overflow-y-auto bg-surface-bright relative w-full">
+<div class="max-w-5xl mx-auto w-full p-container-padding pb-32">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+<div>
+<h2 class="font-display text-display text-on-surface">Notifications</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Manage your alerts and activity updates.</p>
+</div>
+<!-- Segmented Control -->
+<div class="flex bg-surface-container-highest p-1 rounded-lg border border-outline-variant w-fit shrink-0">
+<button class="px-4 py-1.5 rounded bg-surface-container-lowest shadow-sm text-on-surface font-label-caps text-label-caps uppercase transition-all whitespace-nowrap">All</button>
+<button class="px-4 py-1.5 rounded text-on-surface-variant hover:text-on-surface font-label-caps text-label-caps uppercase transition-all whitespace-nowrap">Unread (3)</button>
+</div>
+</div>
+<!-- Notifications List -->
+<div class="flex flex-col gap-6">
+<!-- Section: Today -->
+<section>
+<h3 class="font-label-caps text-label-caps text-outline uppercase tracking-widest mb-3 pl-4">Today</h3>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm flex flex-col">
+<!-- Notification Item: Unread (Payment) -->
+<div class="group relative flex items-start gap-4 p-4 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors border-l-4 border-l-primary bg-primary/5 cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-primary-container text-primary flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[18px]">payments</span>
+</div>
+<div class="flex-1 min-w-0 pr-8">
+<div class="flex items-baseline justify-between gap-2 mb-1">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">Payment Received: Horizon Graphics</h4>
+<span class="font-body-sm text-body-sm text-primary font-medium shrink-0">10:42 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mb-1">Invoice INV-24-089 has been settled in full ($4,250.00). Funds are clearing.</p>
+<a class="inline-flex items-center gap-1 font-label-caps text-label-caps text-outline hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">receipt_long</span>
+                                        ORD-2026-0004
+                                    </a>
+</div>
+<button aria-label="Dismiss" class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-outline hover:text-primary transition-all p-1 rounded-md hover:bg-surface-variant focus:opacity-100">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Notification Item: Unread (Delivery/Amber equivalent - using secondary/warning tones in theme context) -->
+<div class="group relative flex items-start gap-4 p-4 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors border-l-4 border-l-secondary bg-secondary/5 cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[18px]">local_shipping</span>
+</div>
+<div class="flex-1 min-w-0 pr-8">
+<div class="flex items-baseline justify-between gap-2 mb-1">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">Delivery Delayed: Paper Stock A4</h4>
+<span class="font-body-sm text-body-sm text-secondary font-medium shrink-0">08:15 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mb-1">Supplier 'Pulp &amp; Co' reported a 2-day delay for the premium matte stock.</p>
+<a class="inline-flex items-center gap-1 font-label-caps text-label-caps text-outline hover:text-secondary transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">conveyor_belt</span>
+                                        PO-8821-99
+                                    </a>
+</div>
+<button aria-label="Dismiss" class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-outline hover:text-primary transition-all p-1 rounded-md hover:bg-surface-variant focus:opacity-100">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Notification Item: Read (Order) -->
+<div class="group relative flex items-start gap-4 p-4 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors border-l-4 border-l-transparent cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0 mt-0.5 border border-outline-variant">
+<span class="material-symbols-outlined text-[18px]">shopping_cart</span>
+</div>
+<div class="flex-1 min-w-0 pr-8">
+<div class="flex items-baseline justify-between gap-2 mb-1">
+<h4 class="font-body-md text-body-md font-medium text-on-surface truncate">New Order Submitted</h4>
+<span class="font-body-sm text-body-sm text-outline shrink-0">07:30 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mb-1">Client 'Apex Retail' submitted a new print job for Q3 Banners.</p>
+<a class="inline-flex items-center gap-1 font-label-caps text-label-caps text-outline hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">inventory_2</span>
+                                        ORD-2026-0005
+                                    </a>
+</div>
+<button aria-label="Dismiss" class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-outline hover:text-primary transition-all p-1 rounded-md hover:bg-surface-variant focus:opacity-100">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section: Yesterday -->
+<section>
+<h3 class="font-label-caps text-label-caps text-outline uppercase tracking-widest mb-3 pl-4">Yesterday</h3>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm flex flex-col">
+<!-- Notification Item: Unread (System/Project) -->
+<div class="group relative flex items-start gap-4 p-4 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors border-l-4 border-l-primary bg-primary/5 cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+</div>
+<div class="flex-1 min-w-0 pr-8">
+<div class="flex items-baseline justify-between gap-2 mb-1">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">Project Approved: Summer Campaign</h4>
+<span class="font-body-sm text-body-sm text-primary font-medium shrink-0">4:20 PM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mb-1">Final proofs approved by the client. Ready for pre-press.</p>
+<a class="inline-flex items-center gap-1 font-label-caps text-label-caps text-outline hover:text-tertiary-container transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+                                        PRJ-24-112
+                                    </a>
+</div>
+<button aria-label="Dismiss" class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-outline hover:text-primary transition-all p-1 rounded-md hover:bg-surface-variant focus:opacity-100">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Notification Item: Read (Order) -->
+<div class="group relative flex items-start gap-4 p-4 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors border-l-4 border-l-transparent cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0 mt-0.5 border border-outline-variant">
+<span class="material-symbols-outlined text-[18px]">build</span>
+</div>
+<div class="flex-1 min-w-0 pr-8">
+<div class="flex items-baseline justify-between gap-2 mb-1">
+<h4 class="font-body-md text-body-md font-medium text-on-surface truncate">Maintenance Scheduled</h4>
+<span class="font-body-sm text-body-sm text-outline shrink-0">1:00 PM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mb-1">Press #3 is scheduled for routine maintenance on Friday morning.</p>
+</div>
+<button aria-label="Dismiss" class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-outline hover:text-primary transition-all p-1 rounded-md hover:bg-surface-variant focus:opacity-100">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section: Earlier -->
+<section>
+<div class="text-center py-8">
+<span class="material-symbols-outlined text-outline text-[32px] mb-2 opacity-50">notifications_paused</span>
+<p class="font-body-sm text-body-sm text-outline">End of recent notifications.</p>
+<button class="mt-4 px-4 py-2 text-primary font-label-caps text-label-caps uppercase border border-outline-variant rounded-md hover:bg-surface-container-low transition-colors">View Archive</button>
+</div>
+</section>
+</div>
+</div>
+</div>
+</main>
+</body></html>

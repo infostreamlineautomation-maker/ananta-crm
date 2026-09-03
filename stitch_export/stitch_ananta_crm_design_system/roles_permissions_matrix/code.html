@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ananta CRM - Roles &amp; Permissions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "outline": "#946e6c",
+                      "on-error": "#ffffff",
+                      "on-tertiary-fixed-variant": "#004e5a",
+                      "on-secondary-fixed-variant": "#91061a",
+                      "error": "#ba1a1a",
+                      "error-container": "#ffdad6",
+                      "surface": "#fff8f7",
+                      "surface-bright": "#fff8f7",
+                      "inverse-on-surface": "#ffedeb",
+                      "tertiary": "#006574",
+                      "surface-container-highest": "#ffdad7",
+                      "background": "#fff8f7",
+                      "surface-tint": "#bf0023",
+                      "secondary-fixed-dim": "#ffb3af",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-low": "#fff0ef",
+                      "secondary-container": "#fd5c5d",
+                      "on-secondary": "#ffffff",
+                      "on-background": "#2a1615",
+                      "primary-fixed": "#ffdad8",
+                      "outline-variant": "#e9bcb9",
+                      "primary": "#bb0022",
+                      "on-tertiary-container": "#f8fdff",
+                      "on-primary-fixed": "#410006",
+                      "inverse-surface": "#412b29",
+                      "tertiary-fixed-dim": "#6ed5e9",
+                      "on-secondary-container": "#60000c",
+                      "tertiary-fixed": "#a2eeff",
+                      "surface-variant": "#ffdad7",
+                      "on-secondary-fixed": "#410006",
+                      "surface-dim": "#f7d1cf",
+                      "on-error-container": "#93000a",
+                      "inverse-primary": "#ffb3af",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-high": "#ffe1df",
+                      "secondary": "#b4262e",
+                      "on-primary-container": "#fffbff",
+                      "on-surface": "#2a1615",
+                      "surface-container": "#ffe9e7",
+                      "primary-container": "#e9002d",
+                      "tertiary-container": "#008092",
+                      "primary-fixed-dim": "#ffb3af",
+                      "on-primary-fixed-variant": "#930018",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed": "#ffdad8",
+                      "on-tertiary-fixed": "#001f25",
+                      "on-surface-variant": "#5f3e3d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "16px",
+                      "stack-md": "16px",
+                      "sidebar-width": "260px",
+                      "unit": "4px",
+                      "container-padding": "24px",
+                      "stack-sm": "8px"
+              },
+              "fontFamily": {
+                      "label-caps": ["Hanken Grotesk"],
+                      "display": ["Hanken Grotesk"],
+                      "table-data": ["Hanken Grotesk"],
+                      "headline-lg": ["Hanken Grotesk"],
+                      "body-sm": ["Hanken Grotesk"],
+                      "headline-md": ["Hanken Grotesk"],
+                      "body-lg": ["Hanken Grotesk"],
+                      "body-md": ["Hanken Grotesk"]
+              },
+              "fontSize": {
+                      "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "display": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "table-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #e9bcb9;
+            border-radius: 20px;
+        }
+        .matrix-checkbox:checked {
+            background-color: #F80031 !important;
+            border-color: #F80031 !important;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar (Shared Component) -->
+<nav class="bg-surface dark:bg-surface-dim font-body-md text-body-md fixed left-0 top-0 h-full w-[260px] border-r border-outline-variant dark:border-outline z-50 flex flex-col py-container-padding hidden md:flex">
+<div class="px-container-padding mb-8">
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary tracking-tight">Ananta CRM</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mt-1 tracking-wider">Precision Printing</p>
+</div>
+<ul class="flex flex-col flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1">
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">person</span>
+                    Clients
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">domain</span>
+                    Companies
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">inventory_2</span>
+                    Products
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">local_shipping</span>
+                    Suppliers
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">assignment</span>
+                    Projects
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">request_quote</span>
+                    Quotations
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">payments</span>
+                    Costing
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">group</span>
+                    Users
+                </a>
+</li>
+<li>
+<!-- ACTIVE TAB -->
+<a class="flex items-center px-3 py-2 rounded-r-md text-primary dark:text-inverse-primary font-semibold border-l-4 border-primary dark:border-inverse-primary bg-primary-fixed-dim/10 hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 1;">badge</span>
+                    Roles
+                </a>
+</li>
+<li>
+<a class="flex items-center px-3 py-2 rounded-md text-on-surface-variant dark:text-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" style="font-variation-settings: 'FILL' 0;">settings</span>
+                    Settings
+                </a>
+</li>
+</ul>
+<div class="px-6 mt-auto pt-4 border-t border-outline-variant/30 flex items-center">
+<div class="w-8 h-8 rounded-full bg-surface-variant border border-outline-variant overflow-hidden mr-3 flex-shrink-0">
+<img alt="Ananta CRM Logo" class="w-full h-full object-cover" data-alt="A small, professional headshot photo of an industrial manager in modern lighting, high contrast, red and white ambient tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpLqNZJ9ZeD-gK6dTqyX72uFMv2RoTX3iPPpJ7BNOe6Gai02DHrjKEw4Ms82OSgMj0Y-rtImF1xWZshOHZctKwTKvPghE5ySTXXcRYXSRBoW4CS7tSDbpAStx2hMIdoz1nC5upKVgwIEiQClhjxZA-oZCKw8UEEOY5gWgOZaDM74Q_oOW_BDRJ_Sl5WnTyddgdXSuX7fGsajP78_y27Nr0sfcgD0m7uHF2pLKQAK5tmZGTwmA81A0y"/>
+</div>
+<div class="truncate">
+<p class="font-body-sm text-body-sm font-semibold truncate">J. Doe</p>
+<p class="font-label-caps text-[10px] text-on-surface-variant truncate">System Admin</p>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:ml-[260px] relative overflow-hidden bg-surface-bright">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-md font-body-md text-body-md sticky top-0 z-40 w-full border-b border-outline-variant dark:border-outline flex justify-between items-center px-container-padding h-16 shrink-0">
+<div class="flex items-center space-x-4">
+<button class="md:hidden text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="font-headline-md text-headline-md font-bold text-on-surface hidden sm:block">Roles &amp; Permissions Management</h2>
+</div>
+<div class="flex items-center space-x-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" style="font-variation-settings: 'FILL' 0;">search</span>
+<input class="pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-md text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary w-48 transition-all" placeholder="Search roles..." type="text"/>
+</div>
+<button class="text-on-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors active:opacity-80">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">history</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors active:opacity-80 relative">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+<span class="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="flex-1 flex flex-col lg:flex-row overflow-hidden p-container-padding gap-container-padding">
+<!-- Left Column: Role List -->
+<aside class="w-full lg:w-64 flex-shrink-0 flex flex-col bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden">
+<div class="p-4 border-b border-outline-variant/50 bg-surface-container-low flex justify-between items-center">
+<h3 class="font-body-md font-semibold text-on-surface">Available Roles</h3>
+<span class="bg-surface-variant text-on-surface-variant text-[10px] px-2 py-0.5 rounded-full font-bold">5</span>
+</div>
+<ul class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left rounded-md hover:bg-surface-container text-on-surface-variant transition-colors group">
+<span class="font-body-sm">Admin</span>
+<span class="material-symbols-outlined text-[16px] text-outline opacity-70">lock</span>
+</button>
+</li>
+<li>
+<!-- Selected Role -->
+<button class="w-full flex items-center justify-between px-3 py-2 text-left rounded-r-md bg-surface-variant/30 text-on-surface font-semibold border-l-3 border-[#F80031] transition-colors shadow-sm">
+<span class="font-body-sm text-[#F80031]">Staff</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left rounded-md hover:bg-surface-container text-on-surface-variant transition-colors">
+<span class="font-body-sm">Sales Rep</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left rounded-md hover:bg-surface-container text-on-surface-variant transition-colors">
+<span class="font-body-sm">Production Manager</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left rounded-md hover:bg-surface-container text-on-surface-variant transition-colors">
+<span class="font-body-sm">Auditor</span>
+</button>
+</li>
+</ul>
+<div class="p-3 border-t border-outline-variant/50 bg-surface">
+<button class="w-full py-2 px-4 rounded-md border border-primary text-primary font-body-sm font-semibold hover:bg-primary-fixed transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] mr-1">add</span>
+                        Add Role
+                    </button>
+</div>
+</aside>
+<!-- Right Column: Permission Matrix -->
+<section class="flex-1 flex flex-col bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden shadow-sm relative">
+<div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low shrink-0">
+<div>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface">Editing 'Staff' Permissions</h3>
+<p class="font-body-sm text-on-surface-variant mt-1">Configure fine-grained access control across CRM modules.</p>
+</div>
+<button class="px-5 py-2 bg-[#F80031] text-white rounded-md font-body-sm font-semibold hover:bg-[#D64044] transition-colors shadow-sm active:scale-95 flex items-center">
+<span class="material-symbols-outlined text-[18px] mr-2">save</span>
+                        Save Permissions
+                    </button>
+</div>
+<div class="flex-1 overflow-auto custom-scrollbar">
+<table class="w-full text-left border-collapse min-w-[600px]">
+<thead class="sticky top-0 bg-surface-container-low z-10 shadow-sm border-b border-outline-variant">
+<tr>
+<th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase w-1/3 border-r border-outline-variant/30">Module</th>
+<th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-center w-1/6">View</th>
+<th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-center w-1/6">Add</th>
+<th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-center w-1/6">Edit</th>
+<th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-center w-1/6">Delete</th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data divide-y divide-outline-variant/40 bg-surface-container-lowest">
+<!-- Clients Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Clients</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Companies Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Companies</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Products Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors bg-surface-container-low/30">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Products</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Suppliers Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Suppliers</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Projects Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Projects</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Orders Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors bg-surface-container-low/30">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Orders</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Quotations Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Quotations</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Costing Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Costing</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Reports Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors bg-surface-container-low/30">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Reports</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="w-4 h-4 rounded bg-surface-variant border-outline-variant/50 cursor-not-allowed opacity-50" disabled="" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="w-4 h-4 rounded bg-surface-variant border-outline-variant/50 cursor-not-allowed opacity-50" disabled="" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="w-4 h-4 rounded bg-surface-variant border-outline-variant/50 cursor-not-allowed opacity-50" disabled="" type="checkbox"/>
+</td>
+</tr>
+<!-- Users Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Users</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Settings Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Settings</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+<!-- Notifications Row -->
+<tr class="hover:bg-primary-fixed/30 transition-colors bg-surface-container-low/30">
+<td class="px-4 py-2.5 font-semibold text-on-surface border-r border-outline-variant/30">Notifications</td>
+<td class="px-4 py-2.5 text-center">
+<input checked="" class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+<td class="px-4 py-2.5 text-center">
+<input class="matrix-checkbox w-4 h-4 rounded text-[#F80031] focus:ring-[#F80031] border-outline-variant cursor-pointer" type="checkbox"/>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+</body></html>

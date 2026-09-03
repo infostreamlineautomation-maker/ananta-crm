@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Supplier Detail - Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#001f25",
+                        "on-primary-container": "#fffbff",
+                        "surface-bright": "#fff8f7",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "surface-container": "#ffe9e7",
+                        "surface-container-high": "#ffe1df",
+                        "background": "#fff8f7",
+                        "inverse-primary": "#ffb3af",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed-dim": "#ffb3af",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#ffedeb",
+                        "outline-variant": "#e9bcb9",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#410006",
+                        "secondary-fixed": "#ffdad8",
+                        "primary-fixed": "#ffdad8",
+                        "surface-dim": "#f7d1cf",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "on-primary-fixed-variant": "#930018",
+                        "secondary": "#b4262e",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "secondary-container": "#fd5c5d",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#e9002d",
+                        "outline": "#946e6c",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#ffdad7",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "on-background": "#2a1615",
+                        "surface-container-low": "#fff0ef",
+                        "on-surface": "#2a1615",
+                        "surface": "#fff8f7",
+                        "on-secondary-container": "#60000c",
+                        "tertiary-container": "#008092",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#a2eeff",
+                        "inverse-surface": "#412b29",
+                        "on-secondary-fixed": "#410006",
+                        "tertiary": "#006574",
+                        "primary": "#bb0022",
+                        "surface-tint": "#bf0023",
+                        "surface-container-highest": "#ffdad7",
+                        "on-surface-variant": "#5f3e3d",
+                        "on-tertiary-container": "#f8fdff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "sidebar-width": "260px",
+                        "container-padding": "24px",
+                        "unit": "4px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Hanken Grotesk', sans-serif; background-color: theme('colors.background'); color: theme('colors.on-background'); }
+        /* Tonal Shadows */
+        .shadow-dropdown { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        /* Smooth scrolling */
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="h-full flex antialiased">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar-width border-r border-outline-variant bg-surface-container-lowest flex flex-col py-6 z-20 hidden md:flex">
+<div class="px-6 mb-8">
+<h1 class="font-display text-display text-primary tracking-tight">Ananta CRM</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Precision Printing</p>
+</div>
+<div class="flex-1 overflow-y-auto w-full">
+<ul class="space-y-1 w-full">
+<!-- Inactive -->
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span> Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="person">person</span> Clients</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="domain">domain</span> Companies</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span> Products</a></li>
+<!-- Active -->
+<li><a class="flex items-center gap-3 px-4 py-3 text-primary font-body-md text-body-md font-bold border-l-4 border-primary bg-surface-container-low hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="local_shipping" data-weight="fill" style="font-variation-settings: 'FILL' 1;">local_shipping</span> Suppliers</a></li>
+<!-- Inactive -->
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="assignment">assignment</span> Projects</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="description">description</span> Quotations</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="payments">payments</span> Costing</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="assessment">assessment</span> Reports</a></li>
+</ul>
+</div>
+<div class="mt-auto px-4 pt-4 border-t border-outline-variant/30">
+<ul class="space-y-1 w-full">
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="group">group</span> Users</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="rule">rule</span> Roles &amp; Permissions</a></li>
+<li><a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80" href="#"><span class="material-symbols-outlined" data-icon="settings">settings</span> Settings</a></li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col md:ml-sidebar-width min-h-screen relative">
+<!-- TopNavBar -->
+<header class="docked full-width top-0 bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-container-padding sticky z-10">
+<div class="flex items-center gap-4">
+<!-- Mobile Menu Toggle -->
+<button class="md:hidden text-on-surface-variant p-2 -ml-2 rounded hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined">menu</span></button>
+<span class="font-headline-lg text-headline-lg text-primary md:hidden font-bold tracking-tight">Ananta CRM</span>
+</div>
+<div class="flex items-center gap-6 ml-auto">
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center p-2 rounded-full hover:bg-surface-variant/50">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="flex items-center gap-3 pl-4 border-l border-outline-variant cursor-pointer hover:opacity-80 transition-opacity">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full object-cover border border-outline-variant/30" data-alt="A small, professional headshot photo of a person used as a user profile avatar. The background is a solid neutral color. The lighting is soft and flattering, suitable for a corporate SaaS application. The individual appears approachable yet professional, maintaining a modern light-mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKJ5KGFMqlzNBQTmY-or9brS4CUBGm4nd3nmXqpbxzAhbRNavC_OB20BxtV2pqKkFcqlPoS515__K4Mn3zrVOTXpQe7KnwZ5_gquolsn0joBvQMk0q4nUdyVxlx1qVHsrkhe63obIKKYheZnttVxiQDBZqMw18TSvCZLC7eKhPkf4OATrxqOB7GnSRDM5OFV86ee5BWpIuyhdUCe4_CxIZsPJWb0jw3ah3RNkrGyccusPTuIh-gVj2"/>
+<span class="font-body-md text-body-md font-semibold text-on-background hidden sm:block">User Name</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm hidden sm:block">expand_more</span>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 p-container-padding lg:p-8 max-w-[1400px] w-full mx-auto space-y-8">
+<!-- Breadcrumbs -->
+<nav aria-label="Breadcrumb" class="flex text-sm text-on-surface-variant font-body-sm text-body-sm">
+<ol class="inline-flex items-center gap-2">
+<li class="inline-flex items-center">
+<a class="hover:text-primary transition-colors" href="#">Suppliers</a>
+</li>
+<li><span class="material-symbols-outlined text-sm">chevron_right</span></li>
+<li aria-current="page">
+<span class="font-semibold text-on-background">Apex Printing Supplies Co.</span>
+</li>
+</ol>
+</nav>
+<!-- Header Block -->
+<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-outline-variant">
+<div class="space-y-4">
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-lg bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary font-display text-display shrink-0">
+                            A
+                        </div>
+<div>
+<h2 class="font-display text-display text-on-background leading-tight">Apex Printing Supplies Co.</h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2.5 py-0.5 rounded-full bg-surface-variant text-on-surface-variant font-label-caps text-label-caps border border-outline-variant/50">Active Supplier</span>
+<span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-label-caps text-label-caps border border-blue-200">Tier 1</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2 text-on-surface-variant font-body-md text-body-md ml-0 sm:ml-20">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">person</span> Marcus Vance</div>
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">call</span> (555) 019-2834</div>
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">mail</span> m.vance@apexsupplies.com</div>
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">language</span> www.apexsupplies.com</div>
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">location_on</span> 124 Industrial Pkwy, Chicago, IL</div>
+</div>
+</div>
+<div class="flex gap-3 sm:shrink-0 ml-0 sm:ml-20 sm:mt-0 mt-4">
+<button class="px-4 py-2 bg-white border border-outline-variant text-on-background rounded-lg font-body-md text-body-md font-semibold hover:bg-surface-variant/50 transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">edit</span> Edit
+                    </button>
+<button class="px-4 py-2 bg-primary text-white rounded-lg font-body-md text-body-md font-semibold hover:bg-surface-tint transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">shopping_cart</span> New Order
+                    </button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="border-b border-outline-variant">
+<nav aria-label="Tabs" class="-mb-px flex gap-6 overflow-x-auto pb-1 hide-scrollbar">
+<a class="whitespace-nowrap border-b-2 border-transparent py-4 px-1 font-body-md text-body-md font-medium text-on-surface-variant hover:border-outline-variant hover:text-on-background transition-colors" href="#">Overview</a>
+<a aria-current="page" class="whitespace-nowrap border-b-2 border-primary py-4 px-1 font-body-md text-body-md font-bold text-primary" href="#">Contacts</a>
+<a class="whitespace-nowrap border-b-2 border-transparent py-4 px-1 font-body-md text-body-md font-medium text-on-surface-variant hover:border-outline-variant hover:text-on-background transition-colors" href="#">Products</a>
+<a class="whitespace-nowrap border-b-2 border-transparent py-4 px-1 font-body-md text-body-md font-medium text-on-surface-variant hover:border-outline-variant hover:text-on-background transition-colors flex items-center gap-2" href="#">Files <span class="bg-surface-variant text-on-surface-variant py-0.5 px-2 rounded-full text-xs">2</span></a>
+<a class="whitespace-nowrap border-b-2 border-transparent py-4 px-1 font-body-md text-body-md font-medium text-on-surface-variant hover:border-outline-variant hover:text-on-background transition-colors" href="#">Activity Log</a>
+</nav>
+</div>
+<!-- Content Area - Bento Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Main Column (Contacts) -->
+<div class="lg:col-span-8 space-y-6">
+<!-- Contacts Header -->
+<div class="flex items-center justify-between">
+<h3 class="font-headline-md text-headline-md text-on-background">Key Contacts</h3>
+<button class="px-4 py-2 bg-primary text-white rounded-lg font-body-md text-body-md font-semibold hover:bg-surface-tint transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> Add Contact
+                        </button>
+</div>
+<!-- Inline Form (Active State) -->
+<div class="bg-surface-container-lowest border border-primary/40 rounded-xl p-5 shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+<h4 class="font-label-caps text-label-caps text-primary mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-sm">person_add</span> NEW CONTACT</h4>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-background mb-1" for="contact-name">Name <span class="text-primary">*</span></label>
+<input autofocus="" class="block w-full rounded-lg border-outline-variant bg-white py-2 px-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm" id="contact-name" placeholder="e.g. Jane Doe" type="text"/>
+</div>
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-background mb-1" for="contact-number">Number</label>
+<input class="block w-full rounded-lg border-outline-variant bg-white py-2 px-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm" id="contact-number" placeholder="(555) 000-0000" type="tel"/>
+</div>
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-background mb-1" for="contact-designation">Designation</label>
+<input class="block w-full rounded-lg border-outline-variant bg-white py-2 px-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary shadow-sm" id="contact-designation" placeholder="e.g. Account Executive" type="text"/>
+</div>
+</div>
+<div class="flex justify-end gap-3 pt-2 border-t border-outline-variant/50">
+<button class="px-4 py-2 text-on-surface-variant rounded-lg font-body-md text-body-md font-semibold hover:bg-surface-variant transition-colors">Cancel</button>
+<button class="px-4 py-2 bg-primary text-white rounded-lg font-body-md text-body-md font-semibold hover:bg-surface-tint transition-colors shadow-sm">Save Contact</button>
+</div>
+</div>
+<!-- Contact Cards Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 hover:border-outline transition-colors group relative shadow-sm">
+<div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-md transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant font-headline-md text-headline-md shrink-0">
+                                    MV
+                                </div>
+<div>
+<h4 class="font-headline-md text-headline-md text-on-background leading-snug group-hover:text-primary transition-colors cursor-pointer">Marcus Vance</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Owner</p>
+<div class="space-y-1.5">
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">call</span> (555) 019-2834
+                                        </div>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">mail</span> m.vance@apexsupplies.com
+                                        </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 hover:border-outline transition-colors group relative shadow-sm">
+<div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-md transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+<div class="flex items-start gap-4">
+<img alt="Sarah Jenkins Avatar" class="w-12 h-12 rounded-full object-cover shrink-0" data-alt="A small headshot portrait of a professional woman in her 30s. She is smiling subtly, wearing smart business casual attire. The background is a soft, blurred office environment with warm, light-mode lighting. High quality corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCknLlZbo9mwGFSaaJUiDwpHa3sfHWRXiHn0ByyEJIA2g5wWQYfSStegg7AdAUsedQMOhqembLLp3ZVeHiaiJvhBsud563dXVBk8qvMZG_Ijr33PoTHH0ZbfyY1NzhqDpBu6PEjJphXC3EimgB3jxK8RQJvdqFe5z7FKTchR5yCt6-Smk36O97m2xx0OLL50hBuP3n-yVR2V953VY3xqK18xEIhW9lgSNJ1Y2JZPdYJixAEVXnNqVYE"/>
+<div>
+<h4 class="font-headline-md text-headline-md text-on-background leading-snug group-hover:text-primary transition-colors cursor-pointer">Sarah Jenkins</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Sales Manager</p>
+<div class="space-y-1.5">
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">call</span> (555) 832-1102
+                                        </div>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">mail</span> s.jenkins@apexsupplies.com
+                                        </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 hover:border-outline transition-colors group relative shadow-sm">
+<div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-md transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant font-headline-md text-headline-md shrink-0">
+                                    DC
+                                </div>
+<div>
+<h4 class="font-headline-md text-headline-md text-on-background leading-snug group-hover:text-primary transition-colors cursor-pointer">David Chen</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Logistics Coordinator</p>
+<div class="space-y-1.5">
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">call</span> (555) 443-9821
+                                        </div>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]">mail</span> logistics@apexsupplies.com
+                                        </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Secondary Column (Files & Activity Preview) -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Files Preview -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+<div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h3 class="font-headline-md text-headline-md text-on-background flex items-center gap-2"><span class="material-symbols-outlined text-primary">folder</span> Recent Files</h3>
+<a class="font-label-caps text-label-caps text-primary hover:underline" href="#">VIEW ALL</a>
+</div>
+<div class="p-5 flex-1 flex flex-col gap-4">
+<!-- Upload Zone -->
+<div class="border-2 border-dashed border-outline-variant hover:border-primary/50 rounded-lg p-6 flex flex-col items-center justify-center text-center bg-surface-container transition-colors cursor-pointer group">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">upload_file</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-background font-semibold mb-1">Click to upload or drag &amp; drop</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-xs">PDF, JPG, PNG, XLS — max 10MB</p>
+</div>
+<!-- File List Mini Table -->
+<div class="space-y-3 mt-2">
+<!-- File 1 -->
+<div class="flex items-center justify-between p-3 border border-outline-variant/50 rounded-lg bg-white hover:bg-surface-variant/30 transition-colors group">
+<div class="flex items-center gap-3 overflow-hidden">
+<span class="material-symbols-outlined text-error text-[28px]">picture_as_pdf</span>
+<div class="truncate">
+<p class="font-body-sm text-body-sm font-semibold text-on-background truncate">2024 Product Brochure.pdf</p>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container-highest text-on-surface-variant uppercase tracking-wider">Brochure</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant text-xs">2.4 MB</span>
+</div>
+</div>
+</div>
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors opacity-0 group-hover:opacity-100"><span class="material-symbols-outlined text-sm">download</span></button>
+</div>
+<!-- File 2 -->
+<div class="flex items-center justify-between p-3 border border-outline-variant/50 rounded-lg bg-white hover:bg-surface-variant/30 transition-colors group">
+<div class="flex items-center gap-3 overflow-hidden">
+<span class="material-symbols-outlined text-green-600 text-[28px]">table_view</span>
+<div class="truncate">
+<p class="font-body-sm text-body-sm font-semibold text-on-background truncate">Paper Rate Card Q3.xlsx</p>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container-highest text-on-surface-variant uppercase tracking-wider">Rate Card</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant text-xs">1.1 MB</span>
+</div>
+</div>
+</div>
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors opacity-0 group-hover:opacity-100"><span class="material-symbols-outlined text-sm">download</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Activity Log Preview -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+<div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h3 class="font-headline-md text-headline-md text-on-background flex items-center gap-2"><span class="material-symbols-outlined text-primary">history</span> Activity Log</h3>
+<a class="font-label-caps text-label-caps text-primary hover:underline" href="#">VIEW ALL</a>
+</div>
+<div class="p-5 relative">
+<!-- Vertical Line -->
+<div class="absolute left-[29px] top-6 bottom-6 w-px bg-outline-variant/50"></div>
+<ul class="space-y-6 relative">
+<!-- Entry 1 -->
+<li class="flex gap-4">
+<div class="w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-white mt-1.5 shrink-0 z-10"></div>
+<div>
+<p class="font-body-sm text-body-sm text-on-background leading-relaxed"><span class="font-semibold">John Doe</span> updated contact details for Marcus Vance.</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">2 hours ago</p>
+</div>
+</li>
+<!-- Entry 2 -->
+<li class="flex gap-4">
+<div class="w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-white mt-1.5 shrink-0 z-10"></div>
+<div>
+<p class="font-body-sm text-body-sm text-on-background leading-relaxed"><span class="font-semibold">Admin</span> uploaded a new file <span class="italic text-on-surface-variant">Paper Rate Card Q3.xlsx</span>.</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">1 day ago</p>
+</div>
+</li>
+<!-- Entry 3 -->
+<li class="flex gap-4">
+<div class="w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-white mt-1.5 shrink-0 z-10"></div>
+<div>
+<p class="font-body-sm text-body-sm text-on-background leading-relaxed"><span class="font-semibold">System</span> created supplier record.</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">5 days ago</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

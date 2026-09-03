@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Costing Calculator - Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-fixed": "#a2eeff",
+                      "on-error-container": "#93000a",
+                      "on-secondary": "#ffffff",
+                      "surface-variant": "#ffdad7",
+                      "on-primary-container": "#fffbff",
+                      "primary-fixed": "#ffdad8",
+                      "surface-tint": "#bf0023",
+                      "primary": "#bb0022",
+                      "secondary-fixed-dim": "#ffb3af",
+                      "tertiary-fixed-dim": "#6ed5e9",
+                      "on-tertiary-fixed-variant": "#004e5a",
+                      "secondary": "#b4262e",
+                      "on-secondary-fixed": "#410006",
+                      "tertiary-container": "#008092",
+                      "on-secondary-fixed-variant": "#91061a",
+                      "on-primary": "#ffffff",
+                      "background": "#fff8f7",
+                      "secondary-container": "#fd5c5d",
+                      "on-background": "#2a1615",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-highest": "#ffdad7",
+                      "surface-dim": "#f7d1cf",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary": "#006574",
+                      "surface-container-high": "#ffe1df",
+                      "on-tertiary-fixed": "#001f25",
+                      "on-error": "#ffffff",
+                      "surface-container": "#ffe9e7",
+                      "on-surface": "#2a1615",
+                      "primary-container": "#e9002d",
+                      "on-primary-fixed-variant": "#930018",
+                      "on-surface-variant": "#5f3e3d",
+                      "secondary-fixed": "#ffdad8",
+                      "on-tertiary-container": "#f8fdff",
+                      "primary-fixed-dim": "#ffb3af",
+                      "on-secondary-container": "#60000c",
+                      "inverse-surface": "#412b29",
+                      "outline-variant": "#e9bcb9",
+                      "surface": "#fff8f7",
+                      "inverse-on-surface": "#ffedeb",
+                      "on-primary-fixed": "#410006",
+                      "outline": "#946e6c",
+                      "surface-bright": "#fff8f7",
+                      "error": "#ba1a1a",
+                      "surface-container-low": "#fff0ef",
+                      "inverse-primary": "#ffb3af",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "16px",
+                      "stack-md": "16px",
+                      "unit": "4px",
+                      "sidebar-width": "260px",
+                      "container-padding": "24px",
+                      "stack-sm": "8px"
+              },
+              "fontFamily": {
+                      "label-caps": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-sm": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "table-data": [
+                              "Hanken Grotesk"
+                      ],
+                      "display": [
+                              "Hanken Grotesk"
+                      ]
+              },
+              "fontSize": {
+                      "label-caps": [
+                              "11px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md": [
+                              "18px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-sm": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "table-data": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+            },
+          }
+        }
+    </script>
+<style>
+        /* Custom scrollbar for high-density feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e9bcb9; /* outline-variant */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #946e6c; /* outline */
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-hidden flex h-screen">
+<!-- SideNavBar (from JSON) -->
+<nav class="w-[260px] h-screen sticky top-0 left-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline flex flex-col h-full py-stack-md hidden md:flex shrink-0 z-40">
+<!-- Header -->
+<div class="px-container-padding mb-stack-md flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary text-[20px]" data-icon="polymer">polymer</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">Ananta CRM</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">Graphics &amp; Printing</span>
+</div>
+</div>
+<!-- CTA -->
+<div class="px-container-padding mb-stack-md">
+<button class="w-full bg-primary text-on-primary py-2 px-4 rounded-lg font-body-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary-container transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                New Project
+            </button>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto px-3 space-y-1">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<!-- Clients -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="groups">groups</span>
+                Clients
+            </a>
+<!-- Companies -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="business">business</span>
+                Companies
+            </a>
+<!-- Products -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+                Products
+            </a>
+<!-- Suppliers -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="conveyor_belt">conveyor_belt</span>
+                Suppliers
+            </a>
+<!-- Projects -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="account_tree">account_tree</span>
+                Projects
+            </a>
+<!-- Quotations -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="request_quote">request_quote</span>
+                Quotations
+            </a>
+<!-- Costing (ACTIVE) -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-primary dark:text-primary-fixed border-l-4 border-primary dark:border-primary-fixed bg-surface-container-low dark:bg-surface-container-highest transition-colors duration-150 font-body-md font-semibold opacity-90 transition-opacity -ml-[12px] pl-[11px]" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+                Costing
+            </a>
+</div>
+<!-- Footer Links -->
+<div class="px-3 mt-auto pt-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors duration-150 font-body-md font-semibold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="help_center">help_center</span>
+                Support
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col min-w-0 bg-background relative">
+<!-- TopNavBar (from JSON) -->
+<header class="h-14 w-full sticky top-0 z-30 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline flex justify-between items-center px-container-padding shadow-sm shadow-black/5 shrink-0">
+<!-- Left Side / Mobile Nav Trigger & Search -->
+<div class="flex items-center gap-4 flex-1">
+<button class="md:hidden text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<div class="hidden md:flex relative w-64 items-center">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-[18px]" data-icon="search">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-1.5 pl-9 pr-3 text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Search..." type="text"/>
+</div>
+</div>
+<!-- Right Side / Actions -->
+<div class="flex items-center gap-4 shrink-0">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150">
+<span class="material-symbols-outlined text-[22px]" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150">
+<span class="material-symbols-outlined text-[22px]" data-icon="history">history</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150">
+<span class="material-symbols-outlined text-[22px]" data-icon="apps">apps</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden ml-2 cursor-pointer">
+<img alt="Administrator Profile" class="w-full h-full object-cover" data-alt="A professional headshot of an administrator in a well-lit office environment, clear lighting, neutral background, high resolution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7isHmHHw_SMnGkEiTB-p6Y0DCcgRGhQhFJnPngss-7HHeixHE60HpPrBW2-ZxmVBo0w4Oo2PL0Agg1PvdXLCvNNuwn_Je9thQ94-QRH4ZgRbc3hF2lyLyrIA34qKhpNqjpqBpAfUfSU7ynb9yCZk_gr-fbydAj07xZWZYkTHu9Jaz7ZJ9LjhulmTpUTQ6Y0KX01K48_fOSQ8LKuP2ZB7i4SkK5EqAFTCutCuV1EV7CBIBlZz1MgxQ"/>
+</div>
+</div>
+</header>
+<!-- Scrollable Main Canvas -->
+<main class="flex-1 overflow-y-auto p-container-padding flex flex-col">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-stack-md">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-background">Costing Calculator</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Create or edit project cost estimates.</p>
+</div>
+<div class="flex items-center gap-3 shrink-0">
+<button class="px-4 py-2 rounded-lg font-body-sm font-semibold bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high transition-colors duration-150">
+                        Cancel
+                    </button>
+<button class="px-4 py-2 rounded-lg font-body-sm font-semibold bg-primary text-on-primary shadow-sm hover:bg-primary-container transition-colors duration-150 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="save">save</span>
+                        Save Costing
+                    </button>
+</div>
+</div>
+<!-- Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start pb-8">
+<!-- Left Column (Form & Table) -->
+<div class="lg:col-span-8 flex flex-col gap-stack-md">
+<!-- Header Fields Card -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm shadow-black/5">
+<h2 class="font-headline-md text-headline-md text-on-background mb-4">Costing Details</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Date Picker -->
+<div class="flex flex-col gap-1">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface">Date</label>
+<div class="relative">
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-2 px-3 text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="date" value="2023-10-24"/>
+</div>
+</div>
+<!-- Project (Optional) -->
+<div class="flex flex-col gap-1">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface">Project <span class="text-on-surface-variant font-normal">(Optional)</span></label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-2 px-3 text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none">
+<option value="">Select a project...</option>
+<option value="p1">Q4 Marketing Collateral</option>
+<option value="p2">Annual Report 2023</option>
+</select>
+</div>
+<!-- Supplier Dropdown -->
+<div class="flex flex-col gap-1">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface">Supplier</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]" data-icon="search">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-2 pl-9 pr-3 text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Search supplier..." type="text"/>
+</div>
+<p class="font-label-caps text-[10px] text-on-surface-variant mt-0.5 ml-1">Type to search. "Will create new supplier" if not found.</p>
+</div>
+<!-- Client Dropdown -->
+<div class="flex flex-col gap-1">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface">Client</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]" data-icon="search">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-2 pl-9 pr-3 text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Search client..." type="text"/>
+</div>
+<p class="font-label-caps text-[10px] text-on-surface-variant mt-0.5 ml-1">Type to search. Will create new if not found.</p>
+</div>
+<!-- Description (Full Width) -->
+<div class="flex flex-col gap-1 md:col-span-2">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface">Description / Notes</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-md py-2 px-3 text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none" placeholder="Enter specific costing requirements or internal notes..." rows="2"></textarea>
+</div>
+</div>
+</section>
+<!-- Line Items Table Card -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm shadow-black/5 overflow-hidden flex flex-col">
+<div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<h2 class="font-headline-md text-headline-md text-on-background">Line Items</h2>
+<button class="text-primary font-body-sm font-semibold flex items-center gap-1 hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[16px]" data-icon="add_circle">add_circle</span>
+                                Bulk Add
+                            </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container border-b border-outline-variant">
+<th class="font-label-caps text-label-caps text-on-surface-variant py-2 px-4 whitespace-nowrap">Product / Item</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant py-2 px-4 whitespace-nowrap w-24">Qty</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant py-2 px-4 whitespace-nowrap w-32">Supplier Rate</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant py-2 px-4 whitespace-nowrap w-32">Client Rate</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant py-2 px-4 whitespace-nowrap text-right w-32">Profit</th>
+<th class="py-2 px-2 w-10"></th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data text-on-surface">
+<!-- Row 1 -->
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors group">
+<td class="py-2 px-4">
+<div class="relative">
+<input class="w-full bg-transparent border border-transparent rounded px-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="Premium Matte Brochures A4"/>
+</div>
+</td>
+<td class="py-2 px-4">
+<input class="w-full bg-transparent border border-transparent rounded px-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="number" value="1500"/>
+</td>
+<td class="py-2 px-4">
+<div class="relative flex items-center">
+<span class="absolute left-2 text-on-surface-variant">$</span>
+<input class="w-full bg-transparent border border-transparent rounded pl-5 pr-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="0.45"/>
+</div>
+</td>
+<td class="py-2 px-4">
+<div class="relative flex items-center">
+<span class="absolute left-2 text-on-surface-variant">$</span>
+<input class="w-full bg-transparent border border-transparent rounded pl-5 pr-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="0.85"/>
+</div>
+</td>
+<td class="py-2 px-4 text-right">
+<span class="font-semibold text-tertiary">$600.00</span>
+</td>
+<td class="py-2 px-2 text-center">
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-error transition-all duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors group">
+<td class="py-2 px-4">
+<div class="relative">
+<input class="w-full bg-transparent border border-transparent rounded px-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="Custom Die-Cut Folders"/>
+</div>
+</td>
+<td class="py-2 px-4">
+<input class="w-full bg-transparent border border-transparent rounded px-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="number" value="500"/>
+</td>
+<td class="py-2 px-4">
+<div class="relative flex items-center">
+<span class="absolute left-2 text-on-surface-variant">$</span>
+<input class="w-full bg-transparent border border-transparent rounded pl-5 pr-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="1.20"/>
+</div>
+</td>
+<td class="py-2 px-4">
+<div class="relative flex items-center">
+<span class="absolute left-2 text-on-surface-variant">$</span>
+<input class="w-full bg-transparent border border-transparent rounded pl-5 pr-2 py-1.5 focus:bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="2.50"/>
+</div>
+</td>
+<td class="py-2 px-4 text-right">
+<span class="font-semibold text-tertiary">$650.00</span>
+</td>
+<td class="py-2 px-2 text-center">
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-error transition-all duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 bg-surface-container-lowest">
+<button class="text-primary font-body-sm font-semibold flex items-center gap-1 hover:text-primary-container transition-colors py-1 px-2 rounded hover:bg-surface-container">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                                Add Line
+                            </button>
+</div>
+</section>
+</div>
+<!-- Right Column (Summary Sticky Sidebar) -->
+<div class="lg:col-span-4 lg:sticky lg:top-18">
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm shadow-black/5 overflow-hidden">
+<div class="p-5 border-b border-outline-variant bg-surface-container-low">
+<h2 class="font-headline-md text-headline-md text-on-background flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="monitoring">monitoring</span>
+                                Summary
+                            </h2>
+</div>
+<div class="p-5 flex flex-col gap-6">
+<!-- Supplier Cost -->
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Total Supplier Cost</span>
+<div class="font-display text-display text-on-background">$1,275.00</div>
+</div>
+<hr class="border-outline-variant/50"/>
+<!-- Client Revenue -->
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Total Client Revenue</span>
+<div class="font-display text-display text-on-background">$2,525.00</div>
+</div>
+<hr class="border-outline-variant/50"/>
+<!-- Profit Block (Highlighted per style guide: Tertiary for operational success) -->
+<div class="flex flex-col bg-surface-container rounded-lg p-4 border border-outline-variant">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Estimated Profit</span>
+<div class="flex items-baseline gap-3">
+<div class="font-display text-display text-tertiary font-bold">$1,250.00</div>
+</div>
+<div class="mt-2 inline-flex items-center gap-1 bg-tertiary-container/20 text-tertiary px-2 py-1 rounded text-label-caps font-bold w-max border border-tertiary/20">
+<span class="material-symbols-outlined text-[14px]" data-icon="trending_up">trending_up</span>
+                                    49.5% Margin
+                                </div>
+</div>
+</div>
+<!-- Action Area in Summary -->
+<div class="p-5 bg-surface-container-low border-t border-outline-variant">
+<button class="w-full bg-primary text-on-primary py-3 px-4 rounded-lg font-body-md font-semibold flex items-center justify-center gap-2 hover:bg-primary-container shadow-sm transition-colors duration-150">
+                                Generate Quote
+                                <span class="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>

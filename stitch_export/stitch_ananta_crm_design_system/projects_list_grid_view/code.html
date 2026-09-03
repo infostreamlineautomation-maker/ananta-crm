@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ananta CRM - Projects</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Hanken Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Config Injection -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#ffdad7",
+                        "surface-tint": "#bf0023",
+                        "inverse-on-surface": "#ffedeb",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#ffdad7",
+                        "surface-container-high": "#ffe1df",
+                        "secondary": "#b4262e",
+                        "outline": "#946e6c",
+                        "secondary-fixed": "#ffdad8",
+                        "tertiary": "#006574",
+                        "surface-container-low": "#fff0ef",
+                        "surface-bright": "#fff8f7",
+                        "on-error-container": "#93000a",
+                        "primary-container": "#e9002d",
+                        "error": "#ba1a1a",
+                        "primary": "#bb0022",
+                        "background": "#fff8f7",
+                        "inverse-surface": "#412b29",
+                        "on-tertiary-container": "#f8fdff",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "surface": "#fff8f7",
+                        "on-primary-container": "#fffbff",
+                        "on-primary-fixed": "#410006",
+                        "on-surface-variant": "#5f3e3d",
+                        "primary-fixed-dim": "#ffb3af",
+                        "on-secondary-fixed": "#410006",
+                        "on-secondary": "#ffffff",
+                        "secondary-container": "#fd5c5d",
+                        "primary-fixed": "#ffdad8",
+                        "on-surface": "#2a1615",
+                        "on-background": "#2a1615",
+                        "tertiary-container": "#008092",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#ffe9e7",
+                        "surface-dim": "#f7d1cf",
+                        "outline-variant": "#e9bcb9",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#60000c",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "inverse-primary": "#ffb3af",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "on-primary-fixed-variant": "#930018",
+                        "tertiary-fixed": "#a2eeff",
+                        "on-tertiary-fixed": "#001f25",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "gutter": "16px",
+                        "unit": "4px",
+                        "stack-md": "16px",
+                        "container-padding": "24px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Hanken Grotesk', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen antialiased flex">
+<!-- SideNavBar (Shared Component) -->
+<nav class="hidden md:flex bg-surface dark:bg-surface-container-low fixed left-0 top-0 h-full w-[260px] border-r border-outline-variant dark:border-outline flex-col py-gutter z-20">
+<!-- Brand Header -->
+<div class="px-6 pb-6 border-b border-outline-variant mb-4">
+<h1 class="font-display text-display text-primary dark:text-primary-fixed-dim tracking-tight">Ananta CRM</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Admin Console</p>
+</div>
+<!-- Navigation Links -->
+<ul class="flex-1 space-y-1 px-2 font-body-md text-body-md overflow-y-auto">
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span> Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="person">person</span> Clients</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="domain">domain</span> Companies</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span> Products</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="factory">factory</span> Suppliers</a></li>
+<!-- Active State -->
+<li><a class="flex items-center gap-3 px-4 py-2 text-primary dark:text-primary-fixed-dim border-l-[3px] border-primary font-bold bg-surface-container-low dark:bg-surface-container-high rounded-r-full opacity-90 transition-opacity duration-150" href="#"><span class="material-symbols-outlined fill" data-icon="assignment">assignment</span> Projects</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="request_quote">request_quote</span> Quotations</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="payments">payments</span> Costing</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="assessment">assessment</span> Reports</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="group">group</span> Users</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface hover:bg-surface-variant/50 transition-colors rounded-r-full" href="#"><span class="material-symbols-outlined" data-icon="settings">settings</span> Settings</a></li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-[260px] min-h-screen flex flex-col relative">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-surface-bright dark:bg-surface-container-lowest fixed top-0 right-0 left-0 md:left-[260px] h-16 border-b border-outline-variant dark:border-outline flex justify-between items-center px-gutter w-auto md:w-[calc(100%-260px)] z-10">
+<!-- Mobile Menu Toggle & Title -->
+<div class="flex items-center gap-4">
+<button class="md:hidden text-on-surface hover:text-primary transition-colors focus:ring-2 focus:ring-primary/20 outline-none rounded p-1">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary dark:text-primary-fixed-dim md:hidden">Ananta CRM</h2>
+</div>
+<!-- Global Search (Left aligned in desktop context per JSON, though UI often puts it center/right. Following JSON 'search_bar: on_left' implicitly by grouping with left if possible, or keeping it central/leftish) -->
+<div class="hidden md:flex flex-1 max-w-md mx-4 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-9 pr-4 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-shadow" placeholder="Search across CRM..." type="text"/>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-2 text-on-surface-variant">
+<button aria-label="Notifications" class="p-2 hover:bg-surface-container-high dark:hover:bg-surface-container-highest rounded-lg transition-all focus:ring-2 focus:ring-primary/20 outline-none hover:text-primary">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button aria-label="Help" class="p-2 hover:bg-surface-container-high dark:hover:bg-surface-container-highest rounded-lg transition-all focus:ring-2 focus:ring-primary/20 outline-none hover:text-primary hidden sm:block">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button aria-label="Apps" class="p-2 hover:bg-surface-container-high dark:hover:bg-surface-container-highest rounded-lg transition-all focus:ring-2 focus:ring-primary/20 outline-none hover:text-primary hidden sm:block">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<div class="ml-2 w-8 h-8 rounded-full bg-surface-variant border border-outline-variant overflow-hidden cursor-pointer">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Professional corporate headshot of a female executive in a modern bright office setting. She is smiling slightly, wearing a dark blazer over a crisp white shirt. The lighting is soft and natural, casting gentle shadows. The background is slightly blurred showing glass panels and green plants, contributing to a clean, authoritative, yet approachable corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfpECsgZDcINJ2fvNSn7cUms1aySLFnTj1RBD9q_8SxjwMIVv86RjpwCSETfjK6sJImJnPEK5VjUyDhTFP90WwpA1YNNapZx3t_9iSii2jDzzkX7hH1vE2aTmQCl8VljQplWyTx4MlMQ_8kPYUnYXmMRZhHrPC0wP6UFKO6eGwqNMMRumzLhq5t0VnLjXqzAkJfNeOmKtC8cXIuk1mhfMWb5t1Gr2puhTCMTsTXXHULyminQQogyOy"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 mt-16 p-container-padding bg-background">
+<!-- Header Section -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background">Projects</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Manage active printing jobs and graphic campaigns.</p>
+</div>
+<button class="bg-[#F80031] hover:bg-[#D6002A] text-white px-4 py-2.5 rounded-lg font-body-md text-body-md font-semibold flex items-center gap-2 transition-colors focus:ring-2 focus:ring-primary/30 outline-none shadow-sm whitespace-nowrap">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    New Project
+                </button>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface border border-outline-variant rounded-lg p-3 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
+<div class="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+<!-- Project Search -->
+<div class="relative w-full md:w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full bg-surface-bright border border-outline-variant rounded-md py-1.5 pl-9 pr-3 font-body-sm text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Search projects..." type="text"/>
+</div>
+<!-- Status Filter -->
+<div class="relative w-full md:w-48">
+<select class="w-full bg-surface-bright border border-outline-variant rounded-md py-1.5 pl-3 pr-8 font-body-sm text-body-sm text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+<option value="">All Statuses</option>
+<option value="active">Active</option>
+<option value="on_hold">On Hold</option>
+<option value="completed">Completed</option>
+<option value="cancelled">Cancelled</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+<div class="flex items-center gap-2 self-end md:self-auto text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[18px] cursor-pointer hover:text-primary transition-colors">grid_view</span>
+<span class="material-symbols-outlined text-[18px] cursor-pointer hover:text-primary transition-colors">view_list</span>
+</div>
+</div>
+<!-- Project Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1: Active -->
+<div class="bg-surface rounded-lg border border-outline-variant p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#10b981] group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2">Rebranding Collateral Q3</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Acme Corp</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#d1fae5] text-[#065f46] whitespace-nowrap">
+                            Active
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2">
+<div class="flex -space-x-2 overflow-hidden mb-3">
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-surface bg-surface-variant flex items-center justify-center text-[10px] font-bold text-on-surface-variant">JD</div>
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-surface bg-secondary-container flex items-center justify-center text-[10px] font-bold text-on-secondary-container">AS</div>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mb-1">
+<div class="bg-[#10b981] h-1.5 rounded-full" style="width: 65%"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant text-right">65% Complete</p>
+</div>
+<div class="mt-auto pt-4 border-t border-surface-variant pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            3 Orders · 2 Quotations · <span class="font-semibold text-on-surface">₹48,200</span>
+</p>
+</div>
+</div>
+<!-- Card 2: On Hold -->
+<div class="bg-surface rounded-lg border border-outline-variant p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#6b7280] group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2">Annual Report Print Run</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Global Finance Ltd.</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#f3f4f6] text-[#374151] whitespace-nowrap">
+                            On Hold
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant italic mb-3">Awaiting final artwork approval from client.</p>
+</div>
+<div class="mt-auto pt-4 border-t border-surface-variant pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            1 Order · 1 Quotation · <span class="font-semibold text-on-surface">₹12,500</span>
+</p>
+</div>
+</div>
+<!-- Card 3: Completed -->
+<div class="bg-surface rounded-lg border border-outline-variant p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#3b82f6] group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2">Summer Event Signage</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">City Municipality</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#dbeafe] text-[#1e40af] whitespace-nowrap">
+                            Completed
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2 flex items-center justify-center">
+<div class="text-center">
+<span class="material-symbols-outlined text-[32px] text-[#3b82f6] mb-1">check_circle</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Delivered Aug 12</p>
+</div>
+</div>
+<div class="mt-auto pt-4 border-t border-surface-variant pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            5 Orders · 3 Quotations · <span class="font-semibold text-on-surface">₹1,15,000</span>
+</p>
+</div>
+</div>
+<!-- Card 4: Cancelled -->
+<div class="bg-surface rounded-lg border border-error-container p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden opacity-80 hover:opacity-100">
+<div class="absolute top-0 left-0 w-1 h-full bg-error group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2 line-through text-on-surface-variant">Expo Booth Graphics</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">TechStart Inc.</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-transparent border border-error text-error whitespace-nowrap">
+                            Cancelled
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant italic mb-3 text-error/80">Project cancelled by client due to budget cuts.</p>
+</div>
+<div class="mt-auto pt-4 border-t border-error-container pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            0 Orders · 1 Quotation · <span class="font-semibold text-on-surface">₹0</span>
+</p>
+</div>
+</div>
+<!-- Card 5: Active -->
+<div class="bg-surface rounded-lg border border-outline-variant p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#10b981] group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2">Packaging Redesign V2</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Organic Foods Co.</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#d1fae5] text-[#065f46] whitespace-nowrap">
+                            Active
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2">
+<div class="flex -space-x-2 overflow-hidden mb-3">
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-surface bg-primary-container flex items-center justify-center text-[10px] font-bold text-on-primary-container">MR</div>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mb-1">
+<div class="bg-[#10b981] h-1.5 rounded-full" style="width: 20%"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant text-right">20% Complete</p>
+</div>
+<div class="mt-auto pt-4 border-t border-surface-variant pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            2 Orders · 4 Quotations · <span class="font-semibold text-on-surface">₹85,000</span>
+</p>
+</div>
+</div>
+<!-- Card 6: Active -->
+<div class="bg-surface rounded-lg border border-outline-variant p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#10b981] group-hover:w-1.5 transition-all"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface truncate pr-2">Storefront Vinyl Wrap</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Downtown Cafe</p>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#d1fae5] text-[#065f46] whitespace-nowrap">
+                            Active
+                        </span>
+</div>
+<div class="flex-1 mt-2 mb-4 pl-2">
+<div class="w-full bg-surface-variant rounded-full h-1.5 mb-1 mt-6">
+<div class="bg-[#10b981] h-1.5 rounded-full" style="width: 90%"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant text-right">90% Complete - Final Review</p>
+</div>
+<div class="mt-auto pt-4 border-t border-surface-variant pl-2">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            1 Order · 1 Quotation · <span class="font-semibold text-on-surface">₹22,400</span>
+</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

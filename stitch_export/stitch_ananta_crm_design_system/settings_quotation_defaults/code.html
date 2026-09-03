@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintCRM Pro - Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "surface-container-high": "#ffe1df",
+                            "on-secondary-fixed": "#410006",
+                            "error-container": "#ffdad6",
+                            "surface-container-low": "#fff0ef",
+                            "on-tertiary-container": "#f8fdff",
+                            "primary-container": "#e9002d",
+                            "on-surface": "#2a1615",
+                            "on-error": "#ffffff",
+                            "secondary-container": "#fd5c5d",
+                            "background": "#fff8f7",
+                            "tertiary-fixed": "#a2eeff",
+                            "outline": "#946e6c",
+                            "secondary-fixed-dim": "#ffb3af",
+                            "tertiary": "#006574",
+                            "surface-tint": "#bf0023",
+                            "on-surface-variant": "#5f3e3d",
+                            "on-secondary-fixed-variant": "#91061a",
+                            "surface-container-highest": "#ffdad7",
+                            "secondary": "#b4262e",
+                            "error": "#ba1a1a",
+                            "surface-dim": "#f7d1cf",
+                            "inverse-surface": "#412b29",
+                            "surface-container": "#ffe9e7",
+                            "surface-container-lowest": "#ffffff",
+                            "on-primary-container": "#fffbff",
+                            "secondary-fixed": "#ffdad8",
+                            "on-primary": "#ffffff",
+                            "primary": "#bb0022",
+                            "surface-variant": "#ffdad7",
+                            "primary-fixed-dim": "#ffb3af",
+                            "on-tertiary-fixed-variant": "#004e5a",
+                            "on-secondary-container": "#60000c",
+                            "on-primary-fixed-variant": "#930018",
+                            "inverse-primary": "#ffb3af",
+                            "on-tertiary": "#ffffff",
+                            "on-secondary": "#ffffff",
+                            "on-error-container": "#93000a",
+                            "primary-fixed": "#ffdad8",
+                            "outline-variant": "#e9bcb9",
+                            "tertiary-container": "#008092",
+                            "surface": "#fff8f7",
+                            "on-background": "#2a1615",
+                            "on-primary-fixed": "#410006",
+                            "tertiary-fixed-dim": "#6ed5e9",
+                            "on-tertiary-fixed": "#001f25",
+                            "inverse-on-surface": "#ffedeb",
+                            "surface-bright": "#fff8f7"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.25rem",
+                            "lg": "0.5rem",
+                            "xl": "0.75rem",
+                            "full": "9999px"
+                    },
+                    "spacing": {
+                            "gutter": "16px",
+                            "unit": "4px",
+                            "sidebar-width": "260px",
+                            "stack-md": "16px",
+                            "stack-sm": "8px",
+                            "container-padding": "24px"
+                    },
+                    "fontFamily": {
+                            "table-data": ["Hanken Grotesk"],
+                            "label-caps": ["Hanken Grotesk"],
+                            "body-md": ["Hanken Grotesk"],
+                            "body-lg": ["Hanken Grotesk"],
+                            "headline-lg": ["Hanken Grotesk"],
+                            "display": ["Hanken Grotesk"],
+                            "body-sm": ["Hanken Grotesk"],
+                            "headline-md": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                            "table-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                            "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                            "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                            "display": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                            "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                            "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md overflow-x-hidden min-h-screen antialiased">
+<!-- TopNavBar -->
+<nav class="hidden md:flex justify-between items-center px-container-padding fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-surface dark:bg-surface-dim text-primary dark:text-primary-fixed border-b border-outline-variant dark:border-outline z-50">
+<!-- Brand Logo (Hidden per JSON) -->
+<div class="hidden">PrintCRM</div>
+<!-- Search Bar (on_left) -->
+<div class="flex-1 flex items-center max-w-md">
+<div class="relative w-full focus-within:ring-2 focus-within:ring-primary/20 rounded-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-0 transition-colors" placeholder="Search..." type="text"/>
+</div>
+</div>
+<!-- Trailing Icon Actions & Profile -->
+<div class="flex items-center gap-stack-sm">
+<button class="text-on-surface-variant hover:bg-surface-container-highest rounded-full p-2 transition-all">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container-highest rounded-full p-2 transition-all">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden ml-2 border border-outline-variant cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a corporate user with a neutral, confident expression. Soft, studio lighting against a light grey background to match the crisp, light-mode interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbSf7Am-MdS-G6W4zGDfEe7sLos8Ghi6ibkT7vqdTU1eI5mYNPVtdFVyDrmHKxSeEkUUDzyEMG8dRI623gllbveRtASZ1vGFCJ7EuafYSwTODcLyshXch42POt0fyDmtv7I5RnN0sRhsLo_LJcH4e1mlOlJ3UOdPE2qdp0O3KdJBfa2W2xytmCIN13qu8WAXVWUFQlV1WkZWTT9YX17CpVbZNhCyZXtl0MbsnW-L7TK0NM3NL1FvtF"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col gap-unit fixed left-0 top-0 h-screen w-sidebar-width bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-outline z-50">
+<!-- Header -->
+<div class="p-container-padding pb-6 border-b border-outline-variant/30 flex items-center gap-3">
+<div class="h-10 w-10 rounded bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container" data-weight="fill">print</span>
+</div>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-primary dark:text-primary-fixed leading-tight">PrintCRM Pro</h1>
+<p class="text-label-caps font-label-caps text-on-surface-variant uppercase tracking-wider">Industrial Edition</p>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex-1 overflow-y-auto py-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-body-md text-body-md">Clients</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="domain">domain</span>
+<span class="font-body-md text-body-md">Companies</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-body-md text-body-md">Products</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="conveyor_belt">conveyor_belt</span>
+<span class="font-body-md text-body-md">Suppliers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-body-md text-body-md">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="request_quote">request_quote</span>
+<span class="font-body-md text-body-md">Quotations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md">Costing</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md text-body-md">Users</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="admin_panel_settings">admin_panel_settings</span>
+<span class="font-body-md text-body-md">Roles</span>
+</a>
+<!-- Active Tab -->
+<a class="relative flex items-center gap-3 px-4 py-2 text-primary font-bold before:absolute before:left-0 before:h-full before:w-[3px] before:bg-primary bg-surface-container-low transition-colors duration-200 cursor-pointer active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-sidebar-width pt-16 min-h-screen bg-background">
+<div class="p-container-padding max-w-7xl mx-auto flex flex-col md:flex-row gap-gutter h-[calc(100vh-64px)] overflow-hidden">
+<!-- Left Side: Settings Sub-Navigation (Vertical Tabs) -->
+<div class="w-full md:w-64 shrink-0 bg-surface rounded-lg border border-outline-variant flex flex-col h-full overflow-hidden">
+<div class="p-4 border-b border-outline-variant bg-surface-container-lowest">
+<h2 class="text-headline-md font-headline-md text-on-surface">Configuration</h2>
+</div>
+<div class="flex-1 overflow-y-auto py-2">
+<button class="w-full text-left flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors border-l-4 border-transparent">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+<span class="font-body-md text-body-md">General</span>
+</button>
+<button class="w-full text-left flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-colors border-l-4 border-transparent">
+<span class="material-symbols-outlined text-[20px]">business</span>
+<span class="font-body-md text-body-md">Company Info</span>
+</button>
+<!-- Active Sub-Tab -->
+<button class="w-full text-left flex items-center gap-3 px-4 py-3 text-primary font-bold bg-surface-container-highest border-l-4 border-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="font-body-md text-body-md">Quotation Defaults</span>
+</button>
+</div>
+</div>
+<!-- Right Side: Main Panel Content -->
+<div class="flex-1 bg-surface rounded-lg border border-outline-variant flex flex-col h-full overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
+<!-- Panel Header -->
+<div class="p-6 border-b border-outline-variant bg-surface-container-lowest shrink-0">
+<h2 class="text-headline-lg font-headline-lg text-on-surface">Quotation Defaults</h2>
+<p class="text-body-md font-body-md text-on-surface-variant mt-1">Configure standard text, styling, and signature defaults for newly generated quotes.</p>
+</div>
+<!-- Scrollable Form Area -->
+<div class="flex-1 overflow-y-auto p-6">
+<form class="space-y-6 max-w-4xl">
+<!-- Prefix Field -->
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Quotation Number Prefix</label>
+<input class="w-full max-w-xs bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" placeholder="QT-" type="text" value="QT-"/>
+</div>
+<!-- Textareas Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Intro Text</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-y" rows="4">Thank you for considering PrintCRM Pro for your industrial printing needs. Please review the following estimate based on our recent discussion.</textarea>
+</div>
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Terms Text</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-y" rows="4">1. Valid for 30 days from date of issue.
+2. 50% advance payment required to initiate production.
+3. Final delivery timeline subject to artwork approval.</textarea>
+</div>
+</div>
+<hr class="border-outline-variant/50"/>
+<!-- Signature Details Row -->
+<div>
+<h3 class="text-headline-md font-headline-md text-on-surface mb-4">Authorized Signatory</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Signature Name</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" placeholder="e.g. Jane Doe" type="text" value="Alexander Wright"/>
+</div>
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Designation</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" placeholder="e.g. Sales Director" type="text" value="VP of Operations"/>
+</div>
+<div>
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface mb-2">Contact Person</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-[8px] px-3 py-2 text-body-md font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" placeholder="Contact number or email" type="text" value="+1 (555) 019-2834"/>
+</div>
+</div>
+</div>
+<!-- Drag and Drop Uploads -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+<!-- Background Image -->
+<div class="space-y-2">
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface">Background Image (Letterhead)</label>
+<div class="border-2 border-dashed border-outline-variant rounded-lg p-6 flex flex-col items-center justify-center text-center bg-surface-container-lowest hover:bg-surface-container-low transition-colors cursor-pointer group">
+<div class="h-20 w-16 bg-surface border border-outline shadow-sm mb-3 relative overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+<img alt="Letterhead preview thumbnail" class="w-full h-full object-cover opacity-80" data-alt="A clean, minimalist corporate letterhead design template featuring subtle geometric patterns in light grey and faint red accents along the borders, viewed flat." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1oIyQh9papJzD1JtTtN-KY6ct1kjC5LC1yMkAiVmlR21TIoccHcjtw8Bt1iciX-UNGKXOiUKo8aPUvX79z-QHydAJ8n0v2YpyQNQJ58odY-21K3bprS-qyJyUdoHelLSM26m5fvXBJiZ14JYiszbj3KXZ8JO4zcc2GJhZG_fKa-rDuSokSvwBTTohJMZ5TRPkXVWfKa7XOyMZvKKF_l6Pvd_cFIhLyPPNjBusr-ggcTlklBr3rFjK"/>
+</div>
+<span class="material-symbols-outlined text-primary mb-2">upload_file</span>
+<p class="font-body-sm text-body-sm text-on-surface font-semibold">Click or drag file to upload</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">A4 PORTRAIT • PDF OR JPG</p>
+</div>
+</div>
+<!-- Signature Image -->
+<div class="space-y-2">
+<label class="block font-body-sm text-body-sm font-semibold text-on-surface">Signature Image</label>
+<div class="border-2 border-dashed border-outline-variant rounded-lg p-6 flex flex-col items-center justify-center text-center bg-surface-container-lowest hover:bg-surface-container-low transition-colors cursor-pointer group h-[196px]">
+<div class="h-12 w-32 bg-transparent mb-3 relative flex items-center justify-center group-hover:scale-105 transition-transform">
+<img alt="Signature preview" class="w-full h-full object-contain" data-alt="A highly legible, stylized digital signature in dark ink on a transparent background, conveying professional authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAICBlIozV4OgvBRhjdTC-AHr5hx-5npN9NUPUdCnFNdQYyA4k8XbWtpB1FQrZsWtOKbZWSGM606sjeP6-8SFBq6LFNRe6P0ny_51xC9qjmwfcgImdeUpxJab1mck8ZElGzrZD6glqylA0rl0F81Nou1w0HqUDY5XYOu0e7uU--OxoPGP6AoiXpNv1dMCNaC18FcRZOduFJjod7MdJdci2E7vFkeV2UnsZRK9uNUAqjs0-t_itc7x5C"/>
+</div>
+<span class="material-symbols-outlined text-primary mb-2">draw</span>
+<p class="font-body-sm text-body-sm text-on-surface font-semibold">Upload signature scan</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">TRANSPARENT PNG RECOMMENDED</p>
+</div>
+</div>
+</div>
+</form>
+</div>
+<!-- Panel Footer (Sticky Actions) -->
+<div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0 flex justify-end gap-3">
+<button class="px-4 py-2 rounded-[8px] bg-white border border-outline-variant text-on-surface font-body-md text-body-md font-semibold hover:bg-surface-container-low transition-colors" type="button">
+                        Cancel
+                    </button>
+<button class="px-6 py-2 rounded-[8px] bg-[#F80031] text-white font-body-md text-body-md font-semibold hover:bg-[#D64044] transition-colors shadow-sm active:scale-95" type="button">
+                        Save Settings
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

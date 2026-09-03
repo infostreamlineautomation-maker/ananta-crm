@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quotation Preview - Ananta CRM</title>
+<!-- Google Fonts: Hanken Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#930018",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#2a1615",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#ffedeb",
+                        "surface-container-low": "#fff0ef",
+                        "on-tertiary-container": "#f8fdff",
+                        "secondary": "#b4262e",
+                        "tertiary-fixed": "#a2eeff",
+                        "tertiary-container": "#008092",
+                        "surface": "#fff8f7",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "outline-variant": "#e9bcb9",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "on-secondary-fixed": "#410006",
+                        "surface-container": "#ffe9e7",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "surface-container-high": "#ffe1df",
+                        "primary": "#bb0022",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#410006",
+                        "primary-fixed-dim": "#ffb3af",
+                        "surface-bright": "#fff8f7",
+                        "on-surface-variant": "#5f3e3d",
+                        "tertiary": "#006574",
+                        "secondary-container": "#fd5c5d",
+                        "primary-container": "#e9002d",
+                        "surface-dim": "#f7d1cf",
+                        "surface-variant": "#ffdad7",
+                        "surface-container-highest": "#ffdad7",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-background": "#2a1615",
+                        "on-tertiary-fixed": "#001f25",
+                        "on-primary-container": "#fffbff",
+                        "surface-tint": "#bf0023",
+                        "on-secondary-container": "#60000c",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#ffdad8",
+                        "inverse-surface": "#412b29",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#ffdad8",
+                        "background": "#fff8f7",
+                        "inverse-primary": "#ffb3af",
+                        "outline": "#946e6c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "unit": "4px",
+                        "container-padding": "24px",
+                        "gutter": "16px",
+                        "stack-sm": "8px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "display": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Base application styles */
+        body {
+            background-color: theme('colors.surface-dim');
+            color: theme('colors.on-surface');
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Print-specific overrides to ensure the document prints exactly as previewed */
+        @media print {
+            body {
+                background-color: white !important;
+            }
+            .print\:hidden {
+                display: none !important;
+            }
+            .print\:shadow-none {
+                box-shadow: none !important;
+            }
+            .print\:p-0 {
+                padding: 0 !important;
+            }
+            .print\:m-0 {
+                margin: 0 !important;
+            }
+            .print\:w-full {
+                width: 100% !important;
+                max-width: none !important;
+            }
+            @page {
+                margin: 1cm;
+                size: auto;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-body-md text-body-md">
+<!-- Non-Printable Toolbar -->
+<header class="print:hidden sticky top-0 z-50 bg-surface-container-lowest border-b border-outline-variant shadow-sm py-3 px-container-padding flex items-center justify-between">
+<a class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-label-caps text-label-caps group" href="#">
+<span class="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+            Back to Quotations
+        </a>
+<div class="flex items-center gap-stack-sm">
+<button class="flex items-center gap-2 px-4 py-2 rounded-md bg-surface border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors font-label-caps text-label-caps">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                Download PDF
+            </button>
+<button class="flex items-center gap-2 px-6 py-2 rounded-md bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors font-label-caps text-label-caps shadow-sm">
+<span class="material-symbols-outlined text-[18px]">shopping_cart</span>
+                Create Order from this Quotation
+            </button>
+</div>
+</header>
+<!-- Main Content Area: Grey background holding the white document -->
+<main class="flex-grow py-8 px-4 sm:px-8 print:p-0 print:m-0 flex justify-center">
+<!-- The Document (Paper) -->
+<article class="bg-surface-container-lowest w-full max-w-[850px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-sm p-10 sm:p-14 print:shadow-none print:w-full print:rounded-none">
+<!-- Document Header: Letterhead & Title -->
+<div class="flex justify-between items-start mb-8">
+<!-- Left: Logo & Company Info -->
+<div class="flex items-start gap-4">
+<img class="w-16 h-16 object-contain" data-alt="A clean, modern corporate logo for a high-end printing and graphics company. The design features geometric shapes suggesting paper layers and precision CMYK color alignment. Rendered on a pure white background in a sleek, professional SaaS style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCiePeeSPubcRFrzHTo05E_N-BLjROTxnOl0JkPgcE8Lx3iub8jaz8TjPkhRQ0YvuFaAglZCUzimcIiuIiOxo-k4G-V95YlucA0HIgH7Gfq6VY70OAwWt-oavJGzwzjc_0Ae-wOaXQ9sF3pAV1ZYkwc42ZsCRqghRJeCPsCUhgiW1up3hLkpgB0tU2kp1APFY0bnYEBpABrRulGO7KXArorHs2_IJM5IxETCE1ADAU_Ja18nazNgzEK"/>
+<div>
+<h1 class="font-headline-lg text-headline-lg text-primary mb-1">Ananta Graphics</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-tight">
+                            100 Printworks Avenue, Suite 400<br/>
+                            Tech District, NY 10011<br/>
+                            sales@anantagraphics.com | (555) 019-8472
+                        </p>
+</div>
+</div>
+<!-- Right: Document Title & Meta -->
+<div class="text-right">
+<h2 class="font-display text-display text-on-surface uppercase tracking-[0.1em] mb-3">Quotation</h2>
+<table class="w-full text-right font-body-sm text-body-sm">
+<tbody>
+<tr>
+<td class="py-0.5 text-on-surface-variant pr-3">Quotation No:</td>
+<td class="py-0.5 font-semibold text-on-surface">QT-2023-4091</td>
+</tr>
+<tr>
+<td class="py-0.5 text-on-surface-variant pr-3">Date:</td>
+<td class="py-0.5 font-semibold text-on-surface">October 26, 2023</td>
+</tr>
+<tr>
+<td class="py-0.5 text-on-surface-variant pr-3">Valid Until:</td>
+<td class="py-0.5 font-semibold text-on-surface">November 25, 2023</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Red Rule -->
+<hr class="border-t-2 border-primary mb-8"/>
+<!-- Client & Intro Section -->
+<div class="mb-10">
+<div class="mb-6">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant mb-1">Prepared For:</h3>
+<p class="font-headline-md text-headline-md text-on-surface mb-1">Horizon Technologies Inc.</p>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        Attn: Sarah Jenkins, Marketing Director<br/>
+                        742 Innovation Drive<br/>
+                        San Francisco, CA 94107
+                    </p>
+</div>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+                    Dear Sarah,<br/><br/>
+                    Thank you for requesting a quotation from Ananta Graphics. Based on our recent consultation regarding your Q4 brand refresh, we are pleased to provide the following pricing for the production and finishing of your marketing collateral. All items are specified using premium substrates to match your brand guidelines.
+                </p>
+</div>
+<!-- Items Table -->
+<table class="w-full text-left border-collapse mb-10">
+<thead>
+<tr class="bg-surface-container-low font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant">
+<th class="py-3 px-4 w-10 text-center rounded-tl-sm">#</th>
+<th class="py-3 px-4">Item Description &amp; Specifications</th>
+<th class="py-3 px-4 text-right w-24">Qty</th>
+<th class="py-3 px-4 text-right w-32">Unit Price</th>
+<th class="py-3 px-4 text-right w-32 rounded-tr-sm">Total</th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data text-on-surface">
+<tr class="border-b border-surface-variant group hover:bg-surface/50 transition-colors">
+<td class="py-4 px-4 text-center text-on-surface-variant align-top">1</td>
+<td class="py-4 px-4 align-top">
+<div class="font-semibold text-on-surface mb-1">Corporate Profile Booklets (24pp)</div>
+<div class="text-on-surface-variant text-[12px] leading-relaxed">
+                                A4 Portrait. Cover: 300gsm Silk with Soft Touch Laminate &amp; Spot UV on Logo. Inner Pages: 150gsm Silk. Binding: PUR Perfect Bound. Full Color CMYK throughout.
+                            </div>
+</td>
+<td class="py-4 px-4 text-right align-top">2,500</td>
+<td class="py-4 px-4 text-right align-top">$3.45</td>
+<td class="py-4 px-4 text-right align-top text-on-surface font-medium">$8,625.00</td>
+</tr>
+<tr class="border-b border-surface-variant group hover:bg-surface/50 transition-colors">
+<td class="py-4 px-4 text-center text-on-surface-variant align-top">2</td>
+<td class="py-4 px-4 align-top">
+<div class="font-semibold text-on-surface mb-1">Premium Presentation Folders</div>
+<div class="text-on-surface-variant text-[12px] leading-relaxed">
+                                Oversized A4 to hold inserts. 400gsm Matte Artboard. Single sided print (CMYK). Matte lamination outer. Die-cut with interlocking pocket and business card slits.
+                            </div>
+</td>
+<td class="py-4 px-4 text-right align-top">1,000</td>
+<td class="py-4 px-4 text-right align-top">$1.85</td>
+<td class="py-4 px-4 text-right align-top text-on-surface font-medium">$1,850.00</td>
+</tr>
+<tr class="border-b border-surface-variant group hover:bg-surface/50 transition-colors">
+<td class="py-4 px-4 text-center text-on-surface-variant align-top">3</td>
+<td class="py-4 px-4 align-top">
+<div class="font-semibold text-on-surface mb-1">Die-Cut Decal Sheets</div>
+<div class="text-on-surface-variant text-[12px] leading-relaxed">
+                                A5 size sheets. Premium outdoor vinyl. Kiss-cut custom shapes (up to 8 per sheet). UV resistant inks.
+                            </div>
+</td>
+<td class="py-4 px-4 text-right align-top">5,000</td>
+<td class="py-4 px-4 text-right align-top">$0.65</td>
+<td class="py-4 px-4 text-right align-top text-on-surface font-medium">$3,250.00</td>
+</tr>
+</tbody>
+<!-- Totals -->
+<tfoot>
+<tr>
+<td class="border-none" colspan="3"></td>
+<td class="py-3 px-4 text-right font-body-sm text-body-sm text-on-surface-variant pt-6 border-t border-outline-variant">Subtotal</td>
+<td class="py-3 px-4 text-right font-body-sm text-body-sm text-on-surface pt-6 border-t border-outline-variant font-semibold">$13,725.00</td>
+</tr>
+<tr>
+<td class="border-none" colspan="3"></td>
+<td class="py-3 px-4 text-right font-body-sm text-body-sm text-on-surface-variant">Tax (8.5%)</td>
+<td class="py-3 px-4 text-right font-body-sm text-body-sm text-on-surface">$1,166.63</td>
+</tr>
+<!-- Red Tinted Grand Total Row -->
+<tr>
+<td class="border-none" colspan="3"></td>
+<td class="p-0" colspan="2">
+<div class="mt-2 bg-primary/5 border border-primary/20 rounded-md p-4 flex justify-between items-center">
+<span class="font-headline-md text-headline-md text-primary">Grand Total</span>
+<span class="font-headline-lg text-headline-lg text-primary font-bold">$14,891.63</span>
+</div>
+</td>
+</tr>
+</tfoot>
+</table>
+<!-- Notes Section -->
+<div class="mb-14">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant mb-3">Notes &amp; Conditions</h4>
+<ol class="list-decimal list-inside font-body-sm text-body-sm text-on-surface-variant space-y-1.5 ml-1">
+<li>Production lead time is estimated at 8-10 business days following final proof approval.</li>
+<li>Shipping costs are not included in this quotation and will be billed separately at cost.</li>
+<li>A 50% deposit is required to commence production, with the balance net 30 days upon delivery.</li>
+<li>Prices are valid for 30 days from the date of this document.</li>
+</ol>
+</div>
+<!-- Footer: Terms & Signature -->
+<div class="flex flex-col sm:flex-row justify-between items-end pt-8 border-t border-outline-variant gap-8 sm:gap-4">
+<!-- Small Print Terms -->
+<div class="w-full sm:w-[60%]">
+<p class="font-body-sm text-body-sm text-on-surface-variant text-[11px] leading-tight text-justify">
+                        By accepting this quotation and proceeding with a formal order, the client agrees to Ananta Graphics' Standard Terms and Conditions of Sale. While every effort is made to match colors precisely, industry-standard variations up to 5% are deemed acceptable. Final responsibility for typographic, layout, or specification errors on approved proofs rests solely with the client.
+                    </p>
+</div>
+<!-- Signature Block -->
+<div class="w-[200px] text-center flex-shrink-0">
+<div class="h-16 flex items-end justify-center mb-2">
+<!-- Signature Image Placeholder -->
+<img class="h-12 object-contain mix-blend-multiply opacity-80" data-alt="A stylized, sweeping digital signature written in elegant dark blue ink on a transparent background, representing official authorization on a corporate document." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNjAybMHkKkyiPeZvI6f-U_K3UYxolcclQwIiOXoNFZheJazoVwVL_hLhkq5rl8AZemxO3JhjgannsPM8PrwzKr77Hyz8TxaGN8ieu39E5RoCrVYuHcqq9ZhUj3hmXluYdIKIW8nuCDfMz8R0gKReWXLpa5JOcQ-KfKMuXvo2dymC15CvBTEMdGCYSVanL9hms_QBCS3u-BNZ6h5EoZ-uJrsm3-WNV1XGqOt--c4YBOArliWzG71Ra"/>
+</div>
+<div class="border-t border-on-surface-variant pt-2">
+<p class="font-body-md text-body-md font-semibold text-on-surface">David Chen</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-[12px]">Senior Estimator</p>
+</div>
+</div>
+</div>
+</article>
+</main>
+</body></html>

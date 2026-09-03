@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-background dark:bg-background" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Products | Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline-variant": "#e9bcb9",
+                        "tertiary": "#006574",
+                        "tertiary-fixed": "#a2eeff",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "on-tertiary-fixed": "#001f25",
+                        "on-primary-fixed-variant": "#930018",
+                        "surface-container-highest": "#ffdad7",
+                        "primary-fixed": "#ffdad8",
+                        "surface-dim": "#f7d1cf",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#fd5c5d",
+                        "primary-container": "#e9002d",
+                        "surface-container-low": "#fff0ef",
+                        "surface": "#fff8f7",
+                        "background": "#fff8f7",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#ffe1df",
+                        "outline": "#946e6c",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "secondary-fixed": "#ffdad8",
+                        "surface-tint": "#bf0023",
+                        "secondary": "#b4262e",
+                        "on-background": "#2a1615",
+                        "surface-variant": "#ffdad7",
+                        "surface-bright": "#fff8f7",
+                        "on-secondary-container": "#60000c",
+                        "on-surface-variant": "#5f3e3d",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#ffb3af",
+                        "inverse-on-surface": "#ffedeb",
+                        "on-surface": "#2a1615",
+                        "surface-container": "#ffe9e7",
+                        "on-primary-fixed": "#410006",
+                        "tertiary-container": "#008092",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#ffb3af",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#f8fdff",
+                        "on-error": "#ffffff",
+                        "primary": "#bb0022",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "inverse-surface": "#412b29",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#410006",
+                        "on-primary-container": "#fffbff",
+                        "brand-red": "#f80031",
+                        "brand-red-hover": "#d60029"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "gutter": "16px",
+                        "unit": "4px",
+                        "stack-sm": "8px",
+                        "sidebar-width": "260px",
+                        "container-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full bg-background font-body-md text-on-background antialiased flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="hidden md:flex bg-surface dark:bg-surface-container-low fixed left-0 top-0 h-full w-[260px] border-r border-outline-variant dark:border-outline flex-col h-screen py-gutter overflow-y-auto z-50">
+<!-- Brand Header -->
+<div class="px-container-padding mb-8">
+<h1 class="font-display text-display font-bold text-primary dark:text-primary-fixed">Ananta CRM</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Graphics &amp; Printing</p>
+</div>
+<!-- Main Navigation -->
+<div class="flex flex-col gap-1 px-2 flex-grow">
+<!-- Navigation Items -->
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="print">print</span>
+<span class="font-label-caps text-label-caps">Jobs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-primary dark:text-primary-fixed font-bold border-l-4 border-primary dark:border-primary-fixed bg-surface-container-high dark:bg-surface-container-highest opacity-90 transition-all rounded-r-lg" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-label-caps text-label-caps">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-label-caps text-label-caps">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-label-caps text-label-caps">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</div>
+<!-- CTA & Footer -->
+<div class="px-container-padding mt-auto pb-4">
+<button class="w-full bg-brand-red hover:bg-brand-red-hover text-on-primary font-label-caps text-label-caps py-2 px-4 rounded-lg transition-colors duration-150 mb-6 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Job Order
+            </button>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-2 py-2 text-on-surface-variant hover:text-primary transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+<a class="flex items-center gap-3 px-2 py-2 text-on-surface-variant hover:text-primary transition-colors duration-150 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="font-label-caps text-label-caps">Account</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col md:ml-[260px] w-full min-h-screen relative">
+<!-- TopNavBar -->
+<header class="hidden md:flex bg-surface dark:bg-surface-container-low docked full-width top-0 border-b border-outline-variant dark:border-outline flex items-center justify-between h-16 px-container-padding z-40 sticky">
+<!-- Search -->
+<div class="flex-1 max-w-md">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-transparent placeholder:text-on-surface-variant/70" placeholder="Search products, jobs..." type="text"/>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-4 ml-auto">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low hover:text-primary rounded-full transition-colors duration-150 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low hover:text-primary rounded-full transition-colors duration-150 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant ml-2">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKWo9Fxnqa4lMu5CMH6bW4LGjdrRbIWlShmS67dz9mkYGI2oeHPSYzaoPDpsP6YkvKVyodkgFvWawMPkwDU-PEr_DGYhdHoZu4CrQwCclOLlEeg5EUAzGBIy8ZYIWw9VYZip9ydFiRBwMRAGG7jtMZdPuJgdrWjb9rvNrYtOTU0MUsS3e89odETTGoGpj6vIM0Phb3DtBldpjpiw3OEgqNcBAeekPbfD6vastpesV-dHa6ujRb9vVd"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<main class="flex-1 overflow-y-auto p-container-padding bg-background relative z-0">
+<!-- Header section -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+<h2 class="font-headline-lg text-headline-lg text-on-background">Products</h2>
+<button class="bg-brand-red hover:bg-brand-red-hover text-on-primary font-label-caps text-label-caps px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add Product
+                </button>
+</div>
+<!-- Table Container -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+<!-- Table Header/Filter Area -->
+<div class="p-4 border-b border-outline-variant bg-surface flex items-center justify-between">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full pl-9 pr-3 py-1.5 bg-background border border-outline-variant rounded-md text-body-sm font-body-sm focus:outline-none focus:ring-1 focus:ring-primary-container" placeholder="Filter products..." type="text"/>
+</div>
+</div>
+<!-- Table -->
+<div class="flex-1 overflow-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low sticky top-0 z-10 border-b border-outline-variant shadow-sm">
+<tr>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-4 py-3 font-semibold uppercase tracking-wider w-1/3">Product Name</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-4 py-3 font-semibold uppercase tracking-wider w-1/2">Description</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-4 py-3 font-semibold uppercase tracking-wider text-right w-1/6">Actions</th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data text-on-background divide-y divide-outline-variant/50">
+<!-- Rows -->
+<tr class="hover:bg-primary-fixed/10 transition-colors group">
+<td class="px-4 py-3 font-medium">Standard Business Cards</td>
+<td class="px-4 py-3 text-on-surface-variant truncate max-w-[200px] xl:max-w-[400px]">3.5" x 2" 16pt Matte finish, double-sided color printing standard stock</td>
+<td class="px-4 py-3 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/50 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-primary-fixed/10 transition-colors group">
+<td class="px-4 py-3 font-medium">Premium Vinyl Banners</td>
+<td class="px-4 py-3 text-on-surface-variant truncate max-w-[200px] xl:max-w-[400px]">Heavy duty 13oz vinyl, hemmed edges and grommets every 2 feet for outdoor use</td>
+<td class="px-4 py-3 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/50 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-primary-fixed/10 transition-colors group">
+<td class="px-4 py-3 font-medium">A4 Flyers - Glossy</td>
+<td class="px-4 py-3 text-on-surface-variant truncate max-w-[200px] xl:max-w-[400px]">Full color 8.5" x 11" 100lb gloss text, single or double sided options available</td>
+<td class="px-4 py-3 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/50 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-primary-fixed/10 transition-colors group">
+<td class="px-4 py-3 font-medium">Custom Window Decals</td>
+<td class="px-4 py-3 text-on-surface-variant truncate max-w-[200px] xl:max-w-[400px]">Perforated window film for storefronts, 60/40 visibility ratio, full color print</td>
+<td class="px-4 py-3 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/50 rounded-md transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="p-4 border-t border-outline-variant bg-surface flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Showing 1-4 of 42 products</span>
+<div class="flex items-center gap-1">
+<button class="p-1 text-on-surface-variant hover:bg-surface-container-low rounded disabled:opacity-50"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="w-8 h-8 flex items-center justify-center font-body-sm text-body-sm rounded bg-primary text-on-primary font-medium">1</button>
+<button class="w-8 h-8 flex items-center justify-center font-body-sm text-body-sm rounded hover:bg-surface-container-low text-on-background">2</button>
+<button class="w-8 h-8 flex items-center justify-center font-body-sm text-body-sm rounded hover:bg-surface-container-low text-on-background">3</button>
+<span class="px-1 text-on-surface-variant">...</span>
+<button class="p-1 text-on-surface-variant hover:bg-surface-container-low rounded"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+<!-- Dimmed Overlay -->
+<div class="absolute inset-0 bg-on-background/40 backdrop-blur-[2px] z-50 flex items-center justify-center">
+<!-- Modal Container -->
+<div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-md mx-4 flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+<!-- Modal Header -->
+<div class="px-6 py-4 border-b border-outline-variant flex items-center justify-between bg-surface">
+<h3 class="font-headline-md text-headline-md text-on-background">Add Product</h3>
+<button class="text-on-surface-variant hover:text-on-background transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Modal Body -->
+<div class="p-6 flex flex-col gap-5">
+<div class="flex flex-col gap-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-background" for="productName">Product Name</label>
+<input class="w-full px-3 py-2 bg-background border border-outline-variant rounded-md text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-transparent" id="productName" placeholder="e.g., Die-Cut Stickers" type="text"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-background" for="productDesc">Description</label>
+<textarea class="w-full px-3 py-2 bg-background border border-outline-variant rounded-md text-body-md font-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-transparent resize-none" id="productDesc" placeholder="Enter product specifications and details..." rows="4"></textarea>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-6 py-4 border-t border-outline-variant bg-surface flex justify-end gap-3">
+<button class="px-4 py-2 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors border border-outline-variant bg-surface-container-lowest">Cancel</button>
+<button class="px-4 py-2 font-label-caps text-label-caps bg-brand-red hover:bg-brand-red-hover text-on-primary rounded-lg transition-colors shadow-sm">Save Product</button>
+</div>
+</div>
+</div>
+</div>
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+    }
+</style>
+</body></html>

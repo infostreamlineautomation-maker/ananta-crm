@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Users - Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline": "#946e6c",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "surface": "#fff8f7",
+                        "surface-bright": "#fff8f7",
+                        "inverse-on-surface": "#ffedeb",
+                        "tertiary": "#006574",
+                        "surface-container-highest": "#ffdad7",
+                        "background": "#fff8f7",
+                        "surface-tint": "#bf0023",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#fff0ef",
+                        "secondary-container": "#fd5c5d",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#2a1615",
+                        "primary-fixed": "#ffdad8",
+                        "outline-variant": "#e9bcb9",
+                        "primary": "#bb0022",
+                        "on-tertiary-container": "#f8fdff",
+                        "on-primary-fixed": "#410006",
+                        "inverse-surface": "#412b29",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "on-secondary-container": "#60000c",
+                        "tertiary-fixed": "#a2eeff",
+                        "surface-variant": "#ffdad7",
+                        "on-secondary-fixed": "#410006",
+                        "surface-dim": "#f7d1cf",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#ffb3af",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#ffe1df",
+                        "secondary": "#b4262e",
+                        "on-primary-container": "#fffbff",
+                        "on-surface": "#2a1615",
+                        "surface-container": "#ffe9e7",
+                        "primary-container": "#e9002d",
+                        "tertiary-container": "#008092",
+                        "primary-fixed-dim": "#ffb3af",
+                        "on-primary-fixed-variant": "#930018",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#ffdad8",
+                        "on-tertiary-fixed": "#001f25",
+                        "on-surface-variant": "#5f3e3d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "stack-md": "16px",
+                        "sidebar-width": "260px",
+                        "unit": "4px",
+                        "container-padding": "24px",
+                        "stack-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background h-full font-body-md overflow-hidden flex">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-full py-container-padding bg-surface fixed left-0 top-0 w-sidebar-width border-r border-outline-variant z-40">
+<div class="px-container-padding mb-8">
+<h1 class="font-headline-md text-headline-md font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">print</span>
+                Ananta CRM
+            </h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Precision Printing</p>
+</div>
+<ul class="flex-1 space-y-1 px-4 overflow-y-auto">
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="person">person</span>Clients</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="domain">domain</span>Companies</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>Products</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>Suppliers</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="assignment">assignment</span>Projects</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="request_quote">request_quote</span>Quotations</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="payments">payments</span>Costing</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-primary font-semibold border-l-4 border-primary bg-primary-fixed-dim/10 active:scale-[0.98] transition-transform" href="#"><span class="material-symbols-outlined" data-icon="group" style="font-variation-settings: 'FILL' 1;">group</span>Users</a></li>
+<li><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="badge">badge</span>Roles</a></li>
+<li class="mt-8"><a class="flex items-center gap-3 px-4 py-2 rounded font-body-md text-body-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined" data-icon="settings">settings</span>Settings</a></li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col h-full ml-0 md:ml-sidebar-width overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center px-container-padding h-16 bg-surface/80 backdrop-blur-md sticky top-0 z-50 border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<button class="md:hidden text-on-surface-variant"><span class="material-symbols-outlined">menu</span></button>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="history">history</span></button>
+<button class="text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden flex items-center justify-center font-bold text-primary">
+                    JD
+                </div>
+</div>
+</header>
+<!-- Page Content -->
+<main class="flex-1 overflow-y-auto p-container-padding bg-background">
+<!-- Header -->
+<div class="flex justify-between items-center mb-stack-md">
+<h2 class="font-headline-lg text-headline-lg text-on-background">Users</h2>
+<button class="bg-[#F80031] hover:bg-[#D64044] text-white px-4 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-[#F80031]/50">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add User
+                </button>
+</div>
+<!-- Table Container -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)]">
+<!-- Table Controls (Search/Filter) -->
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full pl-9 pr-3 py-1.5 bg-white border border-outline-variant rounded font-body-sm text-body-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Search users..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant">
+<tr>
+<th class="py-3 px-4 font-semibold w-12"></th>
+<th class="py-3 px-4 font-semibold">Username</th>
+<th class="py-3 px-4 font-semibold">Full Name</th>
+<th class="py-3 px-4 font-semibold">Email</th>
+<th class="py-3 px-4 font-semibold">Role</th>
+<th class="py-3 px-4 font-semibold">Status</th>
+<th class="py-3 px-4 text-right font-semibold">Actions</th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data divide-y divide-surface-container-high">
+<!-- Current User Row -->
+<tr class="hover:bg-primary/5 transition-colors group bg-primary-fixed/30">
+<td class="py-3 px-4">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs border border-primary/20">
+                                        JD
+                                    </div>
+</td>
+<td class="py-3 px-4 font-medium text-on-background">jdoe_admin</td>
+<td class="py-3 px-4 text-on-surface">John Doe <span class="ml-2 text-xs text-primary font-semibold">(You)</span></td>
+<td class="py-3 px-4 text-on-surface-variant">john.doe@anantacrm.com</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">Admin</span>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-tertiary/10 text-tertiary">Active</span>
+</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded hover:bg-surface-container-high" title="Edit">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-outline-variant cursor-not-allowed p-1" disabled="" title="Cannot delete yourself">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="py-3 px-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center font-bold text-xs border border-outline-variant">
+                                        AS
+                                    </div>
+</td>
+<td class="py-3 px-4 font-medium text-on-background">asmith</td>
+<td class="py-3 px-4 text-on-surface">Alice Smith</td>
+<td class="py-3 px-4 text-on-surface-variant">alice.s@anantacrm.com</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-high text-on-surface-variant border border-outline-variant">Staff</span>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-tertiary/10 text-tertiary">Active</span>
+</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded hover:bg-surface-container-high" title="Edit">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error-container/50" title="Delete">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="py-3 px-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center font-bold text-xs border border-outline-variant">
+                                        BW
+                                    </div>
+</td>
+<td class="py-3 px-4 font-medium text-on-background">bwilliams</td>
+<td class="py-3 px-4 text-on-surface">Bob Williams</td>
+<td class="py-3 px-4 text-on-surface-variant">bob.w@anantacrm.com</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-high text-on-surface-variant border border-outline-variant">Staff</span>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface-container-high text-on-surface-variant">Inactive</span>
+</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded hover:bg-surface-container-high" title="Edit">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error-container/50" title="Delete">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="py-3 px-4">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs border border-primary/20">
+                                        CJ
+                                    </div>
+</td>
+<td class="py-3 px-4 font-medium text-on-background">cjohnson</td>
+<td class="py-3 px-4 text-on-surface">Charlie Johnson</td>
+<td class="py-3 px-4 text-on-surface-variant">charlie.j@anantacrm.com</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">Admin</span>
+</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-tertiary/10 text-tertiary">Active</span>
+</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded hover:bg-surface-container-high" title="Edit">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+<button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error-container/50" title="Delete">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="p-3 border-t border-outline-variant bg-surface-container-lowest flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
+<div>Showing 1 to 4 of 24 entries</div>
+<div class="flex items-center gap-1">
+<button class="p-1 rounded hover:bg-surface-container disabled:opacity-50" disabled=""><span class="material-symbols-outlined text-[18px]">chevron_left</span></button>
+<button class="w-6 h-6 rounded bg-primary/10 text-primary font-medium flex items-center justify-center">1</button>
+<button class="w-6 h-6 rounded hover:bg-surface-container flex items-center justify-center">2</button>
+<button class="w-6 h-6 rounded hover:bg-surface-container flex items-center justify-center">3</button>
+<span class="px-1">...</span>
+<button class="p-1 rounded hover:bg-surface-container"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

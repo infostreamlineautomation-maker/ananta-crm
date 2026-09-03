@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-hanken), "Hanken Grotesk", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", "SF Mono", Consolas, monospace;
+
+  /* Brand — a confident ink red used sparingly (actions, active nav, key totals),
+     everything else stays white/neutral. See CLAUDE.md for the full rationale. */
+  --color-primary-50: #FDECEE;
+  --color-primary-100: #FBD9DD;
+  --color-primary-400: #DC3652;
+  --color-primary-500: #C31432;
+  --color-primary-600: #A10F28;
+  --color-primary-700: #800B20;
+
+  --color-bg: #FAF7F6;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #FFF4F3;
+  --color-surface-sunken: #F4ECEA;
+  --color-border: #F0DEDC;
+  --color-border-strong: #E3C9C6;
+
+  --color-ink: #241715;
+  --color-ink-muted: #8A6F6C;
+  --color-ink-faint: #B9A5A2;
+
+  --color-success-50: #E7F5EC;
+  --color-success-500: #1E8E5A;
+  --color-success-700: #146A42;
+
+  --color-warning-50: #FCF1DE;
+  --color-warning-500: #B7791F;
+  --color-warning-700: #8A5A14;
+
+  --color-info-50: #E1F3F6;
+  --color-info-500: #0E7C93;
+  --color-info-700: #0A5D6E;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+
+  --shadow-card: 0 1px 2px rgba(36,23,21,0.04), 0 6px 16px -8px rgba(36,23,21,0.10);
+  --shadow-pop: 0 4px 6px -1px rgba(36,23,21,0.06), 0 12px 28px -8px rgba(36,23,21,0.14);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+::selection {
+  background: var(--color-primary-100);
+}
+
+/* Tabular figures wherever amounts/quantities line up in columns */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+/* Minimal scrollbar so dense tables don't feel like raw browser chrome */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-faint); }
+
+/* Completely hide Next.js floating dev indicator badge */
+nextjs-portal,
+[data-nextjs-dev-overlay-portal],
+[data-nextjs-dev-indicator],
+[data-nextjs-toast],
+div[data-next-badge],
+button[data-next-badge],
+div:has(> [data-next-badge]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

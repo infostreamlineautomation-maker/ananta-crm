@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Order Detail - Ananta CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Roboto+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#5f3e3d",
+                        "secondary": "#b4262e",
+                        "surface-bright": "#fff8f7",
+                        "surface-container-high": "#ffe1df",
+                        "on-primary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#004e5a",
+                        "tertiary-fixed": "#a2eeff",
+                        "on-tertiary-fixed": "#001f25",
+                        "on-tertiary": "#ffffff",
+                        "surface-dim": "#f7d1cf",
+                        "on-error": "#ffffff",
+                        "inverse-on-surface": "#ffedeb",
+                        "primary-fixed-dim": "#ffb3af",
+                        "on-primary-fixed": "#410006",
+                        "on-primary": "#ffffff",
+                        "on-background": "#2a1615",
+                        "secondary-container": "#fd5c5d",
+                        "inverse-primary": "#ffb3af",
+                        "inverse-surface": "#412b29",
+                        "on-surface": "#2a1615",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#f8fdff",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "outline": "#946e6c",
+                        "background": "#fff8f7",
+                        "tertiary-container": "#008092",
+                        "secondary-fixed-dim": "#ffb3af",
+                        "on-secondary-fixed": "#410006",
+                        "secondary-fixed": "#ffdad8",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#006574",
+                        "tertiary-fixed-dim": "#6ed5e9",
+                        "surface-variant": "#ffdad7",
+                        "surface": "#fff8f7",
+                        "surface-container-highest": "#ffdad7",
+                        "surface-container": "#ffe9e7",
+                        "primary-container": "#e9002d",
+                        "on-secondary-container": "#60000c",
+                        "on-primary-fixed-variant": "#930018",
+                        "primary": "#bb0022",
+                        "on-secondary-fixed-variant": "#91061a",
+                        "surface-container-low": "#fff0ef",
+                        "primary-fixed": "#ffdad8",
+                        "surface-tint": "#bf0023",
+                        "outline-variant": "#e9bcb9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-padding": "24px",
+                        "gutter": "16px",
+                        "stack-md": "16px",
+                        "sidebar-width": "260px",
+                        "stack-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "display": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "table-data": ["Hanken Grotesk"],
+                        "label-caps": ["Hanken Grotesk"],
+                        "mono": ["Roboto Mono", "monospace"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "table-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148, 110, 108, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 110, 108, 0.5); }
+        .shadow-subtle { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px rgba(187, 0, 34, 0.2); border-color: #bb0022; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-[260px] h-16 bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline flex justify-between items-center px-gutter w-full md:w-[calc(100%-260px)] z-20">
+<div class="flex items-center gap-4">
+<button class="md:hidden p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-all">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="font-headline-lg text-headline-lg font-bold text-primary hidden md:block">
+                Ananta CRM
+            </div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus-within:ring-2 focus-within:ring-primary/20 w-64 transition-all placeholder:text-on-surface-variant/70" placeholder="Search orders..." type="text"/>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all hidden sm:block">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-surface-container border border-outline-variant overflow-hidden cursor-pointer">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="A professional headshot of a female CRM user in a modern office setting. She is smiling subtly. The lighting is bright and even, fitting a light-mode SaaS context. The color palette is neutral with soft white tones and a hint of warm red in the background. Photorealistic, high quality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAn_uuqhhHoYSJWDuDTwk13aTri-_L4VrWEG2Bhi5c43DJdq01m_6w8kPaqii98Cpu_lFcKkLnnLmYoTk-2e1aD0H6r9Ip_SZt8ZufgQ5PSyEs73BOOWOGQzhl3fq_SQILu852IS1w5gEYQNy6a0LhNgzahp1A4_1F9MGKi4kuxrm5Ab_wMsojAJV3GAlQvHNqkVzyxVtv3P12dj8_WpNu_KEZSL64T3fqLhxI8hJCim6vFEzxiRBS1"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Hidden on Mobile, block on md+) -->
+<nav class="hidden md:flex flex-col h-screen py-4 bg-surface-container-lowest dark:bg-surface-container-low fixed left-0 top-0 w-[260px] border-r border-outline-variant dark:border-outline z-30">
+<div class="px-6 pb-6 border-b border-outline-variant/50 mb-4 flex items-center gap-3">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary font-bold">A</div>
+<div>
+<div class="font-display text-headline-md font-bold text-primary dark:text-primary-fixed-dim tracking-tight">Ananta CRM</div>
+<div class="font-body-sm text-label-caps text-on-surface-variant uppercase tracking-wider">Graphics &amp; Printing</div>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1">
+<!-- Inactive -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">person</span>
+                Clients
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">domain</span>
+                Companies
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span>
+                Products
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">factory</span>
+                Suppliers
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">assignment</span>
+                Projects
+            </a>
+<!-- Active: Quotations/Orders mapped here for context -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-high relative text-primary dark:text-inverse-primary font-semibold before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] before:bg-primary before:rounded-r font-body-sm text-body-sm transition-transform active:scale-[0.99]" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">request_quote</span>
+                Quotations
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+                Costing
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">bar_chart</span>
+                Reports
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">group</span>
+                Users
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors duration-150 font-body-sm text-body-sm mt-auto" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                Settings
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="md:ml-[260px] pt-16 h-screen overflow-y-auto custom-scrollbar bg-surface-bright">
+<div class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors border border-outline-variant/50">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</button>
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-3">
+                            Order <span class="font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">ORD-2026-0004</span>
+</h1>
+<div class="flex items-center gap-2 mt-1">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-secondary-fixed/50 text-on-secondary-fixed-variant font-label-caps text-label-caps border border-secondary-fixed-dim/50 gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Processing
+                            </span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-tertiary-fixed/30 text-on-tertiary-fixed-variant font-label-caps text-label-caps border border-tertiary-fixed-dim/30 gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Partially Paid
+                            </span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface font-body-sm text-body-sm font-semibold hover:bg-surface-container-low transition-colors flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+                        Copy Order
+                    </button>
+<button class="px-4 py-2 rounded-lg bg-primary text-on-primary font-body-sm text-body-sm font-semibold hover:bg-surface-tint transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                        Save Changes
+                    </button>
+</div>
+</div>
+<!-- Two Column Layout -->
+<div class="flex flex-col lg:flex-row gap-6 items-start">
+<!-- Left Column (Main Form & Items) -->
+<div class="flex-1 w-full space-y-6">
+<!-- Header Fields Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-subtle">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">info</span>
+                            Order Details
+                        </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Order Date</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">calendar_today</span>
+<input class="w-full pl-9 pr-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface" type="date" value="2026-03-15"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Client <span class="text-error">*</span></label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<select class="w-full pl-9 pr-8 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface appearance-none">
+<option>Acme Corporation</option>
+<option>Stark Industries</option>
+<option>Wayne Enterprises</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Project (Optional)</label>
+<select class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface">
+<option>Q3 Marketing Collateral</option>
+<option>Annual Report 2025</option>
+<option>-- None --</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Supplier (Optional)</label>
+<select class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface">
+<option>Premium Paper Co.</option>
+<option>Inks R Us</option>
+<option>-- None --</option>
+</select>
+</div>
+<div class="space-y-1.5 md:col-span-2">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Internal Notes / Description</label>
+<textarea class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface resize-none placeholder:text-on-surface-variant/50" placeholder="Add any special instructions for production..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Line Items Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-subtle overflow-hidden">
+<div class="p-4 md:p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">list_alt</span>
+                                Line Items
+                            </h2>
+<button class="text-primary font-body-sm text-body-sm font-bold hover:text-primary-container transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Item
+                            </button>
+</div>
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse min-w-[700px]">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[25%]">Product</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[35%]">Description</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[10%] text-right">Qty</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[15%] text-right">Rate</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[10%] text-right">Amount</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant uppercase py-3 px-4 w-[5%] text-center"></th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data">
+<!-- Row 1 -->
+<tr class="border-b border-outline-variant/30 hover:bg-primary/5 transition-colors group">
+<td class="p-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span>
+<input class="w-full pl-8 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px]" type="text" value="Premium Business Cards"/>
+</div>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-transparent hover:border-outline-variant focus:border-primary bg-transparent focus:bg-surface-container-lowest text-[13px] transition-all" type="text" value="300gsm Matte Finish, Double Sided"/>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" type="number" value="1000"/>
+</td>
+<td class="p-3">
+<div class="relative">
+<span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[12px]">$</span>
+<input class="w-full pl-5 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" step="0.01" type="number" value="0.15"/>
+</div>
+</td>
+<td class="p-3 text-right text-on-surface-variant font-mono">
+                                            $150.00
+                                        </td>
+<td class="p-3 text-center">
+<button class="text-outline hover:text-error transition-colors opacity-0 group-hover:opacity-100 p-1">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-outline-variant/30 hover:bg-primary/5 transition-colors group">
+<td class="p-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span>
+<input class="w-full pl-8 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px]" type="text" value="A4 Letterheads"/>
+</div>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-transparent hover:border-outline-variant focus:border-primary bg-transparent focus:bg-surface-container-lowest text-[13px] transition-all" type="text" value="120gsm Executive Bond"/>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" type="number" value="2500"/>
+</td>
+<td class="p-3">
+<div class="relative">
+<span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[12px]">$</span>
+<input class="w-full pl-5 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" step="0.01" type="number" value="0.08"/>
+</div>
+</td>
+<td class="p-3 text-right text-on-surface-variant font-mono">
+                                            $200.00
+                                        </td>
+<td class="p-3 text-center">
+<button class="text-outline hover:text-error transition-colors opacity-0 group-hover:opacity-100 p-1">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span>
+<input class="w-full pl-8 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px]" type="text" value="Custom Die-Cut Folders"/>
+</div>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-transparent hover:border-outline-variant focus:border-primary bg-transparent focus:bg-surface-container-lowest text-[13px] transition-all" type="text" value="Spot UV, Soft Touch Lamination"/>
+</td>
+<td class="p-3">
+<input class="w-full px-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" type="number" value="500"/>
+</td>
+<td class="p-3">
+<div class="relative">
+<span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[12px]">$</span>
+<input class="w-full pl-5 pr-2 py-1.5 rounded border border-outline-variant bg-surface-container-lowest text-[13px] text-right" step="0.01" type="number" value="2.10"/>
+</div>
+</td>
+<td class="p-3 text-right text-on-surface-variant font-mono">
+                                            $1,050.00
+                                        </td>
+<td class="p-3 text-center">
+<button class="text-outline hover:text-error transition-colors opacity-0 group-hover:opacity-100 p-1">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Right Column (Totals & Status - Sticky) -->
+<div class="w-full lg:w-[320px] lg:sticky lg:top-[88px] space-y-6">
+<!-- Summary Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-subtle p-5">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Summary</h3>
+<div class="space-y-3 font-body-sm text-body-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span>Subtotal</span>
+<span class="font-mono text-on-surface">$1,400.00</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="flex items-center gap-2">
+                                    Tax Rate
+                                </span>
+<div class="flex items-center gap-1 w-20">
+<input class="w-full px-2 py-1 rounded border border-outline-variant bg-surface-container-lowest text-right text-[13px]" type="number" value="10"/>
+<span>%</span>
+</div>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant pb-3 border-b border-outline-variant/50">
+<span>Tax Amount</span>
+<span class="font-mono text-on-surface">$140.00</span>
+</div>
+<div class="flex justify-between items-center pt-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">Total</span>
+<span class="font-mono font-headline-lg text-headline-lg font-bold text-primary tracking-tight">$1,540.00</span>
+</div>
+</div>
+</div>
+<!-- Status Controls -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-subtle p-5">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Tracking</h3>
+<div class="space-y-4">
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Delivery Status</label>
+<select class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface appearance-none focus:border-secondary">
+<option>Pending</option>
+<option selected="">Processing</option>
+<option>In Production</option>
+<option>Shipped</option>
+<option>Delivered</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Payment Status</label>
+<select class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface appearance-none focus:border-tertiary">
+<option>Unpaid</option>
+<option selected="">Partially Paid</option>
+<option>Paid</option>
+<option>Overdue</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
