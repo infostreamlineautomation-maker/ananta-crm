@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ActivityLog, Country, ExchangeRate
+from .models import ActivityLog, Country, CustomFieldDefinition, ExchangeRate
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -30,6 +30,41 @@ class ActivityLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityLog
         fields = ["id", "user", "user_name", "module", "object_id", "action", "details", "created_at"]
+
+
+class CustomFieldDefinitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomFieldDefinition
+        fields = [
+            "id",
+            "module",
+            "field_key",
+            "label",
+            "field_type",
+            "options",
+            "default_value",
+            "is_required",
+            "show_in_table",
+            "show_in_print",
+            "sort_order",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_field_key(self, value):
+        import re
+        clean = re.sub(r"[^a-zA-Z0-9_]", "_", value).lower().strip("_")
+        if not clean:
+            raise serializers.ValidationError("Field key must contain valid alphanumeric characters.")
+        return clean
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if request and hasattr(request, "organization") and request.organization:
+            validated_data["organization"] = request.organization
+        return super().create(validated_data)
+
 
 
 class SameOrganizationFieldsMixin:

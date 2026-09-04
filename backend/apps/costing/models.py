@@ -19,6 +19,13 @@ class Costing(AuditedModel, SoftDeleteModel):
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, related_name="costings")
     client = models.ForeignKey("clients.Client", on_delete=models.PROTECT, related_name="costings")
     description = models.TextField(blank=True)
+    columns_config = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Extra custom columns beyond supplier_rate/quantity/client_rate, e.g. "
+        '[{"key": "custom_wastage", "label": "Wastage %"}]. Values live per-item in '
+        "CostingItem.extra_data under the same key.",
+    )
 
     class Meta:
         ordering = ["-costing_date", "-id"]
@@ -50,7 +57,9 @@ class CostingItem(models.Model):
     supplier_rate = models.DecimalField(max_digits=12, decimal_places=2)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     client_rate = models.DecimalField(max_digits=12, decimal_places=2)
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Values for Costing.columns_config keys.")
 
     @property
     def profit(self):
         return (self.client_rate - self.supplier_rate) * self.quantity
+

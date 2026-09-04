@@ -24,9 +24,11 @@ class Project(AuditedModel, SoftDeleteModel):
     client = models.ForeignKey("clients.Client", on_delete=models.PROTECT, related_name="projects")
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=ACTIVE)
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Custom field attributes for project")
 
     class Meta:
         ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.name} ({self.client.client_name})"
+

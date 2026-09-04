@@ -1,6 +1,30 @@
-/** Shared shapes matching the DRF serializers on the backend. Extend as new
- * screens need more fields — kept lean rather than mirroring every field of
- * every serializer up front. */
+export type CustomFieldModule =
+  | "order_item"
+  | "quotation_item"
+  | "costing_item"
+  | "product"
+  | "client"
+  | "company"
+  | "supplier"
+  | "project";
+
+export type CustomFieldType = "text" | "number" | "select" | "date" | "boolean";
+
+export interface CustomFieldDefinition {
+  id: number;
+  module: CustomFieldModule;
+  field_key: string;
+  label: string;
+  field_type: CustomFieldType;
+  options: string[];
+  default_value: string;
+  is_required: boolean;
+  show_in_table: boolean;
+  show_in_print: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export interface OrderItemDetail {
   id?: number;
@@ -10,6 +34,7 @@ export interface OrderItemDetail {
   qty: string;
   rate: string;
   amount?: string;
+  extra_data: Record<string, string>;
   sort_order?: number;
 }
 
@@ -24,6 +49,7 @@ export interface OrderDetail {
   supplier: number | null;
   supplier_name: string | null;
   description: string;
+  columns_config: QuotationColumn[];
   tax_percent: string;
   subtotal: string;
   tax_amount: string;
@@ -43,6 +69,7 @@ export interface OrderDetail {
   created_at: string;
   updated_at: string;
 }
+
 
 export interface RolePermissionRow {
   id: number;
@@ -242,6 +269,7 @@ export interface CostingItemDetail {
   quantity: string;
   client_rate: string;
   profit?: string;
+  extra_data: Record<string, string>;
 }
 
 export interface CostingDetail {
@@ -256,6 +284,7 @@ export interface CostingDetail {
   client: number | null;
   client_display: string | null;
   description: string;
+  columns_config: QuotationColumn[];
   items: CostingItemDetail[];
   supplier_cost: string;
   client_revenue: string;
@@ -292,6 +321,7 @@ export interface ProjectSummary {
   client_name: string;
   description: string;
   status: "active" | "on_hold" | "completed" | "cancelled";
+  extra_data?: Record<string, any>;
   orders_count: number;
   quotations_count: number;
   costings_count: number;
@@ -384,6 +414,7 @@ export interface Product {
   id: number;
   product_name: string;
   description: string;
+  extra_data?: Record<string, any>;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -416,6 +447,7 @@ export interface Company {
   linkedin: string;
   remarks: string;
   logo: string | null;
+  extra_data?: Record<string, any>;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -435,6 +467,7 @@ export interface Client {
   country: string | null;
   country_name: string | null;
   currency_code: string | null;
+  extra_data?: Record<string, any>;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -488,6 +521,7 @@ export interface Supplier {
   email: string;
   website: string;
   remark: string;
+  extra_data?: Record<string, any>;
   is_deleted: boolean;
   contacts: SupplierContact[];
   supplier_products: SupplierProduct[];
@@ -495,3 +529,4 @@ export interface Supplier {
   created_at: string;
   updated_at: string;
 }
+

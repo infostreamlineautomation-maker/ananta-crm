@@ -1,4 +1,18 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+export function getApiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+      try {
+        const port = envUrl ? new URL(envUrl).port || "8000" : "8000";
+        return `${window.location.protocol}//${window.location.hostname}:${port}`;
+      } catch {
+        return `http://${window.location.hostname}:8000`;
+      }
+    }
+    return envUrl;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+}
 
 let cachedCsrfToken: string | null = null;
 
@@ -18,7 +32,8 @@ export async function ensureCsrf(): Promise<string | null> {
     return cookieToken;
   }
   try {
-    const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: "include" });
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/auth/csrf/`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === "object" && "csrfToken" in data && typeof data.csrfToken === "string") {
@@ -59,7 +74,8 @@ export async function apiFetch<T = unknown>(path: string, options: RequestInit =
     if (token) headers.set("X-CSRFToken", token);
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, method, headers, credentials: "include" });
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}${path}`, { ...options, method, headers, credentials: "include" });
 
   if (res.status === 204) return undefined as T;
 

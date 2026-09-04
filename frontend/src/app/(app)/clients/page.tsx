@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, ClientType, Company, Country } from "@/lib/types";
+import { Client, ClientType, Company, Country, CustomFieldDefinition } from "@/lib/types";
 import { exportToCsv, CsvColumn } from "@/lib/csv-export";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
@@ -20,7 +20,7 @@ import { Combobox } from "@/components/ui/Combobox";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
-
+import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 
 const TYPE_TONE: Record<ClientType, string> = {
@@ -41,18 +41,6 @@ const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
 
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
 
-const CLIENT_PAGE_FILTER_CONFIGS: FilterGroupConfig[] = [
-  {
-    key: "client_type",
-    label: "Client Type",
-    options: [
-      { value: "A", label: "Type A (Enterprise)", dotColor: "#9333ea" },
-      { value: "B", label: "Type B (Standard)", dotColor: "#2563eb" },
-      { value: "C", label: "Type C (Small/Retail)", dotColor: "#d97706" },
-    ],
-  },
-];
-
 export default function ClientsPage() {
   const { can } = useAuth();
   const toast = useToast();
@@ -65,6 +53,29 @@ export default function ClientsPage() {
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: companies } = useList<Company>("/api/companies/");
+  const { items: customFields } = useList<CustomFieldDefinition>("/api/custom-fields/?module=client");
+
+  const allColumns: ColumnDef[] = useMemo(() => {
+    const base = [...CLIENTS_PAGE_COLUMNS];
+    const actionCol = base.pop()!;
+    const dynamicCols: ColumnDef[] = (customFields || []).map((f) => ({
+      key: `extra_${f.field_key}`,
+      label: f.label,
+    }));
+    return [...base, ...dynamicCols, actionCol];
+  }, [customFields]);
+
+  useEffect(() => {
+    if (customFields && customFields.length > 0) {
+      setCols((prev) => {
+        const next = new Set(prev);
+        customFields.forEach((f) => {
+          if (f.show_in_table) next.add(`extra_${f.field_key}`);
+        });
+        return next;
+      });
+    }
+  }, [customFields]);
 
   const clientFilterConfigs: FilterGroupConfig[] = useMemo(() => [
     {
@@ -120,14 +131,6 @@ export default function ClientsPage() {
     setPage(1);
   }
 
-  function handleResetFilters() {
-    setTypeFilter("");
-    setCompanyFilter("");
-    setCountryFilter("");
-    setSearch("");
-    setPage(1);
-  }
-
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -158,7 +161,7 @@ export default function ClientsPage() {
               onClick={() => {
                 const list = data?.results || [];
                 if (!list.length) return;
-                const cols: CsvColumn<Client>[] = [
+                const baseCols: CsvColumn<Client>[] = [
                   { header: "Client Name", accessor: (c) => c.client_name },
                   { header: "Type", accessor: (c) => c.client_type },
                   { header: "Company", accessor: (c) => c.company_name || "" },
@@ -167,13 +170,17 @@ export default function ClientsPage() {
                   { header: "Email", accessor: (c) => c.email },
                   { header: "Address", accessor: (c) => c.address },
                 ];
-                exportToCsv(list, cols, "clients_export");
+                const extraCols: CsvColumn<Client>[] = (customFields || []).map((f) => ({
+                  header: f.label,
+                  accessor: (c) => String(c.extra_data?.[f.field_key] ?? ""),
+                }));
+                exportToCsv(list, [...baseCols, ...extraCols], "clients_export");
               }}
               className="h-9 gap-1.5 text-xs font-semibold"
             >
               <Download className="h-3.5 w-3.5" /> Export CSV
             </Button>
-            <ColumnSelector columns={CLIENTS_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
+            <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
           </div>
         }
       />
@@ -189,6 +196,13 @@ export default function ClientsPage() {
                 {cols.has("country_name") && <th className={TH}>Country</th>}
                 {cols.has("phone") && <th className={TH}>Phone</th>}
                 {cols.has("email") && <th className={TH}>Email</th>}
+                {customFields?.map((f) =>
+                  cols.has(`extra_${f.field_key}`) ? (
+                    <th key={f.id} className={TH}>
+                      {f.label}
+                    </th>
+                  ) : null
+                )}
                 {cols.has("actions") && <th className={TH}></th>}
               </tr>
             </thead>
@@ -224,6 +238,13 @@ export default function ClientsPage() {
                   {cols.has("country_name") && <td className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>}
                   {cols.has("phone") && <td className={`${TD} text-ink-muted`}>{c.phone || "—"}</td>}
                   {cols.has("email") && <td className={`${TD} text-ink-muted`}>{c.email || "—"}</td>}
+                  {customFields?.map((f) =>
+                    cols.has(`extra_${f.field_key}`) ? (
+                      <td key={f.id} className={`${TD} text-ink-muted`}>
+                        {String(c.extra_data?.[f.field_key] ?? "—")}
+                      </td>
+                    ) : null
+                  )}
                   {cols.has("actions") && (
                     <td className={`${TD} text-right`}>
                       <div className="flex justify-end gap-1">
@@ -313,11 +334,19 @@ export function ClientForm({
     address: client?.address ?? "",
     country: client?.country ?? ("" as string | number),
   });
+  const [extraData, setExtraData] = useState<Record<string, any>>(client?.extra_data || {});
+  const [customFields, setCustomFields] = useState<any[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<Paginated<any>>("/api/custom-fields/?module=client")
+      .then((res) => setCustomFields(res.results || []))
+      .catch(() => {});
+  }, []);
 
   if (!companiesLoaded) {
     setCompaniesLoaded(true);
@@ -338,7 +367,12 @@ export function ClientForm({
     setSaving(true);
     setError(null);
     try {
-      const payload = { ...form, company: form.company || null, country: form.country || null };
+      const payload = {
+        ...form,
+        company: form.company || null,
+        country: form.country || null,
+        extra_data: extraData,
+      };
       if (client) {
         await apiFetch(`/api/clients/${client.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
         toast.success("Client updated.");
@@ -405,6 +439,14 @@ export function ClientForm({
         <Field label="Address">
           <Textarea value={form.address} onChange={(e) => set("address", e.target.value)} />
         </Field>
+
+        {customFields.length > 0 && (
+          <DynamicFormFields
+            fields={customFields}
+            values={extraData}
+            onChange={(k, v) => setExtraData((prev) => ({ ...prev, [k]: v }))}
+          />
+        )}
 
         {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 

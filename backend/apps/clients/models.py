@@ -22,6 +22,7 @@ class Company(AuditedModel, SoftDeleteModel):
     linkedin = models.URLField(blank=True)
     remarks = models.TextField(blank=True)
     logo = models.ImageField(upload_to="companies/logos/", null=True, blank=True)
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Custom field attributes for company")
 
     class Meta:
         ordering = ["company_name"]
@@ -50,6 +51,7 @@ class Client(AuditedModel, SoftDeleteModel):
         related_name="clients",
         help_text="Drives the default currency on this client's quotations.",
     )
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Custom field attributes for client")
 
     class Meta:
         ordering = ["client_name"]
@@ -62,3 +64,4 @@ class Client(AuditedModel, SoftDeleteModel):
         """Falls back to the parent company's country if the client itself
         doesn't have one set."""
         return self.country or (self.company.country if self.company_id else None)
+

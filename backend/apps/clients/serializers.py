@@ -14,7 +14,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "id", "company_name", "contact_name", "vat_id", "reg_no",
             "contact_email", "contact_phone", "company_phone", "country", "country_name",
             "state", "city", "zip_code", "address", "facebook", "twitter", "linkedin",
-            "remarks", "logo", "is_deleted", "created_at", "updated_at",
+            "remarks", "logo", "extra_data", "is_deleted", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
 
@@ -29,7 +29,8 @@ class ClientSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer)
         model = Client
         fields = [
             "id", "client_name", "client_type", "company", "company_name", "phone", "email",
-            "address", "country", "country_name", "currency_code",
+            "address", "country", "country_name", "currency_code", "extra_data",
             "is_deleted", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
+

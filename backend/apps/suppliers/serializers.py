@@ -66,10 +66,11 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = [
             "id", "supplier_name", "owner_name_contact", "contact", "source",
-            "address", "email", "website", "remark", "is_deleted",
+            "address", "email", "website", "remark", "extra_data", "is_deleted",
             "contacts", "supplier_products", "files", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
+
 
     def validate(self, attrs):
         # Ports the legacy duplicate-supplier guard (name OR contact match),

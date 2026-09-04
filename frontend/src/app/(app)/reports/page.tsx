@@ -18,7 +18,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import clsx from "clsx";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiBaseUrl } from "@/lib/api";
 import { AnalyticsReport } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -70,9 +70,9 @@ export default function ReportsPage() {
   }, [query]);
 
   async function handleExportCsv() {
+    const baseUrl = getApiBaseUrl();
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-      const res = await fetch(`${API_URL}/api/reports/export/?${query}`, { credentials: "include" });
+      const res = await fetch(`${baseUrl}/api/reports/export/?${query}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to export report");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -84,8 +84,7 @@ export default function ReportsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-      window.open(`${API_URL}/api/reports/export/?${query}`, "_blank");
+      window.open(`${baseUrl}/api/reports/export/?${query}`, "_blank");
     }
   }
 

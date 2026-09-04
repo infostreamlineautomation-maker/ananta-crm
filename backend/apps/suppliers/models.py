@@ -13,6 +13,7 @@ class Supplier(AuditedModel, SoftDeleteModel):
     email = models.EmailField(blank=True)
     website = models.URLField(blank=True)
     remark = models.TextField(blank=True)
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Custom field attributes for supplier")
 
     class Meta:
         ordering = ["supplier_name"]
@@ -26,6 +27,7 @@ class Supplier(AuditedModel, SoftDeleteModel):
 
     def __str__(self):
         return self.supplier_name
+
 
 
 class SupplierContact(models.Model):

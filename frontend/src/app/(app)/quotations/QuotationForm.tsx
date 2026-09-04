@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Info, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
+import { Client, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
@@ -59,6 +59,24 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const [status, setStatus] = useState<QuotationStatus>(quotation?.status ?? "draft");
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
   const [items, setItems] = useState<QuotationItemDetail[]>(quotation?.items.length ? quotation.items : [blankItem()]);
+
+  // Pre-seed default custom columns if new quotation
+  useEffect(() => {
+    if (!quotation) {
+      apiFetch<CustomFieldDefinition[]>("/api/custom-fields/?module=quotation_item")
+        .then((defs) => {
+          if (defs.length > 0 && columns.length === 0) {
+            const initialCols: QuotationColumn[] = defs.map((d) => ({
+              key: d.field_key,
+              label: d.label,
+            }));
+            setColumns(initialCols);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [quotation]);
+
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

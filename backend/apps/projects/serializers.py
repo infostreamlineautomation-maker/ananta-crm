@@ -22,11 +22,12 @@ class ProjectSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
     class Meta:
         model = Project
         fields = [
-            "id", "name", "client", "client_name", "description", "status",
+            "id", "name", "client", "client_name", "description", "status", "extra_data",
             "orders_count", "quotations_count", "costings_count", "total_order_value",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_by", "created_at", "updated_at"]
+
 
     def get_orders_count(self, obj):
         return obj.orders.count()

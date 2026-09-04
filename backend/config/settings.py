@@ -166,11 +166,23 @@ REST_FRAMEWORK = {
 }
 
 # CORS & CSRF Configuration
-CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o]
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app",
+    ).split(",")
+    if o
+]
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",") if o
+    o.strip()
+    for o in os.environ.get(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app",
+    ).split(",")
+    if o
 ]
 
 # Security Hardening & Proxy Headers

@@ -27,7 +27,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, CommunicationLog, Country, OrderSummary, ProjectSummary, QuotationSummary } from "@/lib/types";
+import { Client, CommunicationLog, Country, CustomFieldDefinition, OrderSummary, ProjectSummary, QuotationSummary } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -203,6 +203,7 @@ export default function ClientDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   const { items: countries } = useList<Country>("/api/countries/");
+  const { items: customFields } = useList<CustomFieldDefinition>("/api/custom-fields/?module=client");
 
   async function loadData() {
     try {
@@ -242,7 +243,7 @@ export default function ClientDetailPage() {
       totalOrders: orders.length,
       totalRevenue: totalRev,
       paidRevenue: paidRev,
-      pendingRevenue: Math.max(0, pendingRev),
+      pendingRevenue: pendingRev,
       totalQuotations: quotations.length,
       totalProjects: projects.length,
     };
@@ -427,6 +428,18 @@ export default function ClientDetailPage() {
                     {client.currency_code}
                   </span>
                 )}
+                {customFields?.map((f) => {
+                  const val = client.extra_data?.[f.field_key];
+                  if (!val && val !== false && val !== 0) return null;
+                  return (
+                    <span
+                      key={f.id}
+                      className="rounded-md bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700 border border-primary-100"
+                    >
+                      {f.label}: {String(val)}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-muted">
@@ -554,6 +567,15 @@ export default function ClientDetailPage() {
                 <dt className="text-ink-muted">Billing Address</dt>
                 <dd className="font-medium text-ink max-w-[240px] text-right">{client.address || "—"}</dd>
               </div>
+              {customFields?.map((f) => {
+                const val = client.extra_data?.[f.field_key];
+                return (
+                  <div key={f.id} className="flex justify-between py-2.5">
+                    <dt className="text-ink-muted">{f.label}</dt>
+                    <dd className="font-semibold text-ink">{val ? String(val) : "—"}</dd>
+                  </div>
+                );
+              })}
             </dl>
           </Card>
 

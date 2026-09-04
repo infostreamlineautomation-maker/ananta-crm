@@ -13,15 +13,18 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 
 import { mediaUrl } from "@/lib/format";
 import { useOrganization } from "@/lib/organization-context";
+import { CustomFieldsManager } from "@/components/custom-fields/CustomFieldsManager";
 
 const TABS = [
   { key: "general", label: "General" },
   { key: "company", label: "Company Info" },
   { key: "quotation", label: "Quotation Defaults" },
+  { key: "custom_fields", label: "Custom Fields & Columns" },
   { key: "email", label: "Email & SMTP Server" },
   { key: "whatsapp", label: "WhatsApp & Messaging" },
   { key: "currency", label: "Currency & Forex Rates" },
 ];
+
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -239,7 +242,10 @@ export default function SettingsPage() {
             </>
           )}
 
+          {tab === "custom_fields" && <CustomFieldsManager />}
+
           {tab === "email" && (
+
             <>
               <div className="rounded-lg bg-primary-50/50 p-4 border border-primary-100 mb-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-primary-700">SMTP Email Server</h4>

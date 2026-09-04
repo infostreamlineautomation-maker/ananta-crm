@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, MessageSquare, Printer, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Copy, MessageSquare, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, OrderDetail, OrderItemDetail, Product, ProjectSummary, Supplier } from "@/lib/types";
+import { Client, CustomFieldDefinition, OrderDetail, OrderItemDetail, Product, ProjectSummary, QuotationColumn, Supplier } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
@@ -15,10 +15,16 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
-import { SendNotificationModal, SendNotificationTarget } from "@/components/notifications/SendNotificationModal";
+import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 
 function blankItem(): OrderItemDetail {
-  return { product: "", description: "", qty: "1", rate: "0" };
+  return { product: "", description: "", qty: "1", rate: "0", extra_data: {} };
+}
+
+let columnCounter = 0;
+function newColumnKey() {
+  columnCounter += 1;
+  return `custom_${Date.now()}_${columnCounter}`;
 }
 
 export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; initialProjectId?: number }) {
@@ -49,7 +55,29 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
       ? String(order.grand_total)
       : "0"
   );
-  const [items, setItems] = useState<OrderItemDetail[]>(order?.items.length ? order.items : [blankItem()]);
+  const [columns, setColumns] = useState<QuotationColumn[]>(order?.columns_config ?? []);
+  const [items, setItems] = useState<OrderItemDetail[]>(
+    order?.items.length
+      ? order.items.map((it) => ({ ...it, extra_data: it.extra_data || {} }))
+      : [blankItem()]
+  );
+
+  // If creating new order, load default custom field columns for order_item
+  useEffect(() => {
+    if (!order) {
+      apiFetch<CustomFieldDefinition[]>("/api/custom-fields/?module=order_item")
+        .then((defs) => {
+          if (defs.length > 0 && columns.length === 0) {
+            const initialCols: QuotationColumn[] = defs.map((d) => ({
+              key: d.field_key,
+              label: d.label,
+            }));
+            setColumns(initialCols);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [order]);
 
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -127,6 +155,30 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
 
+  function updateItemExtra(index: number, key: string, value: string) {
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === index ? { ...it, extra_data: { ...(it.extra_data || {}), [key]: value } } : it
+      )
+    );
+  }
+
+  function addColumn() {
+    const col = { key: newColumnKey(), label: "New Column" };
+    setColumns((prev) => [...prev, col]);
+  }
+
+  function removeColumn(key: string) {
+    setColumns((prev) => prev.filter((c) => c.key !== key));
+    setItems((prev) =>
+      prev.map((it) => {
+        const rest = { ...(it.extra_data || {}) };
+        delete rest[key];
+        return { ...it, extra_data: rest };
+      })
+    );
+  }
+
   function removeItem(index: number) {
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
   }
@@ -160,11 +212,18 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
         project: project || null,
         supplier: supplier || null,
         description,
+        columns_config: columns,
         tax_percent: taxPercent,
         delivery_status: deliveryStatus,
         payment_status: paymentStatus,
         paid_amount: finalPaid,
-        items: items.map((it) => ({ product: it.product, description: it.description, qty: it.qty, rate: it.rate })),
+        items: items.map((it) => ({
+          product: it.product,
+          description: it.description,
+          qty: it.qty,
+          rate: it.rate,
+          extra_data: it.extra_data || {},
+        })),
       };
 
       if (order) {
@@ -314,13 +373,46 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
           </Card>
 
           <Card>
-            <CardHeader title="Line Items" />
+            <CardHeader
+              title="Line Items"
+              action={
+                <button
+                  type="button"
+                  onClick={addColumn}
+                  className="text-[13px] font-semibold text-ink-muted hover:text-primary-500 cursor-pointer"
+                >
+                  + Add Custom Column
+                </button>
+              }
+            />
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                     <th className="px-5 py-2.5 text-left">Product</th>
                     <th className="px-3 py-2.5 text-left">Description</th>
+                    {columns.map((col) => (
+                      <th key={col.key} className="px-3 py-2.5 text-left">
+                        <div className="flex items-center gap-1">
+                          <input
+                            value={col.label}
+                            onChange={(e) =>
+                              setColumns((prev) =>
+                                prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
+                              )
+                            }
+                            className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeColumn(col.key)}
+                            className="text-ink-faint hover:text-primary-600 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </th>
+                    ))}
                     <th className="w-24 px-3 py-2.5 text-right">Qty</th>
                     <th className="w-28 px-3 py-2.5 text-right">Rate</th>
                     <th className="w-28 px-3 py-2.5 text-right">Amount</th>
@@ -338,6 +430,15 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                         <td className="px-3 py-2.5">
                           <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Optional detail" />
                         </td>
+                        {columns.map((col) => (
+                          <td key={col.key} className="px-3 py-2.5">
+                            <Input
+                              value={it.extra_data?.[col.key] ?? ""}
+                              onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
+                              placeholder={col.label}
+                            />
+                          </td>
+                        ))}
                         <td className="px-3 py-2.5">
                           <Input type="number" step="0.01" min="0" value={it.qty} onChange={(e) => updateItem(i, { qty: e.target.value })} className="text-right" />
                         </td>
@@ -346,7 +447,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                         </td>
                         <td className="tnum px-3 py-2.5 text-right text-[13.5px] font-semibold text-ink">{formatCurrency(amount, effectiveCurrency)}</td>
                         <td className="px-3 py-2.5 text-right">
-                          <button type="button" onClick={() => removeItem(i)} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600">
+                          <button type="button" onClick={() => removeItem(i)} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </td>
@@ -357,7 +458,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
               </table>
             </div>
             <div className="border-t border-border px-5 py-3">
-              <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600">
+              <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600 cursor-pointer">
                 + Add Line Item
               </button>
             </div>

@@ -58,6 +58,13 @@ class Order(AuditedModel):
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"), help_text="Amount received/collected so far")
 
     is_visible_to_staff = models.BooleanField(default=True)
+    columns_config = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Extra custom columns beyond product/description/qty/rate, e.g. "
+        '[{"key": "custom_gsm", "label": "GSM"}]. Values live per-item in '
+        "OrderItem.extra_data under the same key.",
+    )
     copied_from = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="copies"
     )
@@ -100,6 +107,7 @@ class OrderItem(models.Model):
     qty = models.DecimalField(max_digits=10, decimal_places=2)
     rate = models.DecimalField(max_digits=12, decimal_places=2)
     image = models.ImageField(upload_to="orders/items/", null=True, blank=True)
+    extra_data = models.JSONField(default=dict, blank=True, help_text="Values for Order.columns_config keys.")
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -108,3 +116,4 @@ class OrderItem(models.Model):
     @property
     def amount(self):
         return self.qty * self.rate
+

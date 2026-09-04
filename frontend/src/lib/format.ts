@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from "./api";
+
 export function formatCurrency(value: string | number, currencyCode = "INR"): string {
   const n = typeof value === "string" ? parseFloat(value) : value;
   if (Number.isNaN(n)) return "—";
@@ -19,6 +21,6 @@ export function mediaUrl(path: string | null | undefined): string | null {
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:") || path.startsWith("data:")) {
     return path;
   }
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const baseUrl = getApiBaseUrl();
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }

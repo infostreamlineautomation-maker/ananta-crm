@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
-import { Supplier } from "@/lib/types";
+import { apiFetch, ApiError, Paginated } from "@/lib/api";
+import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { CustomFieldDefinition, Supplier } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
-
+import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar } from "@/components/ui/FilterBar";
 
@@ -36,6 +36,29 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [cols, setCols] = useState<Set<string>>(new Set(SUPPLIERS_PAGE_COLUMNS.map((c) => c.key)));
   const debouncedSearch = useDebouncedValue(search);
+  const { items: customFields } = useList<CustomFieldDefinition>("/api/custom-fields/?module=supplier");
+
+  const allColumns: ColumnDef[] = useMemo(() => {
+    const base = [...SUPPLIERS_PAGE_COLUMNS];
+    const actionCol = base.pop()!;
+    const dynamicCols: ColumnDef[] = (customFields || []).map((f: CustomFieldDefinition) => ({
+      key: `extra_${f.field_key}`,
+      label: f.label,
+    }));
+    return [...base, ...dynamicCols, actionCol];
+  }, [customFields]);
+
+  useEffect(() => {
+    if (customFields && customFields.length > 0) {
+      setCols((prev) => {
+        const next = new Set(prev);
+        customFields.forEach((f: CustomFieldDefinition) => {
+          if (f.show_in_table) next.add(`extra_${f.field_key}`);
+        });
+        return next;
+      });
+    }
+  }, [customFields]);
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
@@ -80,7 +103,7 @@ export default function SuppliersPage() {
           setSearch("");
           setPage(1);
         }}
-        actions={<ColumnSelector columns={SUPPLIERS_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />}
+        actions={<ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />}
       />
 
       <Card>
@@ -93,6 +116,13 @@ export default function SuppliersPage() {
                 {cols.has("contact") && <th className={TH}>Number</th>}
                 {cols.has("source") && <th className={TH}>Source</th>}
                 {cols.has("email") && <th className={TH}>Email</th>}
+                {customFields?.map((f: CustomFieldDefinition) =>
+                  cols.has(`extra_${f.field_key}`) ? (
+                    <th key={f.id} className={TH}>
+                      {f.label}
+                    </th>
+                  ) : null
+                )}
                 {cols.has("actions") && <th className={TH}></th>}
               </tr>
             </thead>
@@ -111,6 +141,13 @@ export default function SuppliersPage() {
                   {cols.has("contact") && <td className={`${TD} text-ink-muted`}>{s.contact || "—"}</td>}
                   {cols.has("source") && <td className={`${TD} text-ink-muted`}>{s.source || "—"}</td>}
                   {cols.has("email") && <td className={`${TD} text-ink-muted`}>{s.email || "—"}</td>}
+                  {customFields?.map((f: CustomFieldDefinition) =>
+                    cols.has(`extra_${f.field_key}`) ? (
+                      <td key={f.id} className={`${TD} text-ink-muted`}>
+                        {String(s.extra_data?.[f.field_key] ?? "—")}
+                      </td>
+                    ) : null
+                  )}
                   {cols.has("actions") && (
                     <td className={`${TD} text-right`}>
                       <div className="flex justify-end gap-1">
@@ -191,8 +228,16 @@ export function SupplierForm({
     address: supplier?.address ?? "",
     remark: supplier?.remark ?? "",
   });
+  const [extraData, setExtraData] = useState<Record<string, any>>(supplier?.extra_data || {});
+  const [customFields, setCustomFields] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<Paginated<any>>("/api/custom-fields/?module=supplier")
+      .then((res) => setCustomFields(res.results || []))
+      .catch(() => {});
+  }, []);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -203,11 +248,12 @@ export function SupplierForm({
     setSaving(true);
     setError(null);
     try {
+      const payload = { ...form, extra_data: extraData };
       if (supplier) {
-        await apiFetch(`/api/suppliers/${supplier.id}/`, { method: "PATCH", body: JSON.stringify(form) });
+        await apiFetch(`/api/suppliers/${supplier.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
         toast.success("Supplier updated.");
       } else {
-        await apiFetch("/api/suppliers/", { method: "POST", body: JSON.stringify(form) });
+        await apiFetch("/api/suppliers/", { method: "POST", body: JSON.stringify(payload) });
         toast.success("Supplier added.");
       }
       onSaved();
@@ -244,6 +290,14 @@ export function SupplierForm({
       <Field label="Remark">
         <Textarea value={form.remark} onChange={(e) => set("remark", e.target.value)} />
       </Field>
+
+      {customFields.length > 0 && (
+        <DynamicFormFields
+          fields={customFields}
+          values={extraData}
+          onChange={(k, v) => setExtraData((prev) => ({ ...prev, [k]: v }))}
+        />
+      )}
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 

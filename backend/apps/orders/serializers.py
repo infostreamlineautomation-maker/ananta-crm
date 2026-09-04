@@ -12,7 +12,18 @@ class OrderItemSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
 
     class Meta:
         model = OrderItem
-        fields = ["id", "product", "product_name", "description", "qty", "rate", "amount", "image", "sort_order"]
+        fields = [
+            "id",
+            "product",
+            "product_name",
+            "description",
+            "qty",
+            "rate",
+            "amount",
+            "image",
+            "extra_data",
+            "sort_order",
+        ]
 
 
 class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -34,7 +45,7 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
         fields = [
             "id", "order_no", "date", "client", "client_name", "project", "project_name",
             "supplier", "supplier_name",
-            "description", "tax_percent", "subtotal", "tax_amount", "grand_total",
+            "description", "columns_config", "tax_percent", "subtotal", "tax_amount", "grand_total",
             "currency_code", "exchange_rate", "base_currency_code",
             "delivery_status", "payment_status", "paid_amount", "due_amount", "is_visible_to_staff",
             "copied_from", "created_by", "created_by_name", "items", "created_at", "updated_at",
@@ -43,6 +54,7 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
             "order_no", "subtotal", "tax_amount", "grand_total", "due_amount",
             "copied_from", "created_by", "created_at", "updated_at",
         ]
+
 
     def validate_items(self, value):
         if not value:

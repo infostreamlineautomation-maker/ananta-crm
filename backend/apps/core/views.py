@@ -5,8 +5,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .forex import get_exchange_rate, sync_exchange_rates
-from .models import ActivityLog, Country, ExchangeRate
-from .serializers import ActivityLogSerializer, CountrySerializer, ExchangeRateSerializer
+from .models import ActivityLog, Country, CustomFieldDefinition, ExchangeRate
+from .serializers import (
+    ActivityLogSerializer,
+    CountrySerializer,
+    CustomFieldDefinitionSerializer,
+    ExchangeRateSerializer,
+)
 
 
 class CountryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -94,3 +99,25 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["module", "object_id"]
+
+
+class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
+    serializer_class = CustomFieldDefinitionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["module", "is_required", "show_in_table", "show_in_print"]
+    pagination_class = None
+
+    def get_queryset(self):
+        org = getattr(self.request, "organization", None)
+        if not org:
+            return CustomFieldDefinition.objects.none()
+        return CustomFieldDefinition.objects.filter(organization=org).order_by("sort_order", "id")
+
+    def perform_create(self, serializer):
+        org = getattr(self.request, "organization", None)
+        serializer.save(organization=org, created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+

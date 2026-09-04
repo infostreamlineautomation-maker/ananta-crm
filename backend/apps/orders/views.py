@@ -174,6 +174,7 @@ class OrderViewSet(ModuleViewSet):
             project=source.project,
             supplier=source.supplier,
             description=source.description,
+            columns_config=source.columns_config,
             tax_percent=source.tax_percent,
             is_visible_to_staff=True,
             copied_from=source,
@@ -181,11 +182,17 @@ class OrderViewSet(ModuleViewSet):
         )
         for i, item in enumerate(source.items.all()):
             OrderItem.objects.create(
-                order=new_order, product=item.product, description=item.description,
-                qty=item.qty, rate=item.rate, sort_order=i,
+                order=new_order,
+                product=item.product,
+                description=item.description,
+                qty=item.qty,
+                rate=item.rate,
+                extra_data=item.extra_data,
+                sort_order=i,
             )
         new_order.recalc_totals()
         return Response(OrderSerializer(new_order).data, status=201)
+
 
     @action(detail=True, methods=["post"], url_path="send-notification")
     def send_notification(self, request, pk=None):

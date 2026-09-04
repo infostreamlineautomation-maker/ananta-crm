@@ -13,7 +13,7 @@ class CostingItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CostingItem
-        fields = ["id", "supplier_rate", "quantity", "client_rate", "profit"]
+        fields = ["id", "supplier_rate", "quantity", "client_rate", "profit", "extra_data"]
 
 
 class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -51,11 +51,12 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
             "supplier", "supplier_name", "supplier_display",
             "product", "product_name", "product_display",
             "client", "client_name", "client_display",
-            "description", "items", "supplier_cost", "client_revenue", "profit", "profit_percent",
+            "description", "columns_config", "items", "supplier_cost", "client_revenue", "profit", "profit_percent",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
         extra_kwargs = {"supplier": {"required": False}, "product": {"required": False}, "client": {"required": False}}
         read_only_fields = ["is_deleted", "created_by", "created_at", "updated_at"]
+
 
     def validate_items(self, value):
         if not value:

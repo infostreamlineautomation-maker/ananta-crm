@@ -178,6 +178,11 @@ export default function OrderPrintPage() {
                 <tr className="border-b border-border bg-surface-sunken/80 text-[11.5px] font-bold uppercase tracking-wider text-ink">
                   <th className="px-4 py-3 w-12 text-center">#</th>
                   <th className="px-4 py-3">Item & Description</th>
+                  {(order.columns_config || []).map((col) => (
+                    <th key={col.key} className="px-4 py-3 text-left">
+                      {col.label}
+                    </th>
+                  ))}
                   <th className="px-4 py-3 text-right">Qty</th>
                   <th className="px-4 py-3 text-right">Rate ({currency})</th>
                   <th className="px-4 py-3 text-right">Amount ({currency})</th>
@@ -191,6 +196,11 @@ export default function OrderPrintPage() {
                       <p className="font-bold text-ink">{it.product_name || "Custom Item"}</p>
                       {it.description && <p className="text-xs text-ink-muted mt-0.5 whitespace-pre-line">{it.description}</p>}
                     </td>
+                    {(order.columns_config || []).map((col) => (
+                      <td key={col.key} className="px-4 py-3 text-xs text-ink-muted">
+                        {it.extra_data?.[col.key] ?? "-"}
+                      </td>
+                    ))}
                     <td className="tnum px-4 py-3 text-right text-xs font-semibold text-ink font-mono">{it.qty}</td>
                     <td className="tnum px-4 py-3 text-right text-xs text-ink-muted font-mono">{formatCurrency(it.rate, currency)}</td>
                     <td className="tnum px-4 py-3 text-right text-xs font-bold text-ink font-mono">{formatCurrency(it.amount || "0", currency)}</td>
@@ -199,6 +209,7 @@ export default function OrderPrintPage() {
               </tbody>
             </table>
           </div>
+
 
           {/* Totals Breakdown */}
           <div className="mt-6 flex flex-col sm:flex-row items-start justify-between gap-6">

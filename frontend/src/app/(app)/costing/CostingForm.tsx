@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, CostingDetail, CostingItemDetail, Product, ProjectSummary, Supplier } from "@/lib/types";
+import { Client, CostingDetail, CostingItemDetail, CustomFieldDefinition, Product, ProjectSummary, QuotationColumn, Supplier } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -15,7 +15,13 @@ import { Combobox } from "@/components/ui/Combobox";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 
 function blankItem(): CostingItemDetail {
-  return { supplier_rate: "0", quantity: "1", client_rate: "0" };
+  return { supplier_rate: "0", quantity: "1", client_rate: "0", extra_data: {} };
+}
+
+let columnCounter = 0;
+function newColumnKey() {
+  columnCounter += 1;
+  return `custom_${Date.now()}_${columnCounter}`;
 }
 
 export function CostingForm({ costing, initialProjectId }: { costing?: CostingDetail; initialProjectId?: number }) {
@@ -30,8 +36,7 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  // Seed local state from each fetched list, but keep them separate so a
-  // fast-track "+ Add new ..." can append without a refetch.
+
   useEffect(() => {
     if (rawSuppliers.length) setSuppliers(rawSuppliers);
   }, [rawSuppliers]);
@@ -50,7 +55,29 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
   const [product, setProduct] = useState<number | "">(costing?.product ?? "");
   const [client, setClient] = useState<number | "">(costing?.client ?? "");
   const [description, setDescription] = useState(costing?.description ?? "");
-  const [items, setItems] = useState<CostingItemDetail[]>(costing?.items.length ? costing.items : [blankItem()]);
+  const [columns, setColumns] = useState<QuotationColumn[]>(costing?.columns_config ?? []);
+  const [items, setItems] = useState<CostingItemDetail[]>(
+    costing?.items.length
+      ? costing.items.map((it) => ({ ...it, extra_data: it.extra_data || {} }))
+      : [blankItem()]
+  );
+
+  // If creating new costing, load default custom field columns for costing_item
+  useEffect(() => {
+    if (!costing) {
+      apiFetch<CustomFieldDefinition[]>("/api/custom-fields/?module=costing_item")
+        .then((defs) => {
+          if (defs.length > 0 && columns.length === 0) {
+            const initialCols: QuotationColumn[] = defs.map((d) => ({
+              key: d.field_key,
+              label: d.label,
+            }));
+            setColumns(initialCols);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [costing]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +99,30 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
 
+  function updateItemExtra(index: number, key: string, value: string) {
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === index ? { ...it, extra_data: { ...(it.extra_data || {}), [key]: value } } : it
+      )
+    );
+  }
+
+  function addColumn() {
+    const col = { key: newColumnKey(), label: "New Column" };
+    setColumns((prev) => [...prev, col]);
+  }
+
+  function removeColumn(key: string) {
+    setColumns((prev) => prev.filter((c) => c.key !== key));
+    setItems((prev) =>
+      prev.map((it) => {
+        const rest = { ...(it.extra_data || {}) };
+        delete rest[key];
+        return { ...it, extra_data: rest };
+      })
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -88,7 +139,13 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
         product,
         client,
         description,
-        items: items.map((it) => ({ supplier_rate: it.supplier_rate, quantity: it.quantity, client_rate: it.client_rate })),
+        columns_config: columns,
+        items: items.map((it) => ({
+          supplier_rate: it.supplier_rate,
+          quantity: it.quantity,
+          client_rate: it.client_rate,
+          extra_data: it.extra_data || {},
+        })),
       };
       if (costing) {
         await apiFetch<CostingDetail>(`/api/costings/${costing.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -159,7 +216,18 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
       </Card>
 
       <Card>
-        <CardHeader title="Line Items" />
+        <CardHeader
+          title="Line Items"
+          action={
+            <button
+              type="button"
+              onClick={addColumn}
+              className="text-[13px] font-semibold text-ink-muted hover:text-primary-500 cursor-pointer"
+            >
+              + Add Custom Column
+            </button>
+          }
+        />
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -167,6 +235,28 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
                 <th className="px-5 py-2.5 text-right">Supplier Rate</th>
                 <th className="px-3 py-2.5 text-right">Quantity</th>
                 <th className="px-3 py-2.5 text-right">Client Rate</th>
+                {columns.map((col) => (
+                  <th key={col.key} className="px-3 py-2.5 text-left">
+                    <div className="flex items-center gap-1">
+                      <input
+                        value={col.label}
+                        onChange={(e) =>
+                          setColumns((prev) =>
+                            prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
+                          )
+                        }
+                        className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeColumn(col.key)}
+                        className="text-ink-faint hover:text-primary-600 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </th>
+                ))}
                 <th className="px-3 py-2.5 text-right">Profit</th>
                 <th className="w-10"></th>
               </tr>
@@ -185,11 +275,20 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
                     <td className="px-3 py-2.5">
                       <Input type="number" step="0.01" min="0" value={it.client_rate} onChange={(e) => updateItem(i, { client_rate: e.target.value })} className="text-right" />
                     </td>
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-3 py-2.5">
+                        <Input
+                          value={it.extra_data?.[col.key] ?? ""}
+                          onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
+                          placeholder={col.label}
+                        />
+                      </td>
+                    ))}
                     <td className={`tnum px-3 py-2.5 text-right text-[13.5px] font-semibold ${profit >= 0 ? "text-success-700" : "text-primary-600"}`}>
                       {formatCurrency(profit)}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <button type="button" onClick={() => setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600">
+                      <button type="button" onClick={() => setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
@@ -200,7 +299,7 @@ export function CostingForm({ costing, initialProjectId }: { costing?: CostingDe
           </table>
         </div>
         <div className="border-t border-border px-5 py-3">
-          <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600">
+          <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600 cursor-pointer">
             + Add Line
           </button>
         </div>

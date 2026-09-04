@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
-import { Product } from "@/lib/types";
+import { apiFetch, ApiError, Paginated } from "@/lib/api";
+import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { CustomFieldDefinition, Product } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
+import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 
 export default function ProductsPage() {
   const { can } = useAuth();
@@ -22,6 +23,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
+  const { items: customFields } = useList<CustomFieldDefinition>("/api/custom-fields/?module=product");
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
@@ -38,6 +40,8 @@ export default function ProductsPage() {
   const canAdd = can("catalog", "add");
   const canEdit = can("catalog", "edit");
   const canDelete = can("catalog", "delete");
+
+  const colSpan = 3 + (customFields?.length || 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -72,15 +76,25 @@ export default function ProductsPage() {
               <tr className="border-b border-border">
                 <th className={TH}>Product Name</th>
                 <th className={TH}>Description</th>
+                {customFields?.map((f) => (
+                  <th key={f.id} className={TH}>
+                    {f.label}
+                  </th>
+                ))}
                 <th className={TH}></th>
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={3} emptyLabel="No products yet." />
+              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={colSpan} emptyLabel="No products yet." />
               {data?.results.map((p) => (
                 <tr key={p.id} className={TR}>
                   <td className={`${TD} font-semibold`}>{p.product_name}</td>
                   <td className={`${TD} max-w-md truncate text-ink-muted`}>{p.description || "—"}</td>
+                  {customFields?.map((f) => (
+                    <td key={f.id} className={`${TD} text-ink-muted`}>
+                      {String(p.extra_data?.[f.field_key] ?? "—")}
+                    </td>
+                  ))}
                   <td className={`${TD} text-right`}>
                     <div className="flex justify-end gap-1">
                       {canEdit && (
@@ -151,24 +165,33 @@ function ProductForm({
   const toast = useToast();
   const [name, setName] = useState(product?.product_name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
+  const [extraData, setExtraData] = useState<Record<string, any>>(product?.extra_data || {});
+  const [customFields, setCustomFields] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<Paginated<any>>("/api/custom-fields/?module=product")
+      .then((res) => setCustomFields(res.results || []))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
+      const payload = { product_name: name, description, extra_data: extraData };
       if (product) {
         await apiFetch(`/api/products/${product.id}/`, {
           method: "PATCH",
-          body: JSON.stringify({ product_name: name, description }),
+          body: JSON.stringify(payload),
         });
         toast.success("Product updated.");
       } else {
         await apiFetch("/api/products/", {
           method: "POST",
-          body: JSON.stringify({ product_name: name, description }),
+          body: JSON.stringify(payload),
         });
         toast.success("Product added.");
       }
@@ -188,6 +211,15 @@ function ProductForm({
       <Field label="Description">
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
       </Field>
+
+      {customFields.length > 0 && (
+        <DynamicFormFields
+          fields={customFields}
+          values={extraData}
+          onChange={(k, v) => setExtraData((prev) => ({ ...prev, [k]: v }))}
+        />
+      )}
+
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
       <div className="mt-1 flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>

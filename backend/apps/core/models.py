@@ -124,3 +124,70 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.module}#{self.object_id} {self.action} by {self.user_id}"
+
+
+class CustomFieldDefinition(AuditedModel):
+    """Dynamic custom column/field definition configurable per organization.
+    Controls what dynamic attributes and columns appear on data entry tables,
+    detail cards, invoices, and CSV exports."""
+
+    MODULE_ORDER_ITEM = "order_item"
+    MODULE_QUOTATION_ITEM = "quotation_item"
+    MODULE_COSTING_ITEM = "costing_item"
+    MODULE_PRODUCT = "product"
+    MODULE_CLIENT = "client"
+    MODULE_COMPANY = "company"
+    MODULE_SUPPLIER = "supplier"
+    MODULE_PROJECT = "project"
+
+    MODULE_CHOICES = [
+        (MODULE_ORDER_ITEM, "Order Line Item"),
+        (MODULE_QUOTATION_ITEM, "Quotation Line Item"),
+        (MODULE_COSTING_ITEM, "Costing Line Item"),
+        (MODULE_PRODUCT, "Product / Catalog"),
+        (MODULE_CLIENT, "Client"),
+        (MODULE_COMPANY, "Company"),
+        (MODULE_SUPPLIER, "Supplier"),
+        (MODULE_PROJECT, "Project"),
+    ]
+
+    TYPE_TEXT = "text"
+    TYPE_NUMBER = "number"
+    TYPE_SELECT = "select"
+    TYPE_DATE = "date"
+    TYPE_BOOLEAN = "boolean"
+
+    TYPE_CHOICES = [
+        (TYPE_TEXT, "Text"),
+        (TYPE_NUMBER, "Number"),
+        (TYPE_SELECT, "Dropdown Selection"),
+        (TYPE_DATE, "Date"),
+        (TYPE_BOOLEAN, "Yes / No (Checkbox)"),
+    ]
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="custom_field_definitions"
+    )
+    module = models.CharField(max_length=32, choices=MODULE_CHOICES)
+    field_key = models.CharField(
+        max_length=64,
+        help_text="Key stored in JSON extra_data, e.g. 'paper_gsm' or 'hsn_code'",
+    )
+    label = models.CharField(max_length=128, help_text="Display label shown in forms and table headers")
+    field_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_TEXT)
+    options = models.JSONField(
+        default=list, blank=True, help_text="List of choices if field_type is 'select'"
+    )
+    default_value = models.CharField(max_length=255, blank=True)
+    is_required = models.BooleanField(default=False)
+    show_in_table = models.BooleanField(default=True, help_text="Show as a column in list tables")
+    show_in_print = models.BooleanField(default=True, help_text="Include in print / PDF invoice templates")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        unique_together = ("organization", "module", "field_key")
+
+    def __str__(self):
+        return f"{self.get_module_display()}: {self.label} ({self.field_key})"
+
