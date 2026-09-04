@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Printer, TriangleAlert } from "lucide-react";
+import { Eye, EyeOff, TriangleAlert } from "lucide-react";
 import { useAuth, ApiError } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 
@@ -37,11 +37,28 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-[380px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-500 text-white shadow-[var(--shadow-pop)]">
-            <Printer className="h-6 w-6" strokeWidth={2} />
+          {/* Dual Brand Circular Badges */}
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <div className="flex h-13 w-13 items-center justify-center rounded-full bg-white p-1 shadow-md border border-border ring-2 ring-primary-500/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/ananta_logo.png"
+                alt="Ananta Graphics"
+                className="h-full w-full object-contain rounded-full"
+              />
+            </div>
+            <div className="h-0.5 w-4 bg-linear-to-r from-primary-500 to-[#EE3050] opacity-40 rounded-full" />
+            <div className="flex h-13 w-13 items-center justify-center rounded-full bg-white p-1 shadow-md border border-border ring-2 ring-[#EE3050]/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/meewa_logo.png"
+                alt="Meewa Industries"
+                className="h-full w-full object-contain rounded-full"
+              />
+            </div>
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight text-ink">Ananta CRM</h1>
-          <p className="mt-1 text-sm text-ink-muted">Sign in to your account</p>
+          <h1 className="text-xl font-extrabold tracking-tight text-ink">Ananta × Meewa CRM</h1>
+          <p className="mt-1 text-sm text-ink-muted">Sign in to your enterprise account</p>
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-pop)]">

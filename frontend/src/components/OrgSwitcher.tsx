@@ -1,34 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronsUpDown, Printer } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import clsx from "clsx";
 import { useOrganization } from "@/lib/organization-context";
-import { mediaUrl } from "@/lib/format";
+import { getBrandLogo } from "@/lib/format";
 
 function OrgLogo({ logo, name, size = 36 }: { logo: string | null; name: string; size?: number }) {
   const [error, setError] = useState(false);
-  const src = mediaUrl(logo);
+  const brandSrc = getBrandLogo(name, logo);
 
-  if (src && !error) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, dynamic remote URL
-      <img
-        src={src}
-        alt=""
-        style={{ width: size, height: size }}
-        className="flex-none rounded-lg border border-border object-cover"
-        onError={() => setError(true)}
-      />
-    );
-  }
   return (
-    <div
+    // eslint-disable-next-line @next/next/no-img-element -- Brand logo
+    <img
+      src={error ? getBrandLogo(name) : brandSrc}
+      alt={name}
       style={{ width: size, height: size }}
-      className="flex flex-none items-center justify-center rounded-lg bg-primary-500 text-white"
-    >
-      <Printer className="h-4.5 w-4.5" strokeWidth={2} />
-    </div>
+      className="flex-none rounded-full border border-border bg-white object-contain p-0.5 shadow-xs"
+      onError={() => setError(true)}
+    />
   );
 }
 

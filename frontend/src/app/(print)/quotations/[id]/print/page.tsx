@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, QuotationDetail } from "@/lib/types";
-import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
+import { formatCurrency, formatDate, mediaUrl, getBrandLogo } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 
@@ -73,7 +73,8 @@ export default function QuotationPrintPage() {
   const currency = quotation.currency_code || "INR";
   const columns = quotation.columns_config;
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
-  const logoImage = settings?.logo ? mediaUrl(settings.logo) : settings?.app_logo ? mediaUrl(settings.app_logo) : null;
+  const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
+  const logoImage = getBrandLogo(companyName, settings?.logo || settings?.app_logo);
 
   return (
     <div className="min-h-screen bg-neutral-100 py-6 print:bg-white print:py-0">
@@ -109,12 +110,14 @@ export default function QuotationPrintPage() {
           {/* Letterhead */}
           <div className="flex items-start justify-between border-b-2 border-primary-500 pb-6 relative z-10">
             <div>
-              {logoImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoImage} alt="" className="mb-2 h-12 max-w-[200px] object-contain" />
-              )}
-              <p className="text-lg font-black text-ink">{settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics"}</p>
-              {settings?.tagline && <p className="text-xs font-semibold text-primary-600 mb-1">{settings.tagline}</p>}
+              <div className="flex items-center gap-3 mb-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoImage} alt={companyName} className="h-12 w-12 rounded-full border border-border object-contain p-0.5 bg-white shadow-xs" />
+                <div>
+                  <p className="text-lg font-black text-ink">{companyName}</p>
+                  {settings?.tagline && <p className="text-xs font-semibold text-primary-600">{settings.tagline}</p>}
+                </div>
+              </div>
               {settings?.company_address && <p className="max-w-xs text-[12px] whitespace-pre-line text-ink-muted">{settings.company_address}</p>}
               <p className="text-[12px] text-ink-muted">
                 {[settings?.company_email, settings?.company_phone].filter(Boolean).join(" · ")}

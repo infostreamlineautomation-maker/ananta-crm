@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
+import { DualLogoLoader } from "@/components/ui/LoadingState";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -16,9 +17,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-bg">
-        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary-500 border-t-transparent" />
-      </div>
+      <DualLogoLoader
+        label="Loading Workspace..."
+        sublabel="Ananta Graphics × Meewa Industries"
+        fullscreen
+      />
     );
   }
 

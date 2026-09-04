@@ -7,13 +7,12 @@ import { ArrowLeft, CheckCircle2, FolderKanban, Loader2, Printer } from "lucide-
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
 import { AppSettings, Client, OrderSummary, ProjectSummary } from "@/lib/types";
-import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
+import { formatCurrency, formatDate, mediaUrl, getBrandLogo } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
 interface ProjectDetail extends ProjectSummary {
   client_id?: number;
   created_at?: string;
-  updated_at?: string;
 }
 
 export default function ProjectPrintPage() {
@@ -23,8 +22,8 @@ export default function ProjectPrintPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [client, setClient] = useState<Client | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [client, setClient] = useState<Client | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,18 +34,16 @@ export default function ProjectPrintPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<ProjectDetail>(`/api/projects/${projectId}/`),
+      apiFetch<OrderSummary[]>(`/api/orders/?project=${projectId}`),
       apiFetch<AppSettings>("/api/settings/"),
-      apiFetch<OrderSummary[] | { results: OrderSummary[] }>(`/api/orders/?project=${projectId}`),
     ])
-      .then(async ([proj, s, ordRes]) => {
+      .then(async ([proj, ords, s]) => {
         setProject(proj);
+        setOrders(ords);
         setSettings(s);
-        const ordList = Array.isArray(ordRes) ? ordRes : ordRes?.results || [];
-        setOrders(ordList);
-
-        if (proj.client) {
+        if (proj.client_id) {
           try {
-            const cl = await apiFetch<Client>(`/api/clients/${proj.client}/`);
+            const cl = await apiFetch<Client>(`/api/clients/${proj.client_id}/`);
             setClient(cl);
           } catch {}
         }
@@ -74,7 +71,7 @@ export default function ProjectPrintPage() {
   const baseCurr = settings?.default_currency_code || "INR";
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
-  const logoImage = settings?.logo ? mediaUrl(settings.logo) : settings?.app_logo ? mediaUrl(settings.app_logo) : null;
+  const logoImage = getBrandLogo(companyName, settings?.logo || settings?.app_logo);
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
 
   const totalBilled = orders.reduce((sum, o) => sum + Number(o.grand_total || 0), 0);
@@ -112,13 +109,14 @@ export default function ProjectPrintPage() {
           {/* Header Row */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b border-border/80 pb-8">
             <div className="max-w-md">
-              {logoImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoImage} alt={companyName} className="h-14 max-w-[220px] object-contain mb-3" />
-              ) : (
-                <h1 className="text-2xl font-black tracking-tight text-primary-600">{companyName}</h1>
-              )}
-              {settings?.tagline && <p className="text-xs font-semibold text-primary-600/80 mb-1">{settings.tagline}</p>}
+              <div className="flex items-center gap-3.5 mb-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoImage} alt={companyName} className="h-14 w-14 rounded-full border border-border object-contain p-0.5 bg-white shadow-xs" />
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight text-ink">{companyName}</h1>
+                  {settings?.tagline && <p className="text-xs font-semibold text-primary-600/80">{settings.tagline}</p>}
+                </div>
+              </div>
               <div className="text-xs text-ink-muted space-y-0.5 whitespace-pre-line">
                 {settings?.company_address && <p>{settings.company_address}</p>}
                 <div className="flex flex-wrap gap-x-4">

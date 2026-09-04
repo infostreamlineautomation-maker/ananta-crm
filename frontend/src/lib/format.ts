@@ -24,3 +24,16 @@ export function mediaUrl(path: string | null | undefined): string | null {
   const baseUrl = getApiBaseUrl();
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
+
+export function getBrandLogo(nameOrOrg?: string | null, customLogoPath?: string | null): string {
+  if (customLogoPath) {
+    const url = mediaUrl(customLogoPath);
+    if (url) return url;
+  }
+  const str = (nameOrOrg || "").toLowerCase();
+  if (str.includes("meewa")) {
+    return "/meewa_logo.png";
+  }
+  return "/ananta_logo.png";
+}
+

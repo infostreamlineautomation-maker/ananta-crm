@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCircle2, Clock, Loader2, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
 import { AppSettings, Client, OrderDetail } from "@/lib/types";
-import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
+import { formatCurrency, formatDate, mediaUrl, getBrandLogo } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
 export default function OrderPrintPage() {
@@ -64,7 +64,7 @@ export default function OrderPrintPage() {
   const orgBaseCurr = settings?.default_currency_code || "INR";
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
-  const logoImage = settings?.logo ? mediaUrl(settings.logo) : settings?.app_logo ? mediaUrl(settings.app_logo) : null;
+  const logoImage = getBrandLogo(companyName, settings?.logo || settings?.app_logo);
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
 
   return (
@@ -99,13 +99,14 @@ export default function OrderPrintPage() {
           {/* Header Row */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b border-border/80 pb-8">
             <div className="max-w-md">
-              {logoImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoImage} alt={companyName} className="h-14 max-w-[220px] object-contain mb-3" />
-              ) : (
-                <h1 className="text-2xl font-black tracking-tight text-primary-600">{companyName}</h1>
-              )}
-              {settings?.tagline && <p className="text-xs font-semibold text-primary-600/80 mb-1">{settings.tagline}</p>}
+              <div className="flex items-center gap-3.5 mb-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoImage} alt={companyName} className="h-14 w-14 rounded-full border border-border object-contain p-0.5 bg-white shadow-xs" />
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight text-ink">{companyName}</h1>
+                  {settings?.tagline && <p className="text-xs font-semibold text-primary-600/80">{settings.tagline}</p>}
+                </div>
+              </div>
               <div className="text-xs text-ink-muted space-y-0.5 whitespace-pre-line">
                 {settings?.company_address && <p>{settings.company_address}</p>}
                 <div className="flex flex-wrap gap-x-4">
