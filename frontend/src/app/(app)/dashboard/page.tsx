@@ -20,7 +20,7 @@ import { AnalyticsReport, OrderSummary, ProjectSummary } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
-import { StatusPill, DELIVERY_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { DatePresets } from "@/components/charts/DatePresets";
@@ -294,7 +294,8 @@ export default function DashboardPage() {
                   <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                     <th className="px-5 py-2.5 font-bold">Order No</th>
                     <th className="px-5 py-2.5 font-bold">Client</th>
-                    <th className="px-5 py-2.5 font-bold">Status</th>
+                    <th className="px-5 py-2.5 font-bold">Delivery</th>
+                    <th className="px-5 py-2.5 font-bold">Payment</th>
                     <th className="px-5 py-2.5 text-right font-bold">Amount</th>
                     <th className="px-5 py-2.5 font-bold">Date</th>
                   </tr>
@@ -302,7 +303,7 @@ export default function DashboardPage() {
                 <tbody>
                   {!loading && recentOrders.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-5 py-8 text-center text-ink-faint">
+                      <td colSpan={6} className="px-5 py-8 text-center text-ink-faint">
                         No orders in this range.
                       </td>
                     </tr>
@@ -318,7 +319,19 @@ export default function DashboardPage() {
                       <td className="px-5 py-3">
                         <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
                       </td>
-                      <td className="tnum px-5 py-3 text-right font-mono font-bold text-ink">{formatCurrency(o.grand_total, o.currency_code || baseCurr)}</td>
+                      <td className="px-5 py-3">
+                        <StatusPill label={labelize(o.payment_status || "pending")} tone={PAYMENT_STATUS_TONE[o.payment_status || "pending"]} />
+                      </td>
+                      <td className="tnum px-5 py-3 text-right">
+                        <div className="font-mono font-bold text-ink">
+                          {formatCurrency(o.grand_total, o.currency_code || baseCurr)}
+                        </div>
+                        {o.payment_status === "partial" && o.paid_amount && (
+                          <div className="text-[11px] text-amber-600 font-mono">
+                            Paid: {formatCurrency(o.paid_amount, o.currency_code || baseCurr)}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-ink-muted text-[13px]">{formatDate(o.date)}</td>
                     </tr>
                   ))}

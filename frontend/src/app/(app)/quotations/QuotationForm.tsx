@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import { Client, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
+import { useAuth } from "@/lib/auth-context";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
 import { useToast } from "@/components/ui/Toast";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
+import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 
 function blankItem(): QuotationItemDetail {
   return { description: "", qty: "1", rate: "0", extra_data: {} };
@@ -199,11 +201,42 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
     }
   }
 
+  const { can } = useAuth();
+  const [creatingOrder, setCreatingOrder] = useState(false);
+
+  async function handleCreateOrder() {
+    if (!quotation) return;
+    setCreatingOrder(true);
+    try {
+      const order = await apiFetch<{ id: number; order_no: string }>(`/api/quotations/${quotation.id}/create-order/`, {
+        method: "POST",
+        body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), tax_percent: 0 }),
+      });
+      toast.success(`Order ${order.order_no} created and quotation marked as Accepted (Won).`);
+      router.push(`/orders/${order.id}`);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't create an order from this quotation.");
+    } finally {
+      setCreatingOrder(false);
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-4">
         <h1 className="font-mono text-2xl font-extrabold text-ink">{quotation ? quotation.quotation_no : "New Quotation"}</h1>
         <div className="flex items-center gap-2">
+          {quotation && can("orders", "add") && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCreateOrder}
+              loading={creatingOrder}
+              className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            >
+              Convert to Order
+            </Button>
+          )}
           {quotation && (
             <a href={`/quotations/${quotation.id}/print`} target="_blank" rel="noreferrer">
               <Button type="button" variant="secondary">
@@ -395,6 +428,14 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
           <Textarea value={footerContent} onChange={(e) => setFooterContent(e.target.value)} rows={2} />
         </Field>
       </Card>
+
+      {quotation?.id && (
+        <ActivityTimeline
+          endpoint={`/api/quotations/${quotation.id}/timeline/`}
+          refreshTrigger={saving}
+          title="Quotation History & Activity Timeline"
+        />
+      )}
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 

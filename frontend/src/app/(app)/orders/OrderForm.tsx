@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
+import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 
 function blankItem(): OrderItemDetail {
   return { product: "", description: "", qty: "1", rate: "0", extra_data: {} };
@@ -463,6 +464,14 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
               </button>
             </div>
           </Card>
+
+          {order?.id && (
+            <ActivityTimeline
+              endpoint={`/api/orders/${order.id}/timeline/`}
+              refreshTrigger={saving}
+              title="Order History & Audit Timeline"
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-5">

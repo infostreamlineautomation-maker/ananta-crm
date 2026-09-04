@@ -504,11 +504,22 @@ export interface ActivityLogEntry {
   id: number;
   user: number | null;
   user_name: string | null;
+  user_full_name?: string | null;
   module: string;
   object_id: string;
   action: string;
   details: string;
   created_at: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event_type: "created" | "delivery_changed" | "payment_updated" | "amount_updated" | "updated" | "comm_email" | "comm_whatsapp" | string;
+  title: string;
+  description: string;
+  user_name: string;
+  created_at: string;
+  source: "activity" | "communication";
 }
 
 export interface Supplier {

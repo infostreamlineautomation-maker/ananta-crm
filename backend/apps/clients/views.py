@@ -29,6 +29,99 @@ class ClientViewSet(SoftDeleteModuleViewSet):
     filterset_fields = ["client_type", "company", "country"]
     search_fields = ["client_name", "phone", "email"]
 
+    def perform_create(self, serializer):
+        client = serializer.save(created_by=self.request.user)
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=self.request.user,
+                module="clients",
+                object_id=str(client.id),
+                action="created",
+                details=f"Client account \"{client.client_name}\" registered",
+            )
+        except Exception:
+            pass
+
+    def perform_update(self, serializer):
+        client = serializer.save(updated_by=self.request.user)
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=self.request.user,
+                module="clients",
+                object_id=str(client.id),
+                action="updated",
+                details=f"Client profile \"{client.client_name}\" details updated",
+            )
+        except Exception:
+            pass
+
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """Unified 360-degree relationship & activity timeline for the client."""
+        client = self.get_object()
+        from apps.core.models import ActivityLog
+        from apps.organizations.models import CommunicationLog
+        from apps.orders.models import Order
+        from apps.quotations.models import Quotation
+
+        # 1. Direct client activities
+        client_acts = ActivityLog.objects.filter(module="clients", object_id=str(client.id)).select_related("user")
+
+        # 2. Client orders activities
+        order_ids = [str(o_id) for o_id in Order.objects.filter(client=client).values_list("id", flat=True)]
+        order_acts = ActivityLog.objects.filter(module="orders", object_id__in=order_ids).select_related("user") if order_ids else []
+
+        # 3. Client quotations activities
+        quote_ids = [str(q_id) for q_id in Quotation.objects.filter(client=client).values_list("id", flat=True)]
+        quote_acts = ActivityLog.objects.filter(module="quotations", object_id__in=quote_ids).select_related("user") if quote_ids else []
+
+        # 4. Communications sent to this client
+        comms = CommunicationLog.objects.filter(client=client).select_related("sent_by")
+
+        events = []
+        for a in list(client_acts) + list(order_acts) + list(quote_acts):
+            user_name = (
+                f"{a.user.first_name} {a.user.last_name}".strip()
+                if a.user and (a.user.first_name or a.user.last_name)
+                else (a.user.username if a.user else "System")
+            )
+            title = a.action.replace("_", " ").title()
+            if a.module == "orders":
+                title = f"Order: {title}"
+            elif a.module == "quotations":
+                title = f"Quotation: {title}"
+
+            events.append({
+                "id": f"act_{a.id}",
+                "event_type": a.action,
+                "title": title,
+                "description": a.details,
+                "user_name": user_name,
+                "created_at": a.created_at.isoformat(),
+                "source": "activity",
+            })
+
+        for c in comms:
+            user_name = (
+                f"{c.sent_by.first_name} {c.sent_by.last_name}".strip()
+                if c.sent_by and (c.sent_by.first_name or c.sent_by.last_name)
+                else (c.sent_by.username if c.sent_by else "System")
+            )
+            events.append({
+                "id": f"comm_{c.id}",
+                "event_type": f"comm_{c.channel}",
+                "title": f"{c.channel.title()} Sent",
+                "description": f"To {c.recipient} — {c.subject}" + (f": {c.message[:120]}..." if c.message else ""),
+                "user_name": user_name,
+                "created_at": c.created_at.isoformat(),
+                "source": "communication",
+            })
+
+        events.sort(key=lambda x: x["created_at"], reverse=True)
+        return Response(events)
+
     @action(detail=True, methods=["post"], url_path="send-notification")
     def send_notification(self, request, pk=None):
         client = self.get_object()

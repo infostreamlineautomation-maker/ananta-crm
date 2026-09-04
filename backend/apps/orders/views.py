@@ -69,6 +69,19 @@ class OrderViewSet(ModuleViewSet):
 
     def perform_create(self, serializer):
         order = serializer.save(created_by=self.request.user)
+        from apps.core.models import ActivityLog
+
+        try:
+            ActivityLog.objects.create(
+                user=self.request.user,
+                module="orders",
+                object_id=str(order.id),
+                action="created",
+                details=f"Order {order.order_no} created for {order.client.client_name if order.client else 'Client'} (Total: {order.currency_code} {order.grand_total:,.2f})",
+            )
+        except Exception:
+            pass
+
         org = self.request.organization
         if org and org.notify_on_new_order:
             try:
@@ -102,8 +115,61 @@ class OrderViewSet(ModuleViewSet):
         prev_instance = self.get_object()
         prev_payment_status = prev_instance.payment_status
         prev_delivery_status = prev_instance.delivery_status
+        prev_paid_amount = prev_instance.paid_amount
+        prev_grand_total = prev_instance.grand_total
 
-        order = serializer.save()
+        order = serializer.save(updated_by=self.request.user)
+        from apps.core.models import ActivityLog
+
+        try:
+            logged_any = False
+            if prev_delivery_status != order.delivery_status:
+                logged_any = True
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="orders",
+                    object_id=str(order.id),
+                    action="delivery_changed",
+                    details=f"Delivery status changed from \"{prev_delivery_status.replace('_', ' ').title()}\" to \"{order.delivery_status.replace('_', ' ').title()}\"",
+                )
+
+            if prev_payment_status != order.payment_status or prev_paid_amount != order.paid_amount:
+                logged_any = True
+                if order.payment_status == Order.PAYMENT_PAID:
+                    details = f"Payment marked as Paid (Full amount {order.currency_code} {order.grand_total:,.2f})"
+                elif order.payment_status == Order.PAYMENT_PARTIAL:
+                    details = f"Payment updated to Partial (Paid: {order.currency_code} {order.paid_amount:,.2f}, Balance due: {order.currency_code} {order.due_amount:,.2f})"
+                else:
+                    details = "Payment status marked as Pending"
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="orders",
+                    object_id=str(order.id),
+                    action="payment_updated",
+                    details=details,
+                )
+
+            if prev_grand_total != order.grand_total:
+                logged_any = True
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="orders",
+                    object_id=str(order.id),
+                    action="amount_updated",
+                    details=f"Grand total updated from {order.currency_code} {prev_grand_total:,.2f} to {order.currency_code} {order.grand_total:,.2f}",
+                )
+
+            if not logged_any:
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="orders",
+                    object_id=str(order.id),
+                    action="updated",
+                    details="Order details and line items updated",
+                )
+        except Exception:
+            pass
+
         org = self.request.organization
         if not org:
             return
@@ -157,6 +223,52 @@ class OrderViewSet(ModuleViewSet):
         except Exception:
             pass
 
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """Unified chronological history & activity timeline for the order."""
+        order = self.get_object()
+        from apps.core.models import ActivityLog
+        from apps.organizations.models import CommunicationLog
+
+        activities = ActivityLog.objects.filter(module="orders", object_id=str(order.id)).select_related("user")
+        communications = CommunicationLog.objects.filter(order=order).select_related("sent_by")
+
+        events = []
+        for a in activities:
+            user_name = (
+                f"{a.user.first_name} {a.user.last_name}".strip()
+                if a.user and (a.user.first_name or a.user.last_name)
+                else (a.user.username if a.user else "System")
+            )
+            events.append({
+                "id": f"act_{a.id}",
+                "event_type": a.action,
+                "title": a.action.replace("_", " ").title(),
+                "description": a.details,
+                "user_name": user_name,
+                "created_at": a.created_at.isoformat(),
+                "source": "activity",
+            })
+
+        for c in communications:
+            user_name = (
+                f"{c.sent_by.first_name} {c.sent_by.last_name}".strip()
+                if c.sent_by and (c.sent_by.first_name or c.sent_by.last_name)
+                else (c.sent_by.username if c.sent_by else "System")
+            )
+            events.append({
+                "id": f"comm_{c.id}",
+                "event_type": f"comm_{c.channel}",
+                "title": f"{c.channel.title()} Notification Sent",
+                "description": f"Sent to {c.recipient} — {c.subject}" + (f": {c.message[:120]}..." if c.message else ""),
+                "user_name": user_name,
+                "created_at": c.created_at.isoformat(),
+                "source": "communication",
+            })
+
+        events.sort(key=lambda x: x["created_at"], reverse=True)
+        return Response(events)
+
     @action(detail=True, methods=["post"])
     def copy(self, request, pk=None):
         """Clone an existing order into a fresh draft — the legacy "Copy
@@ -191,6 +303,19 @@ class OrderViewSet(ModuleViewSet):
                 sort_order=i,
             )
         new_order.recalc_totals()
+
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=request.user,
+                module="orders",
+                object_id=str(new_order.id),
+                action="created",
+                details=f"Order {new_order.order_no} cloned from {source.order_no}",
+            )
+        except Exception:
+            pass
+
         return Response(OrderSerializer(new_order).data, status=201)
 
 

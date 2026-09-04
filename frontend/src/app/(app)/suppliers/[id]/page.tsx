@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -455,39 +456,10 @@ function FilesTab({ supplier, onChange }: { supplier: Supplier; onChange: () => 
 }
 
 function ActivityTab({ supplierId }: { supplierId: number }) {
-  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    apiFetch<Paginated<ActivityLogEntry>>(`/api/activity-log/?module=suppliers&object_id=${supplierId}&page_size=50`)
-      .then((res) => setEntries(res.results))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [supplierId]);
-
-  if (loading) {
-    return (
-      <div className="flex h-32 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
-      </div>
-    );
-  }
-
   return (
-    <Card>
-      {entries.length === 0 && <p className="px-5 py-8 text-center text-sm text-ink-faint">No activity recorded yet.</p>}
-      <div className="divide-y divide-border">
-        {entries.map((e) => (
-          <div key={e.id} className="flex items-start gap-3 px-5 py-3">
-            <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-primary-500" />
-            <p className="text-[13.5px] text-ink">
-              <span className="font-semibold">{e.user_name || "System"}</span> {e.action}
-              {e.details && <span className="text-ink-muted"> — {e.details}</span>}
-              <span className="ml-2 text-[12px] text-ink-faint">{formatDate(e.created_at)}</span>
-            </p>
-          </div>
-        ))}
-      </div>
-    </Card>
+    <ActivityTimeline
+      endpoint={`/api/activity-logs/?module=suppliers&object_id=${supplierId}`}
+      title="Supplier History & Activity Timeline"
+    />
   );
 }

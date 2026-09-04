@@ -29,6 +29,30 @@ def _converted_order_expr(org, base_curr, amount_field="grand_total"):
     return Case(*whens, default=F(amount_field), output_field=MONEY)
 
 
+def _converted_paid_expr(org, base_curr):
+    effective_paid = Case(
+        When(
+            payment_status=Order.PAYMENT_PAID,
+            then=Case(
+                When(paid_amount__gt=0, then=F("paid_amount")),
+                default=F("grand_total"),
+                output_field=MONEY,
+            ),
+        ),
+        When(payment_status=Order.PAYMENT_PARTIAL, then=Coalesce(F("paid_amount"), Decimal("0"), output_field=MONEY)),
+        default=Coalesce(F("paid_amount"), Decimal("0"), output_field=MONEY),
+        output_field=MONEY,
+    )
+    whens = []
+    for c in TRACKED_CURRENCIES:
+        if c.upper() == (base_curr or "INR").upper():
+            whens.append(When(currency_code=c, then=effective_paid))
+        else:
+            rate = get_exchange_rate(c, base_curr, org)
+            whens.append(When(currency_code=c, then=ExpressionWrapper(effective_paid * Value(rate), output_field=MONEY)))
+    return Case(*whens, default=effective_paid, output_field=MONEY)
+
+
 def _converted_item_expr(org, base_curr):
     whens = []
     for c in TRACKED_CURRENCIES:
@@ -68,12 +92,11 @@ def summary(request):
     qs = _date_filtered_orders(request)
     base_curr = request.organization.default_currency_code if request.organization else "INR"
     conv_expr = _converted_order_expr(request.organization, base_curr)
+    conv_paid = _converted_paid_expr(request.organization, base_curr)
     totals = qs.aggregate(
         total_orders=Count("id"),
         total_revenue=Coalesce(Sum(conv_expr), Decimal("0"), output_field=MONEY),
-        paid_revenue=Coalesce(
-            Sum(conv_expr, filter=Q(payment_status=Order.PAYMENT_PAID)), Decimal("0"), output_field=MONEY
-        ),
+        paid_revenue=Coalesce(Sum(conv_paid), Decimal("0"), output_field=MONEY),
     )
     total_rev = totals["total_revenue"]
     paid_rev = totals["paid_revenue"]
@@ -156,6 +179,7 @@ def analytics(request):
     org = request.organization
     base_curr_code = (org.default_currency_code if org else "INR").upper()
     conv_order = _converted_order_expr(org, base_curr_code)
+    conv_paid = _converted_paid_expr(org, base_curr_code)
     conv_item = _converted_item_expr(org, base_curr_code)
 
     # Parse dates or default to current month
@@ -186,11 +210,9 @@ def analytics(request):
     cur_totals = orders_qs.aggregate(
         total_orders=Count("id"),
         total_revenue=Coalesce(Sum(conv_order), Decimal("0"), output_field=MONEY),
-        paid_revenue=Coalesce(
-            Sum(conv_order, filter=Q(payment_status=Order.PAYMENT_PAID)), Decimal("0"), output_field=MONEY
-        ),
+        paid_revenue=Coalesce(Sum(conv_paid), Decimal("0"), output_field=MONEY),
         partial_revenue=Coalesce(
-            Sum(conv_order, filter=Q(payment_status=Order.PAYMENT_PARTIAL)), Decimal("0"), output_field=MONEY
+            Sum(conv_paid, filter=Q(payment_status=Order.PAYMENT_PARTIAL)), Decimal("0"), output_field=MONEY
         ),
         unique_clients=Count("client_id", distinct=True),
     )
@@ -210,7 +232,7 @@ def analytics(request):
     orders_growth = round(float((cur_orders - prev_orders) / prev_orders * 100), 1) if prev_orders > 0 else (100.0 if cur_orders > 0 else 0.0)
 
     paid_rev = cur_totals["paid_revenue"]
-    pending_rev = cur_rev - paid_rev
+    pending_rev = max(Decimal("0"), cur_rev - paid_rev)
     avg_order_value = round(cur_rev / cur_orders, 2) if cur_orders > 0 else Decimal("0")
 
     # Time series points (daily or grouped)
@@ -219,9 +241,7 @@ def analytics(request):
         orders_qs.values("date")
         .annotate(
             revenue=Coalesce(Sum(conv_order), Decimal("0"), output_field=MONEY),
-            paid=Coalesce(
-                Sum(conv_order, filter=Q(payment_status=Order.PAYMENT_PAID)), Decimal("0"), output_field=MONEY
-            ),
+            paid=Coalesce(Sum(conv_paid), Decimal("0"), output_field=MONEY),
             orders_count=Count("id"),
         )
         .order_by("date")
@@ -247,28 +267,37 @@ def analytics(request):
     payment_counts = orders_qs.values("payment_status").annotate(
         count=Count("id"),
         total=Coalesce(Sum(conv_order), Decimal("0"), output_field=MONEY),
+        paid_total=Coalesce(Sum(conv_paid), Decimal("0"), output_field=MONEY),
     )
     payment_map = {row["payment_status"]: row for row in payment_counts}
+    paid_item = payment_map.get(Order.PAYMENT_PAID, {})
+    partial_item = payment_map.get(Order.PAYMENT_PARTIAL, {})
+    pending_item = payment_map.get(Order.PAYMENT_PENDING, {})
+
+    paid_amt = float(paid_item.get("paid_total", paid_item.get("total", 0)))
+    partial_amt = float(partial_item.get("paid_total", 0))
+    pending_amt = float(pending_rev)
+
     payment_breakdown = [
         {
             "status": "paid",
             "label": "Paid",
-            "count": payment_map.get(Order.PAYMENT_PAID, {}).get("count", 0),
-            "amount": float(payment_map.get(Order.PAYMENT_PAID, {}).get("total", 0)),
+            "count": paid_item.get("count", 0),
+            "amount": paid_amt,
             "color": "#16a34a",
         },
         {
             "status": "partial",
             "label": "Partial",
-            "count": payment_map.get(Order.PAYMENT_PARTIAL, {}).get("count", 0),
-            "amount": float(payment_map.get(Order.PAYMENT_PARTIAL, {}).get("total", 0)),
+            "count": partial_item.get("count", 0),
+            "amount": partial_amt,
             "color": "#d97706",
         },
         {
             "status": "pending",
             "label": "Pending",
-            "count": payment_map.get(Order.PAYMENT_PENDING, {}).get("count", 0),
-            "amount": float(payment_map.get(Order.PAYMENT_PENDING, {}).get("total", 0)),
+            "count": pending_item.get("count", 0),
+            "amount": pending_amt,
             "color": "#dc2626",
         },
     ]
@@ -475,19 +504,23 @@ def export_csv(request):
         total_rev_converted += conv_total
 
         if o.payment_status == Order.PAYMENT_PAID:
-            conv_paid = conv_total
-            conv_pending = Decimal("0")
-            paid_rev_converted += conv_total
+            actual_paid = o.paid_amount if (o.paid_amount and o.paid_amount > 0) else o.grand_total
+            conv_paid = round(actual_paid * rate, 2)
+            conv_pending = max(Decimal("0"), conv_total - conv_paid)
+            paid_rev_converted += conv_paid
+            pending_rev_converted += conv_pending
         elif o.payment_status == Order.PAYMENT_PARTIAL:
-            # Approximate half or proportional
-            conv_paid = round(conv_total / 2, 2)
-            conv_pending = conv_total - conv_paid
+            actual_paid = o.paid_amount or Decimal("0")
+            conv_paid = round(actual_paid * rate, 2)
+            conv_pending = max(Decimal("0"), conv_total - conv_paid)
             paid_rev_converted += conv_paid
             pending_rev_converted += conv_pending
         else:
-            conv_paid = Decimal("0")
-            conv_pending = conv_total
-            pending_rev_converted += conv_total
+            actual_paid = o.paid_amount or Decimal("0")
+            conv_paid = round(actual_paid * rate, 2)
+            conv_pending = max(Decimal("0"), conv_total - conv_paid)
+            paid_rev_converted += conv_paid
+            pending_rev_converted += conv_pending
 
         if o.client_id:
             unique_clients.add(o.client_id)

@@ -108,11 +108,13 @@ const PROJECT_FILTER_CONFIGS: FilterGroupConfig[] = [
 ];
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
+import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ClientForm } from "../page";
 import clsx from "clsx";
 
 const TABS = [
   { key: "overview", label: "Overview & Account" },
+  { key: "timeline", label: "Relationship Timeline" },
   { key: "orders", label: "Orders History" },
   { key: "quotations", label: "Quotations" },
   { key: "projects", label: "Projects" },
@@ -619,6 +621,14 @@ export default function ClientDetailPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Tab: Relationship Timeline */}
+      {tab === "timeline" && (
+        <ActivityTimeline
+          endpoint={`/api/clients/${clientId}/timeline/`}
+          title={`${client.client_name} — 360° Relationship & Activity Timeline`}
+        />
       )}
 
       {/* Tab 2: Orders History */}

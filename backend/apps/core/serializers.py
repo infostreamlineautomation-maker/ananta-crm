@@ -26,10 +26,17 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
 
 class ActivityLogSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.username", read_only=True)
+    user_full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ActivityLog
-        fields = ["id", "user", "user_name", "module", "object_id", "action", "details", "created_at"]
+        fields = ["id", "user", "user_name", "user_full_name", "module", "object_id", "action", "details", "created_at"]
+
+    def get_user_full_name(self, obj):
+        if not obj.user:
+            return "System"
+        name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return name if name else obj.user.username
 
 
 class CustomFieldDefinitionSerializer(serializers.ModelSerializer):

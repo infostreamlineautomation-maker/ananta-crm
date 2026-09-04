@@ -45,11 +45,62 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
     filterset_class = QuotationFilter
     search_fields = ["quotation_no", "subject", "to_name", "client__client_name"]
 
+    def perform_create(self, serializer):
+        quotation = serializer.save(created_by=self.request.user)
+        from apps.core.models import ActivityLog
+        try:
+            client_name = quotation.client.client_name if quotation.client else (quotation.to_name or "Client")
+            ActivityLog.objects.create(
+                user=self.request.user,
+                module="quotations",
+                object_id=str(quotation.id),
+                action="created",
+                details=f"Quotation {quotation.quotation_no} created for {client_name} (Subtotal: {quotation.currency_code} {quotation.subtotal:,.2f})",
+            )
+        except Exception:
+            pass
+
     def perform_update(self, serializer):
         prev_instance = self.get_object()
         prev_status = prev_instance.status
+        prev_subtotal = prev_instance.subtotal
 
-        quote = serializer.save()
+        quote = serializer.save(updated_by=self.request.user)
+        from apps.core.models import ActivityLog
+
+        try:
+            logged_any = False
+            if prev_status != quote.status:
+                logged_any = True
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="quotations",
+                    object_id=str(quote.id),
+                    action="status_changed",
+                    details=f"Quotation status changed from \"{prev_status.title()}\" to \"{quote.status.title()}\"",
+                )
+
+            if prev_subtotal != quote.subtotal:
+                logged_any = True
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="quotations",
+                    object_id=str(quote.id),
+                    action="amount_updated",
+                    details=f"Quotation subtotal modified from {quote.currency_code} {prev_subtotal:,.2f} to {quote.currency_code} {quote.subtotal:,.2f}",
+                )
+
+            if not logged_any:
+                ActivityLog.objects.create(
+                    user=self.request.user,
+                    module="quotations",
+                    object_id=str(quote.id),
+                    action="updated",
+                    details="Quotation details and items updated",
+                )
+        except Exception:
+            pass
+
         org = self.request.organization
         if not org:
             return
@@ -80,6 +131,52 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
                 )
         except Exception:
             pass
+
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """Unified chronological history & activity timeline for the quotation."""
+        quotation = self.get_object()
+        from apps.core.models import ActivityLog
+        from apps.organizations.models import CommunicationLog
+
+        activities = ActivityLog.objects.filter(module="quotations", object_id=str(quotation.id)).select_related("user")
+        communications = CommunicationLog.objects.filter(quotation=quotation).select_related("sent_by")
+
+        events = []
+        for a in activities:
+            user_name = (
+                f"{a.user.first_name} {a.user.last_name}".strip()
+                if a.user and (a.user.first_name or a.user.last_name)
+                else (a.user.username if a.user else "System")
+            )
+            events.append({
+                "id": f"act_{a.id}",
+                "event_type": a.action,
+                "title": a.action.replace("_", " ").title(),
+                "description": a.details,
+                "user_name": user_name,
+                "created_at": a.created_at.isoformat(),
+                "source": "activity",
+            })
+
+        for c in communications:
+            user_name = (
+                f"{c.sent_by.first_name} {c.sent_by.last_name}".strip()
+                if c.sent_by and (c.sent_by.first_name or c.sent_by.last_name)
+                else (c.sent_by.username if c.sent_by else "System")
+            )
+            events.append({
+                "id": f"comm_{c.id}",
+                "event_type": f"comm_{c.channel}",
+                "title": f"{c.channel.title()} Proposal Sent",
+                "description": f"Sent to {c.recipient} — {c.subject}" + (f": {c.message[:120]}..." if c.message else ""),
+                "user_name": user_name,
+                "created_at": c.created_at.isoformat(),
+                "source": "communication",
+            })
+
+        events.sort(key=lambda x: x["created_at"], reverse=True)
+        return Response(events)
 
     @action(detail=True, methods=["post"], url_path="create-order")
     def create_order(self, request, pk=None):
@@ -112,19 +209,83 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             currency_code=quotation.currency_code,
             exchange_rate=quotation.exchange_rate,
             base_currency_code=quotation.base_currency_code,
-            description=f"From quotation {quotation.quotation_no}",
+            description=f"From quotation {quotation.quotation_no}" + (f" — {quotation.subject}" if quotation.subject else ""),
+            columns_config=quotation.columns_config or [],
             tax_percent=input_serializer.validated_data["tax_percent"],
             is_visible_to_staff=True,
             created_by=request.user,
         )
+
         for i, item in enumerate(quotation.items.all()):
             product_name = (item.description or f"Item {i + 1}")[:200]
             product, _ = Product.objects.get_or_create(product_name=product_name, organization=quotation.organization)
             OrderItem.objects.create(
-                order=order, product=product, description=item.description,
-                qty=item.qty, rate=item.rate, sort_order=i,
+                order=order,
+                product=product,
+                description=item.description,
+                qty=item.qty,
+                rate=item.rate,
+                extra_data=item.extra_data or {},
+                sort_order=i,
             )
         order.recalc_totals()
+
+        # Mark quotation as Accepted (Won)
+        prev_quote_status = quotation.status
+        if quotation.status != Quotation.ACCEPTED:
+            quotation.status = Quotation.ACCEPTED
+            quotation.save(update_fields=["status"])
+
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=request.user,
+                module="quotations",
+                object_id=str(quotation.id),
+                action="converted_to_order",
+                details=f"Converted to Order {order.order_no} (Grand Total: {order.currency_code} {order.grand_total:,.2f}) — Marked as Accepted (Won)",
+            )
+            ActivityLog.objects.create(
+                user=request.user,
+                module="orders",
+                object_id=str(order.id),
+                action="created",
+                details=f"Order {order.order_no} created from Quotation {quotation.quotation_no} (Grand Total: {order.currency_code} {order.grand_total:,.2f})",
+            )
+        except Exception:
+            pass
+
+        # Send alert if notify_on_quote_accepted is enabled
+        org = request.organization
+        if org and org.notify_on_quote_accepted and prev_quote_status != "accepted":
+            try:
+                from apps.organizations.mailer import send_admin_alert
+                action_url = f"{request.scheme}://{request.get_host()}/quotations/{quotation.id}"
+                client_name = quotation.client.client_name if quotation.client else (quotation.to_name or "Client")
+                updater_name = request.user.get_full_name() or request.user.username
+                send_admin_alert(
+                    org=org,
+                    subject=f"Deal Won! Quotation {quotation.quotation_no} Converted to Order {order.order_no}",
+                    heading=f"Quotation Converted to Order: {quotation.quotation_no}",
+                    details_table={
+                        "Quotation Number": quotation.quotation_no,
+                        "Order Created": order.order_no,
+                        "Client": client_name,
+                        "Subtotal": f"{quotation.subtotal} {quotation.currency_code or org.default_currency_code}",
+                        "Order Grand Total": f"{order.grand_total} {order.currency_code or org.default_currency_code}",
+                        "Status": "Accepted (Won)",
+                        "Converted By": updater_name,
+                    },
+                    action_url=action_url,
+                    action_label="View Quotation in CRM",
+                    user=request.user,
+                    client=quotation.client,
+                    quotation=quotation,
+                    order=order,
+                )
+            except Exception:
+                pass
+
         return Response(OrderSerializer(order).data, status=201)
 
     @action(detail=True, methods=["post"], url_path="send-notification")
