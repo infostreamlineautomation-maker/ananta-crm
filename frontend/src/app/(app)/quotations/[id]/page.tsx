@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { QuotationDetail } from "@/lib/types";
 import { QuotationForm } from "../QuotationForm";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function EditQuotationPage() {
   const params = useParams<{ id: string }>();
@@ -26,8 +27,8 @@ export default function EditQuotationPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Quotations
       </Link>
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <LoadingState size="lg" label="Loading Quotation..." sublabel="Preparing pricing & item breakdown" />
         </div>
       ) : quotation ? (
         <QuotationForm quotation={quotation} />

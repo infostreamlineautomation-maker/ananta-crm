@@ -37,6 +37,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const ORDER_FILTER_CONFIGS: FilterGroupConfig[] = [
   {
@@ -332,8 +333,8 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <LoadingState size="lg" label="Loading Client Profile..." sublabel="Fetching account history & records" />
       </div>
     );
   }

@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { Tabs } from "@/components/ui/Tabs";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, PROJECT_STATUS_TONE, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { ProjectForm } from "../page";
@@ -53,8 +54,8 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <LoadingState size="lg" label="Loading Project Overview..." sublabel="Fetching timelines & tasks" />
       </div>
     );
   }

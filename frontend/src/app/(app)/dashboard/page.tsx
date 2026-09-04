@@ -24,6 +24,7 @@ import { StatusPill, DELIVERY_STATUS_TONE, labelize } from "@/components/ui/Stat
 import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { DatePresets } from "@/components/charts/DatePresets";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 interface Notification {
   id: number;
@@ -116,6 +117,18 @@ export default function DashboardPage() {
   const displayName = user?.first_name || user?.username || "";
   const kpis = analytics?.kpis;
   const baseCurr = analytics?.base_currency_code || "INR";
+
+  if (loading && !analytics && canReports) {
+    return (
+      <div className="flex min-h-[65vh] items-center justify-center">
+        <LoadingState
+          size="xl"
+          label="Preparing Business Dashboard..."
+          sublabel="Aggregating sales, revenue & performance KPIs"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

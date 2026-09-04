@@ -14,6 +14,7 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import { mediaUrl } from "@/lib/format";
 import { useOrganization } from "@/lib/organization-context";
 import { CustomFieldsManager } from "@/components/custom-fields/CustomFieldsManager";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 const TABS = [
   { key: "general", label: "General" },
@@ -133,8 +134,8 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <LoadingState size="lg" label="Loading Organization Settings..." sublabel="Fetching configuration & preferences" />
       </div>
     );
   }

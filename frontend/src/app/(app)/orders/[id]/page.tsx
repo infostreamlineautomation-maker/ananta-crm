@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { OrderDetail } from "@/lib/types";
 import { OrderForm } from "../OrderForm";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function EditOrderPage() {
   const params = useParams<{ id: string }>();
@@ -26,8 +27,8 @@ export default function EditOrderPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Orders
       </Link>
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <LoadingState size="lg" label="Loading Order..." sublabel="Preparing order editor & custom columns" />
         </div>
       ) : order ? (
         <OrderForm order={order} />

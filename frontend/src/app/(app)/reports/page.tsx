@@ -24,6 +24,7 @@ import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { DatePresets } from "@/components/charts/DatePresets";
 import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
@@ -122,8 +123,8 @@ export default function ReportsPage() {
       </div>
 
       {loading && !data ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <LoadingState size="lg" label="Generating Financial Analytics..." sublabel="Calculating KPIs & breakdown across dates" />
         </div>
       ) : (
         <>

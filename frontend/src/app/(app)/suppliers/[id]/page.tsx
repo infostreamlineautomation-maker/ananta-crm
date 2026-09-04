@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -69,8 +70,8 @@ export default function SupplierDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <LoadingState size="lg" label="Loading Supplier Profile..." sublabel="Fetching purchase & product history" />
       </div>
     );
   }
