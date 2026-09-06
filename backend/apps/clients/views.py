@@ -1,13 +1,9 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
-
 from apps.core.modules import CLIENTS, COMPANIES
 from apps.core.viewsets import SoftDeleteModuleViewSet
-
 from .models import Client, Company
 from .serializers import ClientSerializer, CompanySerializer
-
-
 class CompanyViewSet(SoftDeleteModuleViewSet):
     queryset = Company.objects.select_related("country").all()
     serializer_class = CompanySerializer
@@ -15,12 +11,8 @@ class CompanyViewSet(SoftDeleteModuleViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["country"]
     search_fields = ["company_name", "contact_email", "contact_phone"]
-
-
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-
 class ClientViewSet(SoftDeleteModuleViewSet):
     queryset = Client.objects.select_related("company", "country", "company__country").all()
     serializer_class = ClientSerializer
@@ -30,7 +22,12 @@ class ClientViewSet(SoftDeleteModuleViewSet):
     search_fields = ["client_name", "phone", "email"]
 
     def perform_create(self, serializer):
-        client = serializer.save(created_by=self.request.user)
+        extra = {}
+        if hasattr(Client, "created_by"):
+            extra["created_by"] = self.request.user
+        if hasattr(Client, "organization_id") and getattr(self.request, "organization", None):
+            extra["organization"] = self.request.organization
+        client = serializer.save(**extra)
         from apps.core.models import ActivityLog
         try:
             ActivityLog.objects.create(

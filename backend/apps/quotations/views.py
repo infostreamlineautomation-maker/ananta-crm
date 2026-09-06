@@ -46,7 +46,12 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
     search_fields = ["quotation_no", "subject", "to_name", "client__client_name"]
 
     def perform_create(self, serializer):
-        quotation = serializer.save(created_by=self.request.user)
+        extra = {}
+        if hasattr(Quotation, "created_by"):
+            extra["created_by"] = self.request.user
+        if hasattr(Quotation, "organization_id") and getattr(self.request, "organization", None):
+            extra["organization"] = self.request.organization
+        quotation = serializer.save(**extra)
         from apps.core.models import ActivityLog
         try:
             client_name = quotation.client.client_name if quotation.client else (quotation.to_name or "Client")

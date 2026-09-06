@@ -68,7 +68,12 @@ class OrderViewSet(ModuleViewSet):
         )
 
     def perform_create(self, serializer):
-        order = serializer.save(created_by=self.request.user)
+        extra = {}
+        if hasattr(Order, "created_by"):
+            extra["created_by"] = self.request.user
+        if hasattr(Order, "organization_id") and getattr(self.request, "organization", None):
+            extra["organization"] = self.request.organization
+        order = serializer.save(**extra)
         from apps.core.models import ActivityLog
 
         try:
