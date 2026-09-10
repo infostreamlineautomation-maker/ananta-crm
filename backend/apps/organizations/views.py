@@ -104,7 +104,15 @@ def test_email_view(request):
         )
         return Response({"detail": f"Test email successfully sent to {recipient}."})
     except Exception as e:
-        return Response({"detail": f"SMTP Connection Failed: {str(e)}"}, status=400)
+        err_msg = str(e)
+        if "SendAsDenied" in err_msg or "5.2.252" in err_msg:
+            err_msg = (
+                f"Microsoft 365 Send-As Denied: The authenticated account '{org.smtp_user}' is not permitted by Exchange to send as '{org.smtp_from_email}'. "
+                f"To resolve, set 'From Email Address' to '{org.smtp_user}', or grant 'Send As' permission in Microsoft 365 Admin Center."
+            )
+        elif "Authentication unsuccessful" in err_msg or "535" in err_msg:
+            err_msg = "SMTP Authentication Failed: Please verify your Username and Password. If 2FA is enabled on your email account, generate and use an App Password."
+        return Response({"detail": f"SMTP Error: {err_msg}"}, status=400)
 
 
 @api_view(["GET"])

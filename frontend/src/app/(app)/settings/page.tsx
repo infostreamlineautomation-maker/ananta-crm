@@ -277,8 +277,8 @@ export default function SettingsPage() {
                 <Field label="Default Sender Name" hint="e.g. Ananta Graphics">
                   <Input value={form.smtp_from_name ?? ""} onChange={(e) => set("smtp_from_name", e.target.value)} placeholder="Ananta Graphics" />
                 </Field>
-                <Field label="From Email Address" hint="e.g. billing@anantagraphics.com">
-                  <Input type="email" value={form.smtp_from_email ?? ""} onChange={(e) => set("smtp_from_email", e.target.value)} placeholder="billing@anantagraphics.com" />
+                <Field label="From Email Address" hint="Must match your SMTP Login account, or have 'Send As' rights (e.g. sales@yourdomain.com)">
+                  <Input type="email" value={form.smtp_from_email ?? ""} onChange={(e) => set("smtp_from_email", e.target.value)} placeholder="sales@yourdomain.com" />
                 </Field>
               </div>
 

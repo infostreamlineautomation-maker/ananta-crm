@@ -129,6 +129,9 @@ def send_organization_email(org, recipient_list, subject, html_content, text_con
     from_email = org.smtp_from_email or org.smtp_user or "no-reply@anantagraphics.com"
     full_from = f"{from_name} <{from_email}>" if from_name else from_email
 
+    reply_to_email = org.smtp_from_email or org.contact_email or org.smtp_user
+    reply_to_list = [reply_to_email] if reply_to_email else None
+
     plain_text = text_content or "Please view this email with an HTML-compatible client."
 
     msg = EmailMultiAlternatives(
@@ -136,12 +139,35 @@ def send_organization_email(org, recipient_list, subject, html_content, text_con
         body=plain_text,
         from_email=full_from,
         to=recipient_list,
+        reply_to=reply_to_list,
         connection=backend,
     )
     msg.attach_alternative(html_content, "text/html")
 
     try:
-        msg.send(fail_silently=False)
+        try:
+            msg.send(fail_silently=False)
+        except Exception as e:
+            err_str = str(e)
+            # Handle Microsoft 365 / Exchange / Gmail SendAsDenied when from_email != smtp_user
+            if (
+                ("SendAsDenied" in err_str or "5.2.252" in err_str or "not allowed to send as" in err_str.lower())
+                and org.smtp_user
+                and from_email.strip().lower() != org.smtp_user.strip().lower()
+            ):
+                logger.warning(
+                    "SMTP server denied SendAs for %s. Retrying using authenticated user %s as sender with Reply-To=%s...",
+                    from_email,
+                    org.smtp_user,
+                    from_email,
+                )
+                fallback_from = f"{from_name} <{org.smtp_user}>" if from_name else org.smtp_user
+                msg.from_email = fallback_from
+                msg.reply_to = [from_email]
+                msg.send(fail_silently=False)
+            else:
+                raise e
+
         for r in recipient_list:
             CommunicationLog.objects.create(
                 organization=org,
