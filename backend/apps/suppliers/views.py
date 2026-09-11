@@ -1,6 +1,9 @@
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
 
 from apps.core.filters import DynamicQueryFilterBackend
 from apps.core.models import ActivityLog
@@ -75,5 +78,40 @@ class SupplierFileViewSet(ModuleViewSet):
             module=SUPPLIERS,
             object_id=instance.supplier_id,
             action="file_upload",
-            details=instance.file.name,
+            details=f"Uploaded {instance.file_type}: {instance.file.name}",
         )
+
+    @action(detail=False, methods=["POST"], parser_classes=[MultiPartParser, FormParser])
+    def bulk_upload(self, request):
+        supplier_id = request.data.get("supplier")
+        file_type = request.data.get("file_type", "quotation")
+        if not supplier_id:
+            return Response({"error": "supplier id is required"}, status=400)
+
+        supplier = get_object_or_404(Supplier, id=supplier_id, organization=request.organization)
+        files = request.FILES.getlist("files") or request.FILES.getlist("file")
+        if not files:
+            return Response({"error": "No files uploaded"}, status=400)
+
+        created = []
+        for f in files:
+            instance = SupplierFile.objects.create(
+                supplier=supplier,
+                file_type=file_type,
+                file=f,
+                file_size=f.size,
+                mime_type=getattr(f, "content_type", "") or "",
+                uploaded_by=request.user,
+            )
+            ActivityLog.objects.create(
+                user=request.user,
+                module=SUPPLIERS,
+                object_id=supplier.id,
+                action="file_upload",
+                details=f"Uploaded {file_type}: {instance.file.name}",
+            )
+            created.append(instance)
+
+        serializer = self.get_serializer(created, many=True)
+        return Response(serializer.data, status=201)
+

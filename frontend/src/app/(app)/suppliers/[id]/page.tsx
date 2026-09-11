@@ -39,7 +39,8 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "contacts", label: "Contacts" },
   { key: "products", label: "Products" },
-  { key: "files", label: "Files" },
+  { key: "quotations", label: "Quotations" },
+  { key: "rate_cards", label: "Rate Cards" },
   { key: "activity", label: "Activity Log" },
 ];
 
@@ -54,12 +55,20 @@ export default function SupplierDetailPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
   const urlTab = searchParams.get("tab");
-  const [tab, setTab] = useState(urlTab && TABS.some((t) => t.key === urlTab) ? urlTab : "overview");
+  const initialTab =
+    urlTab === "files"
+      ? "quotations"
+      : urlTab && TABS.some((t) => t.key === urlTab)
+      ? urlTab
+      : "overview";
+  const [tab, setTab] = useState(initialTab);
   const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     const qTab = searchParams.get("tab");
-    if (qTab && TABS.some((t) => t.key === qTab)) {
+    if (qTab === "files") {
+      setTab("quotations");
+    } else if (qTab && TABS.some((t) => t.key === qTab)) {
       setTab(qTab);
     }
   }, [searchParams]);
@@ -138,7 +147,24 @@ export default function SupplierDetailPage() {
       {tab === "overview" && <OverviewTab supplier={supplier} />}
       {tab === "contacts" && <ContactsTab supplier={supplier} onChange={loadSupplier} />}
       {tab === "products" && <ProductsTab supplier={supplier} onChange={loadSupplier} />}
-      {tab === "files" && <FilesTab supplier={supplier} onChange={loadSupplier} />}
+      {(tab === "quotations" || tab === "files") && (
+        <SupplierDocumentsTab
+          supplier={supplier}
+          fileType="quotation"
+          title="Supplier Quotations"
+          description="Upload and manage price quotations, proposals, and cost estimates provided by this supplier."
+          onChange={loadSupplier}
+        />
+      )}
+      {tab === "rate_cards" && (
+        <SupplierDocumentsTab
+          supplier={supplier}
+          fileType="rate_card"
+          title="Rate Cards & Price Lists"
+          description="Upload and manage formal rate lists, job-work price sheets, and material cost cards."
+          onChange={loadSupplier}
+        />
+      )}
       {tab === "activity" && <ActivityTab supplierId={supplierId} />}
 
       <SlideOver open={editOpen} onClose={() => setEditOpen(false)} title="Edit Supplier">
@@ -248,11 +274,17 @@ function ContactsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   );
 }
 
-function ContactForm({ supplierId, onCancel, onSaved }: { supplierId: number; onCancel: () => void; onSaved: () => void }) {
+function ContactForm({
+  supplierId,
+  onCancel,
+  onSaved,
+}: {
+  supplierId: number;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
   const toast = useToast();
-  const [name, setName] = useState("");
-  const [number, setNumber] = useState("");
-  const [designation, setDesignation] = useState("");
+  const [form, setForm] = useState({ contact_name: "", contact_number: "", designation: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -263,7 +295,7 @@ function ContactForm({ supplierId, onCancel, onSaved }: { supplierId: number; on
     try {
       await apiFetch("/api/supplier-contacts/", {
         method: "POST",
-        body: JSON.stringify({ supplier: supplierId, contact_name: name, contact_number: number, designation }),
+        body: JSON.stringify({ ...form, supplier: supplierId }),
       });
       toast.success("Contact added.");
       onSaved();
@@ -276,22 +308,36 @@ function ContactForm({ supplierId, onCancel, onSaved }: { supplierId: number; on
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Field label="Contact Name" required>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+      <Field label="Contact Person Name" required>
+        <Input
+          value={form.contact_name}
+          onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+          required
+          autoFocus
+          placeholder="e.g. Priyanshu"
+        />
       </Field>
-      <Field label="Contact Number">
-        <Input value={number} onChange={(e) => setNumber(e.target.value)} />
+      <Field label="Phone / Mobile Number">
+        <Input
+          value={form.contact_number}
+          onChange={(e) => setForm((f) => ({ ...f, contact_number: e.target.value }))}
+          placeholder="+91 9876543210"
+        />
       </Field>
-      <Field label="Designation">
-        <Input value={designation} onChange={(e) => setDesignation(e.target.value)} />
+      <Field label="Designation / Role">
+        <Input
+          value={form.designation}
+          onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}
+          placeholder="e.g. Sales Manager, Accounts"
+        />
       </Field>
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" variant="primary" loading={saving}>
-          Add Contact
+          Save Contact
         </Button>
       </div>
     </form>
@@ -301,9 +347,9 @@ function ContactForm({ supplierId, onCancel, onSaved }: { supplierId: number; on
 function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () => void }) {
   const toast = useToast();
   const { can } = useAuth();
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [picking, setPicking] = useState<number | "">("");
   const [adding, setAdding] = useState(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [unlinking, setUnlinking] = useState<SupplierProduct | null>(null);
 
@@ -311,29 +357,26 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   const canDelete = can("suppliers", "delete");
   const canAddProduct = can("catalog", "add");
 
-  async function loadCatalogProducts() {
-    try {
-      const res = await apiFetch<Paginated<Product>>("/api/products/?page_size=200");
-      setAllProducts(res.results);
-    } catch {}
-  }
-
   useEffect(() => {
-    loadCatalogProducts();
+    apiFetch<Paginated<Product>>("/api/products/?page_size=200")
+      .then((res) => setAllProducts(res.results || []))
+      .catch(() => {});
   }, []);
 
   const linkedIds = new Set(supplier.supplier_products.map((sp) => sp.product));
-  const options = allProducts.filter((p) => !linkedIds.has(p.id)).map((p) => ({ value: p.id, label: p.product_name }));
+  const available = allProducts.filter((p) => !linkedIds.has(p.id));
+  const options = available.map((p) => ({ value: p.id, label: p.product_name }));
 
   async function addProduct(productId: number | string) {
-    if (!productId) return;
+    const id = Number(productId);
+    if (!id) return;
     setAdding(true);
     try {
       await apiFetch("/api/supplier-products/", {
         method: "POST",
-        body: JSON.stringify({ supplier: supplier.id, product: Number(productId) }),
+        body: JSON.stringify({ supplier: supplier.id, product: id }),
       });
-      toast.success("Product linked successfully.");
+      toast.success("Product linked to supplier.");
       setPicking("");
       onChange();
     } catch (e) {
@@ -344,8 +387,7 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   }
 
   async function handleProductCreated(newProduct: Product) {
-    loadCatalogProducts();
-    // Automatically link the newly created product to this supplier
+    setAllProducts((prev) => [...prev, newProduct]);
     try {
       await apiFetch("/api/supplier-products/", {
         method: "POST",
@@ -481,29 +523,47 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   );
 }
 
-const FILE_TYPE_LABEL: Record<string, string> = { brochure: "Brochure", rate_card: "Rate Card" };
-
-function FilesTab({ supplier, onChange }: { supplier: Supplier; onChange: () => void }) {
+function SupplierDocumentsTab({
+  supplier,
+  fileType,
+  title,
+  description,
+  onChange,
+}: {
+  supplier: Supplier;
+  fileType: "quotation" | "rate_card";
+  title: string;
+  description: string;
+  onChange: () => void;
+}) {
   const toast = useToast();
   const { can } = useAuth();
-  const [fileType, setFileType] = useState("brochure");
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<SupplierFile | null>(null);
   const canEdit = can("suppliers", "edit");
   const canDelete = can("suppliers", "delete");
 
-  async function handleUpload(file: File) {
+  // Filter files belonging to this specific type (with backward compat for legacy "brochure")
+  const matchingFiles = supplier.files.filter((f) =>
+    fileType === "quotation"
+      ? f.file_type === "quotation" || f.file_type === "brochure"
+      : f.file_type === "rate_card"
+  );
+
+  async function handleMultipleUpload(files: FileList | File[]) {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
     setUploading(true);
     try {
       const body = new FormData();
       body.append("supplier", String(supplier.id));
       body.append("file_type", fileType);
-      body.append("file", file);
-      await apiFetch("/api/supplier-files/", { method: "POST", body });
-      toast.success("File uploaded.");
+      fileArray.forEach((f) => body.append("files", f));
+      await apiFetch("/api/supplier-files/bulk_upload/", { method: "POST", body });
+      toast.success(`${fileArray.length} ${fileType === "quotation" ? "quotation" : "rate card"} file(s) uploaded successfully.`);
       onChange();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't upload this file.");
+      toast.error(e instanceof ApiError ? e.message : "Couldn't upload files.");
     } finally {
       setUploading(false);
     }
@@ -511,54 +571,91 @@ function FilesTab({ supplier, onChange }: { supplier: Supplier; onChange: () => 
 
   return (
     <Card>
-      {canEdit && (
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
-          <Select value={fileType} onChange={(e) => setFileType(e.target.value)} className="w-40">
-            <option value="brochure">Brochure</option>
-            <option value="rate_card">Rate Card</option>
-          </Select>
-          <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-white px-3 text-[13px] font-semibold text-ink hover:bg-surface-hover">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[14px] font-bold text-ink">{title}</h3>
+            <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-ink-muted">
+              {matchingFiles.length}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-ink-muted">{description}</p>
+        </div>
+
+        {canEdit && (
+          <label className="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-3.5 text-xs font-bold text-white shadow-xs transition">
             <Upload className="h-3.5 w-3.5" />
-            {uploading ? "Uploading..." : "Upload file"}
+            {uploading ? "Uploading files..." : `Upload ${fileType === "quotation" ? "Quotations" : "Rate Cards"}`}
             <input
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"
+              multiple
+              accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
               className="hidden"
               disabled={uploading}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload(f);
+                if (e.target.files && e.target.files.length > 0) {
+                  handleMultipleUpload(e.target.files);
+                }
                 e.target.value = "";
               }}
             />
           </label>
-          <span className="text-[12px] text-ink-faint">PDF, JPG, PNG, XLS — max 10MB</span>
+        )}
+      </div>
+
+      {matchingFiles.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <FileText className="mx-auto h-9 w-9 text-ink-faint/60" />
+          <p className="mt-2 text-sm font-semibold text-ink">No {fileType === "quotation" ? "quotations" : "rate cards"} uploaded yet</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            You can upload multiple PDFs, images, or Excel sheets at once.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {matchingFiles.map((f) => {
+            const fileName = f.file.split("/").pop() || "Document";
+            const ext = fileName.split(".").pop()?.toUpperCase() || "FILE";
+            return (
+              <div key={f.id} className="flex items-center gap-3.5 px-5 py-3 hover:bg-surface-hover transition">
+                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-primary-50 text-primary-700 font-bold text-[11px] border border-primary-100">
+                  {ext.slice(0, 4)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={f.file}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate text-[13.5px] font-semibold text-ink hover:text-primary-600 transition block"
+                  >
+                    {fileName}
+                  </a>
+                  <p className="text-[12px] text-ink-faint mt-0.5">
+                    {(f.file_size / 1024).toFixed(0)} KB · Uploaded {formatDate(f.uploaded_at)}
+                    {f.uploaded_by_name && ` by ${f.uploaded_by_name}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={f.file}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken hover:text-ink transition"
+                    title="Download / View"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                  {canDelete && (
+                    <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(f)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </RowActionButton>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-      {supplier.files.length === 0 && <p className="px-5 py-8 text-center text-sm text-ink-faint">No files uploaded yet.</p>}
-      <div className="divide-y divide-border">
-        {supplier.files.map((f) => (
-          <div key={f.id} className="flex items-center gap-3 px-5 py-3">
-            <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-surface-sunken text-ink-faint">
-              <FileText className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13.5px] font-medium text-ink">{f.file.split("/").pop()}</p>
-              <p className="text-[12px] text-ink-faint">
-                {FILE_TYPE_LABEL[f.file_type]} · {(f.file_size / 1024).toFixed(0)} KB · {formatDate(f.uploaded_at)}
-              </p>
-            </div>
-            <a href={f.file} target="_blank" rel="noreferrer" className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-surface-sunken hover:text-ink">
-              <Download className="h-3.5 w-3.5" />
-            </a>
-            {canDelete && (
-              <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(f)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </RowActionButton>
-            )}
-          </div>
-        ))}
-      </div>
 
       {deleting && (
         <ConfirmDialog

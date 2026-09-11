@@ -525,7 +525,7 @@ export interface SupplierProduct {
 export interface SupplierFile {
   id: number;
   supplier: number;
-  file_type: "brochure" | "rate_card";
+  file_type: "quotation" | "rate_card" | "brochure";
   file: string;
   file_size: number;
   mime_type: string;

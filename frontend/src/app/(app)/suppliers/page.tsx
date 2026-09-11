@@ -608,6 +608,8 @@ export function SupplierForm({
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [extraData, setExtraData] = useState<Record<string, any>>(supplier?.extra_data || {});
   const [customFields, setCustomFields] = useState<any[]>([]);
+  const [quotationFiles, setQuotationFiles] = useState<File[]>([]);
+  const [rateCardFiles, setRateCardFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -648,6 +650,22 @@ export function SupplierForm({
     toast.success(`"${newProduct.product_name}" added and linked to supplier.`);
   }
 
+  function handleAddQuotationFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setQuotationFiles((prev) => [...prev, ...newFiles]);
+      e.target.value = "";
+    }
+  }
+
+  function handleAddRateCardFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setRateCardFiles((prev) => [...prev, ...newFiles]);
+      e.target.value = "";
+    }
+  }
+
   const unselectedProducts = allProducts.filter((p) => !selectedProductIds.includes(p.id));
   const productOptions = unselectedProducts.map((p) => ({ value: p.id, label: p.product_name }));
 
@@ -662,13 +680,48 @@ export function SupplierForm({
         product_ids: selectedProductIds,
         extra_data: extraData,
       };
+
+      let savedSupplier: Supplier;
       if (supplier) {
-        await apiFetch(`/api/suppliers/${supplier.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
+        savedSupplier = await apiFetch<Supplier>(`/api/suppliers/${supplier.id}/`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
         toast.success("Supplier updated.");
       } else {
-        await apiFetch("/api/suppliers/", { method: "POST", body: JSON.stringify(payload) });
+        savedSupplier = await apiFetch<Supplier>("/api/suppliers/", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
         toast.success("Supplier added.");
       }
+
+      // Upload newly added quotation files in bulk
+      if (quotationFiles.length > 0) {
+        try {
+          const qBody = new FormData();
+          qBody.append("supplier", String(savedSupplier.id));
+          qBody.append("file_type", "quotation");
+          quotationFiles.forEach((f) => qBody.append("files", f));
+          await apiFetch("/api/supplier-files/bulk_upload/", { method: "POST", body: qBody });
+        } catch {
+          toast.error("Supplier saved, but some quotation files failed to upload.");
+        }
+      }
+
+      // Upload newly added rate card files in bulk
+      if (rateCardFiles.length > 0) {
+        try {
+          const rBody = new FormData();
+          rBody.append("supplier", String(savedSupplier.id));
+          rBody.append("file_type", "rate_card");
+          rateCardFiles.forEach((f) => rBody.append("files", f));
+          await apiFetch("/api/supplier-files/bulk_upload/", { method: "POST", body: rBody });
+        } catch {
+          toast.error("Supplier saved, but some rate card files failed to upload.");
+        }
+      }
+
       onSaved();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this supplier.");
@@ -676,6 +729,11 @@ export function SupplierForm({
       setSaving(false);
     }
   }
+
+  const existingQuotations = supplier?.files?.filter(
+    (f) => f.file_type === "quotation" || f.file_type === "brochure"
+  ) || [];
+  const existingRateCards = supplier?.files?.filter((f) => f.file_type === "rate_card") || [];
 
   return (
     <>
@@ -730,7 +788,7 @@ export function SupplierForm({
                       <button
                         type="button"
                         onClick={() => handleRemoveProduct(id)}
-                        className="text-ink-muted hover:text-rose-600 transition p-0.5 rounded"
+                        className="text-ink-muted hover:text-rose-600 transition p-0.5 rounded cursor-pointer"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -741,6 +799,140 @@ export function SupplierForm({
             )}
           </div>
         </Field>
+
+        {/* Quotation Files (Multiple Upload) */}
+        <div className="rounded-xl border border-border bg-surface-sunken/40 p-3.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[13px] font-bold text-ink flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-primary-500" /> Quotations
+              </span>
+              <p className="text-[11px] text-ink-muted">Upload supplier price quotations or proposals (multiple files allowed)</p>
+            </div>
+            <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-surface-hover transition">
+              <Plus className="h-3 w-3" /> Add Files
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
+                className="hidden"
+                onChange={handleAddQuotationFiles}
+              />
+            </label>
+          </div>
+
+          {/* New files selected */}
+          {quotationFiles.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold text-primary-700">Selected for upload ({quotationFiles.length}):</span>
+              <div className="flex flex-wrap gap-1.5">
+                {quotationFiles.map((file, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-primary-50 text-primary-900 border border-primary-200"
+                  >
+                    <span className="truncate max-w-[180px]">{file.name}</span>
+                    <span className="text-[10px] text-primary-600">({(file.size / 1024).toFixed(0)} KB)</span>
+                    <button
+                      type="button"
+                      onClick={() => setQuotationFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-primary-700 hover:text-rose-600 transition cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Existing uploaded files if editing */}
+          {existingQuotations.length > 0 && (
+            <div className="pt-1.5 border-t border-border/70 flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingQuotations.length}):</span>
+              <div className="flex flex-wrap gap-1.5">
+                {existingQuotations.map((f) => (
+                  <a
+                    key={f.id}
+                    href={f.file}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-white text-ink-muted hover:text-primary-600 border border-border"
+                  >
+                    <span className="truncate max-w-[150px]">{f.file.split("/").pop()}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Rate Card Files (Multiple Upload) */}
+        <div className="rounded-xl border border-border bg-surface-sunken/40 p-3.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[13px] font-bold text-ink flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-emerald-600" /> Rate Cards
+              </span>
+              <p className="text-[11px] text-ink-muted">Upload rate sheets, price lists, or cost cards (multiple files allowed)</p>
+            </div>
+            <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-surface-hover transition">
+              <Plus className="h-3 w-3" /> Add Files
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
+                className="hidden"
+                onChange={handleAddRateCardFiles}
+              />
+            </label>
+          </div>
+
+          {/* New files selected */}
+          {rateCardFiles.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold text-emerald-800">Selected for upload ({rateCardFiles.length}):</span>
+              <div className="flex flex-wrap gap-1.5">
+                {rateCardFiles.map((file, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200"
+                  >
+                    <span className="truncate max-w-[180px]">{file.name}</span>
+                    <span className="text-[10px] text-emerald-700">({(file.size / 1024).toFixed(0)} KB)</span>
+                    <button
+                      type="button"
+                      onClick={() => setRateCardFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-emerald-800 hover:text-rose-600 transition cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Existing uploaded files if editing */}
+          {existingRateCards.length > 0 && (
+            <div className="pt-1.5 border-t border-border/70 flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingRateCards.length}):</span>
+              <div className="flex flex-wrap gap-1.5">
+                {existingRateCards.map((f) => (
+                  <a
+                    key={f.id}
+                    href={f.file}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-white text-ink-muted hover:text-emerald-700 border border-border"
+                  >
+                    <span className="truncate max-w-[150px]">{f.file.split("/").pop()}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <Field label="Email">
           <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="supplier@example.com" />

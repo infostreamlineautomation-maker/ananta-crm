@@ -54,8 +54,12 @@ class SupplierProduct(models.Model):
 
 
 class SupplierFile(models.Model):
-    BROCHURE, RATE_CARD = "brochure", "rate_card"
-    FILE_TYPE_CHOICES = [(BROCHURE, "Brochure"), (RATE_CARD, "Rate Card")]
+    QUOTATION, RATE_CARD, BROCHURE = "quotation", "rate_card", "brochure"
+    FILE_TYPE_CHOICES = [
+        (QUOTATION, "Quotation"),
+        (RATE_CARD, "Rate Card"),
+        (BROCHURE, "Brochure"),
+    ]
 
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="files")
     file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES)
