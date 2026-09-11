@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Info, RefreshCw, Trash2, X } from "lucide-react";
+import { Image as ImageIcon, Info, RefreshCw, Trash2, Upload, X, ZoomIn } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, Country, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import { Client, Company, Country, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
+import { formatCurrency, mediaUrl } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
@@ -18,9 +18,10 @@ import { Combobox } from "@/components/ui/Combobox";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { ClientForm } from "../clients/page";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 
 function blankItem(): QuotationItemDetail {
-  return { description: "", qty: "1", rate: "0", extra_data: {} };
+  return { description: "", qty: "1", rate: "0", image: null, extra_data: {} };
 }
 
 let columnCounter = 0;
@@ -37,6 +38,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const { rates, getRate } = useForex();
 
   const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: companies } = useList<Company>("/api/companies/?page_size=200");
   const { items: countries } = useList<Country>("/api/countries/");
   const [clients, setClients] = useState<Client[]>([]);
   // Seed local state from the fetched list, but keep it separate so a
@@ -47,6 +49,8 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const { items: projects } = useList<ProjectSummary>("/api/projects/?page_size=200");
 
   const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | "">("");
+  const [previewLightboxImage, setPreviewLightboxImage] = useState<string | null>(null);
 
   const [quotationDate, setQuotationDate] = useState(quotation?.quotation_date ?? new Date().toISOString().slice(0, 10));
   const [client, setClient] = useState<number | "">(quotation?.client ?? "");
@@ -68,7 +72,9 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const [currencyCode, setCurrencyCode] = useState(quotation?.currency_code ?? "");
   const [status, setStatus] = useState<QuotationStatus>(quotation?.status ?? "draft");
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
-  const [items, setItems] = useState<QuotationItemDetail[]>(quotation?.items.length ? quotation.items : [blankItem()]);
+  const [items, setItems] = useState<QuotationItemDetail[]>(
+    quotation?.items?.length ? quotation.items : [blankItem()]
+  );
 
   // Pre-seed default custom columns if new quotation
   useEffect(() => {
@@ -87,7 +93,6 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
     }
   }, [quotation]);
 
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,21 +101,66 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
     label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
     sublabel: c.company_name || undefined,
   }));
-  const projectOptions = projects.map((p) => ({ value: p.id, label: p.name, sublabel: p.client_name }));
+  const companyOptions = companies.map((comp) => ({
+    value: comp.id,
+    label: comp.company_name,
+    sublabel: [comp.city, comp.contact_name].filter(Boolean).join(" · ") || undefined,
+  }));
 
   const selectedClient = clients.find((c) => c.id === client);
   const effectiveCurrency = currencyCode || selectedClient?.currency_code || baseCurrency;
 
-  // Auto-sync client's details and currency if not manually changed
+  // Auto-fill company details directly when picking a company
+  const handleCompanySelect = (newCompId: number) => {
+    setSelectedCompanyId(newCompId);
+    const comp = companies.find((c) => c.id === newCompId);
+    if (comp) {
+      setToName(comp.company_name);
+      const addrParts = [
+        comp.address,
+        comp.city,
+        comp.state,
+        comp.zip_code,
+        comp.country_name,
+      ].filter(Boolean);
+      setToAddress(addrParts.join(", ") || comp.address || "");
+
+      // If there's an associated client for this company, auto-select it if not set
+      const matchingClient = clients.find((c) => c.company === comp.id);
+      if (matchingClient && !client) {
+        setClient(matchingClient.id);
+      }
+      toast.success(`Auto-filled company data for "${comp.company_name}".`);
+    }
+  };
+
+  // Auto-sync client's details, linked company data, and currency
   const handleClientChange = (newClientId: number) => {
     setClient(newClientId);
     const cli = clients.find((c) => c.id === newClientId);
     if (cli) {
-      if (!toName || toName.trim() === "") {
-        setToName(cli.company_name || cli.client_name);
+      let comp: Company | undefined;
+      if (cli.company) {
+        comp = companies.find((c) => c.id === cli.company);
       }
-      if ((!toAddress || toAddress.trim() === "") && cli.address) {
-        setToAddress(cli.address);
+      if (comp) {
+        setSelectedCompanyId(comp.id);
+        setToName(comp.company_name || cli.company_name || cli.client_name);
+        const addrParts = [
+          comp.address,
+          comp.city,
+          comp.state,
+          comp.zip_code,
+          comp.country_name,
+        ].filter(Boolean);
+        setToAddress(addrParts.join(", ") || comp.address || cli.address || "");
+      } else {
+        if (!toName || toName.trim() === "") {
+          setToName(cli.company_name || cli.client_name);
+        }
+        if (!toAddress || toAddress.trim() === "") {
+          setToAddress(cli.address || "");
+        }
       }
       if (cli.currency_code && !quotation) {
         handleCurrencyChange(cli.currency_code);
@@ -198,11 +248,14 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
         col_rate_label: colRateLabel,
         columns_config: columns,
         status,
-        items: items.map((it) => ({ description: it.description, qty: it.qty, rate: it.rate, extra_data: it.extra_data })),
+        items: items.map((it) => ({
+          description: it.description,
+          qty: it.qty,
+          rate: it.rate,
+          image: it.image || null,
+          extra_data: it.extra_data,
+        })),
       };
-      // Only send currency_code if the user explicitly set one (editing an
-      // existing quotation always has one already) — on create, omitting it
-      // lets the backend derive it from the client's country.
       if (currencyCode) payload.currency_code = currencyCode;
 
       if (quotation) {
@@ -282,6 +335,16 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
               addNewLabel="Add new client"
             />
           </Field>
+          {companies.length > 0 && (
+            <Field label="Auto-fill by Company (optional)" hint="Picking a company automatically populates recipient name and full address">
+              <Combobox
+                value={selectedCompanyId || null}
+                onChange={(v) => handleCompanySelect(Number(v))}
+                options={companyOptions}
+                placeholder="Select company to auto-fill..."
+              />
+            </Field>
+          )}
           <Field label="Quotation Date" required>
             <Input type="date" value={quotationDate} onChange={(e) => setQuotationDate(e.target.value)} required />
           </Field>
@@ -315,16 +378,16 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
             </div>
           </Field>
           <Field label="Subject">
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Brochure printing quote" />
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. 100% Scheme Board Change" />
           </Field>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="To Name" hint="For a recipient not on file as a client.">
-            <Input value={toName} onChange={(e) => setToName(e.target.value)} />
+          <Field label="To Name" hint="Client or Company Name on Quotation">
+            <Input value={toName} onChange={(e) => setToName(e.target.value)} placeholder="e.g. Kalamandir Jewellers Ltd." />
           </Field>
-          <Field label="To Address">
-            <Textarea value={toAddress} onChange={(e) => setToAddress(e.target.value)} rows={2} />
+          <Field label="To Address" hint="Company office or delivery location address">
+            <Textarea value={toAddress} onChange={(e) => setToAddress(e.target.value)} rows={2} placeholder="e.g. Corporate House, VIP Road, Surat" />
           </Field>
         </div>
       </Card>
@@ -333,7 +396,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
         <CardHeader
           title="Line Items"
           action={
-            <button type="button" onClick={addColumn} className="text-[13px] font-semibold text-ink-muted hover:text-primary-500">
+            <button type="button" onClick={addColumn} className="text-[13px] font-semibold text-ink-muted hover:text-primary-500 cursor-pointer">
               + Add Custom Column
             </button>
           }
@@ -343,6 +406,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
             <thead>
               <tr className="border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                 <th className="px-5 py-2.5 text-left">Description</th>
+                <th className="w-24 px-3 py-2.5 text-center">Image</th>
                 {columns.map((col) => (
                   <th key={col.key} className="px-3 py-2.5 text-left">
                     <div className="flex items-center gap-1">
@@ -351,7 +415,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
                         onChange={(e) => setColumns((prev) => prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c)))}
                         className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-none"
                       />
-                      <button type="button" onClick={() => removeColumn(col.key)} className="text-ink-faint hover:text-primary-600">
+                      <button type="button" onClick={() => removeColumn(col.key)} className="text-ink-faint hover:text-primary-600 cursor-pointer">
                         <X className="h-3 w-3" />
                       </button>
                     </div>
@@ -364,11 +428,11 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
                     className="w-16 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-none"
                   />
                 </th>
-                <th className="w-24 px-3 py-2.5 text-right">
+                <th className="w-28 px-3 py-2.5 text-right">
                   <input
                     value={colRateLabel}
                     onChange={(e) => setColRateLabel(e.target.value)}
-                    className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-none"
+                    className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-none"
                   />
                 </th>
                 <th className="w-28 px-3 py-2.5 text-right">Amount</th>
@@ -378,11 +442,69 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
             <tbody>
               {items.map((it, i) => {
                 const amount = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
+                const displayImg = it.image
+                  ? it.image.startsWith("data:")
+                    ? it.image
+                    : mediaUrl(it.image) || it.image
+                  : null;
+
                 return (
                   <tr key={i} className="border-b border-border last:border-b-0">
                     <td className="px-5 py-2.5">
-                      <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Item description" />
+                      <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Item description / specs" />
                     </td>
+
+                    {/* Image Column */}
+                    <td className="px-3 py-2.5 text-center align-middle">
+                      {displayImg ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLightboxImage(displayImg)}
+                            className="relative group h-9 w-9 rounded-md border border-border overflow-hidden bg-white p-0.5 shadow-2xs hover:border-primary-400 cursor-pointer"
+                            title="Click to preview"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={displayImg} alt="Item thumbnail" className="h-full w-full object-contain" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                              <ZoomIn className="h-3 w-3 text-white" />
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateItem(i, { image: null })}
+                            className="text-ink-faint hover:text-rose-600 p-1 transition cursor-pointer"
+                            title="Remove image"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1 rounded-md border border-dashed border-border-strong px-2 text-[11px] font-semibold text-ink-muted hover:border-primary-400 hover:text-primary-600 hover:bg-surface-sunken transition">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          <span>+ Img</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (evt) => {
+                                  if (evt.target?.result) {
+                                    updateItem(i, { image: String(evt.target.result) });
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      )}
+                    </td>
+
                     {columns.map((col) => (
                       <td key={col.key} className="px-3 py-2.5">
                         <Input value={it.extra_data[col.key] ?? ""} onChange={(e) => updateItemExtra(i, col.key, e.target.value)} />
@@ -396,7 +518,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
                     </td>
                     <td className="tnum px-3 py-2.5 text-right text-[13.5px] font-semibold text-ink">{formatCurrency(amount, effectiveCurrency)}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <button type="button" onClick={() => setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600">
+                      <button type="button" onClick={() => setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
@@ -407,7 +529,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
           </table>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-border px-5 py-3 gap-2">
-          <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600">
+          <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600 cursor-pointer">
             + Add Line Item
           </button>
           <div className="flex items-center gap-3">
@@ -466,6 +588,13 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
           }}
         />
       </SlideOver>
+
+      <ImageLightboxModal
+        open={Boolean(previewLightboxImage)}
+        onClose={() => setPreviewLightboxImage(null)}
+        images={previewLightboxImage ? [{ image: previewLightboxImage }] : []}
+      />
     </form>
   );
 }
+

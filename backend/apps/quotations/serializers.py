@@ -1,3 +1,6 @@
+import base64
+import uuid
+from django.core.files.base import ContentFile
 from rest_framework import serializers
 
 from apps.core.serializers import SameOrganizationFieldsMixin
@@ -5,8 +8,29 @@ from apps.core.serializers import SameOrganizationFieldsMixin
 from .models import Quotation, QuotationItem
 
 
+class Base64OrURLImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        if not data:
+            return None
+        if isinstance(data, str):
+            if data.startswith("data:image"):
+                try:
+                    format_prefix, imgstr = data.split(";base64,")
+                    ext = format_prefix.split("/")[-1].split("+")[0]
+                    if ext == "jpeg":
+                        ext = "jpg"
+                    file_name = f"{uuid.uuid4().hex}.{ext}"
+                    return ContentFile(base64.b64decode(imgstr), name=file_name)
+                except Exception:
+                    raise serializers.ValidationError("Invalid base64 image data.")
+            elif data.startswith("http://") or data.startswith("https://") or data.startswith("/media/") or data.startswith("media/"):
+                return "__KEEP_EXISTING__"
+        return super().to_internal_value(data)
+
+
 class QuotationItemSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    image = Base64OrURLImageField(required=False, allow_null=True)
 
     class Meta:
         model = QuotationItem
@@ -62,6 +86,8 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
         quotation.quotation_no = next_number(organization, organization.quotation_prefix, doc_type="quotation")
         quotation.save()
         for i, item_data in enumerate(items_data):
+            if item_data.get("image") == "__KEEP_EXISTING__":
+                item_data["image"] = None
             QuotationItem.objects.create(quotation=quotation, sort_order=i, **item_data)
         return quotation
 
@@ -78,8 +104,15 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
             setattr(instance, attr, value)
         instance.save()
         if items_data is not None:
+            existing_items = list(instance.items.all())
             instance.items.all().delete()
             for i, item_data in enumerate(items_data):
+                img = item_data.get("image")
+                if img == "__KEEP_EXISTING__":
+                    if i < len(existing_items) and existing_items[i].image:
+                        item_data["image"] = existing_items[i].image
+                    else:
+                        item_data["image"] = None
                 QuotationItem.objects.create(quotation=instance, sort_order=i, **item_data)
         return instance
 

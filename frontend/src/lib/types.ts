@@ -230,6 +230,7 @@ export interface QuotationItemDetail {
   qty: string;
   rate: string;
   amount?: string;
+  image?: string | null;
   extra_data: Record<string, string>;
   sort_order?: number;
 }

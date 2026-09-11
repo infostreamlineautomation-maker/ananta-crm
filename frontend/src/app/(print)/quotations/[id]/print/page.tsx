@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Printer, Image as ImageIcon, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Printer, Image as ImageIcon, FileText, ZoomIn } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, Client, QuotationDetail } from "@/lib/types";
 import { formatCurrency, mediaUrl, getBrandLogo } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 
 function formatQuotationDate(iso?: string | null): string {
   if (!iso) return "—";
@@ -39,6 +40,9 @@ export default function QuotationPrintPage() {
   const [loading, setLoading] = useState(true);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [useBackground, setUseBackground] = useState(true);
+  const [lightboxImages, setLightboxImages] = useState<{ image: string; caption?: string }[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -97,6 +101,7 @@ export default function QuotationPrintPage() {
   }
 
   const columns = quotation.columns_config || [];
+  const hasAnyItemImage = quotation.items?.some((it) => Boolean(it.image));
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
@@ -289,6 +294,11 @@ export default function QuotationPrintPage() {
                       <th className="border-r border-black w-14 px-2 py-2 text-center">
                         SR. NO.
                       </th>
+                      {hasAnyItemImage && (
+                        <th className="border-r border-black w-16 px-2 py-2 text-center">
+                          IMAGE
+                        </th>
+                      )}
                       <th className="border-r border-black px-3 py-2 text-left">
                         DESCRIPTION
                       </th>
@@ -311,6 +321,42 @@ export default function QuotationPrintPage() {
                         <td className="border-r border-black px-2 py-2.5 text-center font-medium">
                           {idx + 1}
                         </td>
+                        {hasAnyItemImage && (
+                          <td className="border-r border-black px-1.5 py-1.5 text-center align-middle">
+                            {it.image ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const validImages = quotation.items
+                                    .filter((item) => Boolean(item.image))
+                                    .map((item) => ({
+                                      image: mediaUrl(item.image!) || item.image!,
+                                      caption: item.description || `Item #${idx + 1}`,
+                                    }));
+                                  const currentImgUrl = mediaUrl(it.image) || it.image;
+                                  const targetIdx = validImages.findIndex((img) => img.image === currentImgUrl);
+                                  setLightboxImages(validImages);
+                                  setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
+                                  setLightboxOpen(true);
+                                }}
+                                className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-300 bg-neutral-50 p-0.5 hover:border-black transition-all"
+                                title="Click to view full image"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={mediaUrl(it.image) || it.image}
+                                  alt={it.description || "Item image"}
+                                  className="h-10 w-10 object-cover rounded"
+                                />
+                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
+                                  <ZoomIn className="h-3.5 w-3.5" />
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="text-neutral-400 text-xs">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="border-r border-black px-3 py-2.5 text-left font-medium">
                           {it.description}
                         </td>
@@ -379,6 +425,14 @@ export default function QuotationPrintPage() {
           )}
         </div>
       </div>
+
+      {/* Lightbox for Image Preview */}
+      <ImageLightboxModal
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 }
