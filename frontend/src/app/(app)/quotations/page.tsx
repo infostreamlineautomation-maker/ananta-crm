@@ -8,20 +8,20 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, Company, Country, QuotationSummary } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { exportToCsv, CsvColumn } from "@/lib/csv-export";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input, Select } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusPill, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
-
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
-import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
+import { FilterBar } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "quotation_no", label: "Quotation No", required: true },
@@ -37,87 +37,85 @@ export default function QuotationsPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [countryFilter, setCountryFilter] = useState("");
-  const [amountMin, setAmountMin] = useState("");
-  const [amountMax, setAmountMax] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [cols, setCols] = useState<Set<string>>(new Set(QUOTATIONS_PAGE_COLUMNS.map((c) => c.key)));
   const [deleting, setDeleting] = useState<QuotationSummary | null>(null);
   const [notifyingQuotation, setNotifyingQuotation] = useState<QuotationSummary | null>(null);
   const debouncedSearch = useDebouncedValue(search);
 
-  const { items: clients } = useList<Client>("/api/clients/");
-  const { items: companies } = useList<Company>("/api/companies/");
   const { items: countries } = useList<Country>("/api/countries/");
 
-  const quotationFilterConfigs: FilterGroupConfig[] = useMemo(() => [
-    {
-      key: "client",
-      label: "Client",
-      options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
-    },
-    {
-      key: "company",
-      label: "Company",
-      options: companies.map((c) => ({ value: String(c.id), label: c.company_name })),
-    },
-    {
-      key: "country",
-      label: "Country",
-      options: countries.map((c) => ({ value: c.code, label: c.name })),
-    },
-    {
-      key: "status",
-      label: "Status",
-      options: [
-        { value: "draft", label: "Draft", dotColor: "#64748b" },
-        { value: "sent", label: "Sent", dotColor: "#2563eb" },
-        { value: "accepted", label: "Accepted", dotColor: "#16a34a" },
-        { value: "rejected", label: "Rejected", dotColor: "#e11d48" },
-      ],
-    },
-    {
-      key: "amount",
-      label: "Amount",
-      type: "amount_range",
-    },
-    {
-      key: "date",
-      label: "Date",
-      type: "date_range",
-    },
-  ], [clients, companies, countries]);
+  const baseFilterColumns: DynamicFilterColumn[] = useMemo(
+    () => [
+      {
+        key: "quotation_no",
+        label: "Quotation No",
+        type: "text",
+      },
+      {
+        key: "client_name",
+        label: "Client",
+        type: "text",
+      },
+      {
+        key: "company_name",
+        label: "Company",
+        type: "text",
+      },
+      {
+        key: "country",
+        label: "Country",
+        type: "select",
+        options: countries.map((c) => ({ value: c.code, label: c.name })),
+      },
+      {
+        key: "subject",
+        label: "Subject",
+        type: "text",
+      },
+      {
+        key: "status",
+        label: "Status",
+        type: "select",
+        options: [
+          { value: "draft", label: "Draft", dotColor: "#64748b" },
+          { value: "sent", label: "Sent", dotColor: "#2563eb" },
+          { value: "accepted", label: "Accepted", dotColor: "#16a34a" },
+          { value: "rejected", label: "Rejected", dotColor: "#e11d48" },
+        ],
+      },
+      {
+        key: "amount",
+        label: "Total Amount",
+        type: "amount_range",
+      },
+      {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+    ],
+    [countries]
+  );
+
+  const {
+    columns: filterColumns,
+    activeFilters,
+    setFilter,
+    resetFilters,
+    appendQueryParams,
+  } = useDynamicColumnFilters({
+    module: "quotation_item",
+    baseColumns: baseFilterColumns,
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
-    if (statusFilter) params.set("status", statusFilter);
-    if (clientFilter) params.set("client", clientFilter);
-    if (companyFilter) params.set("client__company", companyFilter);
-    if (countryFilter) params.set("country", countryFilter);
-    if (amountMin) params.set("min_amount", amountMin);
-    if (amountMax) params.set("max_amount", amountMax);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
+    appendQueryParams(params);
     params.set("page", String(page));
     return `/api/quotations/?${params.toString()}`;
-  }, [
-    debouncedSearch,
-    statusFilter,
-    clientFilter,
-    companyFilter,
-    countryFilter,
-    amountMin,
-    amountMax,
-    dateFrom,
-    dateTo,
-    page,
-  ]);
+  }, [debouncedSearch, appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<QuotationSummary>(path);
 
@@ -125,41 +123,7 @@ export default function QuotationsPage() {
   const canEdit = can("quotations", "edit");
   const canDelete = can("quotations", "delete");
 
-  const activeFilters = {
-    status: statusFilter,
-    client: clientFilter,
-    company: companyFilter,
-    country: countryFilter,
-    amount_min: amountMin,
-    amount_max: amountMax,
-    date_from: dateFrom,
-    date_to: dateTo,
-  };
-
-  function handleFilterChange(key: string, val: string) {
-    if (key === "status") setStatusFilter(val);
-    if (key === "client") setClientFilter(val);
-    if (key === "company") setCompanyFilter(val);
-    if (key === "country") setCountryFilter(val);
-    if (key === "amount_min") setAmountMin(val);
-    if (key === "amount_max") setAmountMax(val);
-    if (key === "date_from") setDateFrom(val);
-    if (key === "date_to") setDateTo(val);
-    setPage(1);
-  }
-
-  function handleResetFilters() {
-    setStatusFilter("");
-    setClientFilter("");
-    setCompanyFilter("");
-    setCountryFilter("");
-    setAmountMin("");
-    setAmountMax("");
-    setDateFrom("");
-    setDateTo("");
-    setSearch("");
-    setPage(1);
-  }
+  const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   return (
     <div className="flex flex-col gap-5">
@@ -183,32 +147,33 @@ export default function QuotationsPage() {
           setPage(1);
         }}
         searchPlaceholder="Search quotation no, client, subject..."
-        filters={quotationFilterConfigs}
+        filters={filterColumns}
         activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
+        onFilterChange={(k, v) => {
+          setFilter(k, v);
+          setPage(1);
+        }}
+        onReset={() => {
+          resetFilters();
+          setSearch("");
+          setPage(1);
+        }}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const list = data?.results || [];
-                if (!list.length) return;
-                const cols: CsvColumn<QuotationSummary>[] = [
-                  { header: "Quotation No", accessor: (q) => q.quotation_no },
-                  { header: "Date", accessor: (q) => q.quotation_date },
-                  { header: "Client", accessor: (q) => q.client_name || "" },
-                  { header: "Subject", accessor: (q) => q.subject || "" },
-                  { header: "Status", accessor: (q) => q.status },
-                  { header: "Currency", accessor: (q) => q.currency_code || "INR" },
-                  { header: "Subtotal", accessor: (q) => q.subtotal },
-                ];
-                exportToCsv(list, cols, "quotations_export");
-              }}
-              className="h-9 gap-1.5 text-xs font-semibold"
-            >
-              <Download className="h-3.5 w-3.5" /> Export CSV
-            </Button>
+            <ExportDropdown
+              data={data?.results || []}
+              filename="quotations_export"
+              title="Quotations Report"
+              columns={[
+                { header: "Quotation No", accessor: (q) => q.quotation_no },
+                { header: "Date", accessor: (q) => q.quotation_date },
+                { header: "Client", accessor: (q) => q.client_name || "" },
+                { header: "Subject", accessor: (q) => q.subject || "" },
+                { header: "Status", accessor: (q) => q.status },
+                { header: "Currency", accessor: (q) => q.currency_code || "INR" },
+                { header: "Subtotal", accessor: (q) => q.subtotal },
+              ]}
+            />
             <ColumnSelector columns={QUOTATIONS_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
           </div>
         }
@@ -219,12 +184,108 @@ export default function QuotationsPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                {cols.has("quotation_no") && <th className={TH}>Quotation No</th>}
-                {cols.has("date") && <th className={TH}>Date</th>}
-                {cols.has("client_name") && <th className={TH}>Client</th>}
-                {cols.has("subject") && <th className={TH}>Subject</th>}
-                {cols.has("status") && <th className={TH}>Status</th>}
-                {cols.has("subtotal") && <th className={`${TH} text-right`}>Total</th>}
+                {cols.has("quotation_no") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Quotation No</span>
+                      {getColFilter("quotation_no") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("quotation_no")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("date") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Date</span>
+                      {getColFilter("date") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("date")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("client_name") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Client</span>
+                      {getColFilter("client_name") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("client_name")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("subject") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Subject</span>
+                      {getColFilter("subject") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("subject")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("status") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Status</span>
+                      {getColFilter("status") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("status")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("subtotal") && (
+                  <th className={`${TH} text-right`}>
+                    <div className="inline-flex items-center justify-end">
+                      <span>Total</span>
+                      {getColFilter("amount") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("amount")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("actions") && <th className={`${TH} text-right`}>Actions</th>}
               </tr>
             </thead>
@@ -240,7 +301,22 @@ export default function QuotationsPage() {
                     </td>
                   )}
                   {cols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>}
-                  {cols.has("client_name") && <td className={`${TD} text-ink`}>{q.client_name || "—"}</td>}
+                  {cols.has("client_name") && (
+                    <td className={TD}>
+                      {q.client_name ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-ink">{q.client_name}</span>
+                          {q.company_name && (
+                            <span className="text-[12px] font-medium text-ink-muted">
+                              ({q.company_name})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-muted">—</span>
+                      )}
+                    </td>
+                  )}
                   {cols.has("subject") && <td className={`${TD} text-ink-muted`}>{q.subject || "—"}</td>}
                   {cols.has("status") && (
                     <td className={TD}>

@@ -6,9 +6,11 @@ from apps.core.models import AuditedModel, SoftDeleteModel
 class Supplier(AuditedModel, SoftDeleteModel):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="suppliers")
     supplier_name = models.CharField(max_length=200)
+    company_name = models.CharField(max_length=200, blank=True)
     owner_name_contact = models.CharField(max_length=150, blank=True)
     contact = models.CharField(max_length=30, blank=True)
     source = models.CharField(max_length=150, blank=True)
+    product_details = models.TextField(blank=True, help_text="Product details and categories supplied")
     address = models.TextField(blank=True)
     email = models.EmailField(blank=True)
     website = models.URLField(blank=True)

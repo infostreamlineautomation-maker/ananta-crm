@@ -9,7 +9,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList } from "@/lib/hooks";
 import { Client, CostingDetail, Supplier } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { exportToCsv, CsvColumn } from "@/lib/csv-export";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -18,7 +18,9 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
-import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
+import { FilterBar } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 const COSTING_PAGE_COLUMNS: ColumnDef[] = [
   { key: "date", label: "Date", required: true },
@@ -33,53 +35,58 @@ const COSTING_PAGE_COLUMNS: ColumnDef[] = [
 export default function CostingPage() {
   const { can } = useAuth();
   const toast = useToast();
-  const [clientFilter, setClientFilter] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState("");
-  const [amountMin, setAmountMin] = useState("");
-  const [amountMax, setAmountMax] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [cols, setCols] = useState<Set<string>>(new Set(COSTING_PAGE_COLUMNS.map((c) => c.key)));
   const [deleting, setDeleting] = useState<CostingDetail | null>(null);
 
-  const { items: clients } = useList<Client>("/api/clients/");
-  const { items: suppliers } = useList<Supplier>("/api/suppliers/");
+  const baseFilterColumns: DynamicFilterColumn[] = useMemo(
+    () => [
+      {
+        key: "client",
+        label: "Client",
+        type: "text",
+      },
+      {
+        key: "supplier",
+        label: "Supplier",
+        type: "text",
+      },
+      {
+        key: "amount",
+        label: "Supplier Cost",
+        type: "amount_range",
+      },
+      {
+        key: "profit",
+        label: "Profit",
+        type: "amount_range",
+      },
+      {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+    ],
+    []
+  );
 
-  const costingFilterConfigs: FilterGroupConfig[] = useMemo(() => [
-    {
-      key: "client",
-      label: "Client",
-      options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
-    },
-    {
-      key: "supplier",
-      label: "Supplier",
-      options: suppliers.map((s) => ({ value: String(s.id), label: s.supplier_name })),
-    },
-    {
-      key: "amount",
-      label: "Amount",
-      type: "amount_range",
-    },
-    {
-      key: "date",
-      label: "Date",
-      type: "date_range",
-    },
-  ], [clients, suppliers]);
+  const {
+    columns: filterColumns,
+    activeFilters,
+    setFilter,
+    resetFilters,
+    appendQueryParams,
+  } = useDynamicColumnFilters({
+    module: "costing_item",
+    baseColumns: baseFilterColumns,
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
-    if (clientFilter) params.set("client", clientFilter);
-    if (supplierFilter) params.set("supplier", supplierFilter);
-    if (amountMin) params.set("min_amount", amountMin);
-    if (amountMax) params.set("max_amount", amountMax);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
+    appendQueryParams(params);
     params.set("page", String(page));
     return `/api/costings/?${params.toString()}`;
-  }, [clientFilter, supplierFilter, amountMin, amountMax, dateFrom, dateTo, page]);
+  }, [appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<CostingDetail>(path);
 
@@ -87,34 +94,7 @@ export default function CostingPage() {
   const canEdit = can("costing", "edit");
   const canDelete = can("costing", "delete");
 
-  const activeFilters = {
-    client: clientFilter,
-    supplier: supplierFilter,
-    amount_min: amountMin,
-    amount_max: amountMax,
-    date_from: dateFrom,
-    date_to: dateTo,
-  };
-
-  function handleFilterChange(key: string, val: string) {
-    if (key === "client") setClientFilter(val);
-    if (key === "supplier") setSupplierFilter(val);
-    if (key === "amount_min") setAmountMin(val);
-    if (key === "amount_max") setAmountMax(val);
-    if (key === "date_from") setDateFrom(val);
-    if (key === "date_to") setDateTo(val);
-    setPage(1);
-  }
-
-  function handleResetFilters() {
-    setClientFilter("");
-    setSupplierFilter("");
-    setAmountMin("");
-    setAmountMax("");
-    setDateFrom("");
-    setDateTo("");
-    setPage(1);
-  }
+  const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   return (
     <div className="flex flex-col gap-5">
@@ -132,32 +112,33 @@ export default function CostingPage() {
       />
 
       <FilterBar
-        filters={costingFilterConfigs}
+        filters={filterColumns}
         activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
+        onFilterChange={(k, v) => {
+          setFilter(k, v);
+          setPage(1);
+        }}
+        onReset={() => {
+          resetFilters();
+          setPage(1);
+        }}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const list = data?.results || [];
-                if (!list.length) return;
-                const cols: CsvColumn<CostingDetail>[] = [
-                  { header: "Date", accessor: (c) => c.costing_date },
-                  { header: "Client", accessor: (c) => c.client_display || "" },
-                  { header: "Supplier", accessor: (c) => c.supplier_display || "" },
-                  { header: "Product", accessor: (c) => c.product_display || "" },
-                  { header: "Supplier Cost", accessor: (c) => c.supplier_cost },
-                  { header: "Client Revenue", accessor: (c) => c.client_revenue },
-                  { header: "Profit", accessor: (c) => c.profit },
-                  { header: "Profit %", accessor: (c) => `${parseFloat(c.profit_percent).toFixed(1)}%` },
-                ];
-                exportToCsv(list, cols, "costings_export");
-              }}
-              className="h-9 gap-1.5 text-xs font-semibold"
-            >
-              <Download className="h-3.5 w-3.5" /> Export CSV
-            </Button>
+            <ExportDropdown
+              data={data?.results || []}
+              filename="costings_export"
+              title="Costing Report"
+              columns={[
+                { header: "Date", accessor: (c) => c.costing_date },
+                { header: "Client", accessor: (c) => c.client_display || "" },
+                { header: "Supplier", accessor: (c) => c.supplier_display || "" },
+                { header: "Product", accessor: (c) => c.product_display || "" },
+                { header: "Supplier Cost", accessor: (c) => c.supplier_cost },
+                { header: "Client Revenue", accessor: (c) => c.client_revenue },
+                { header: "Profit", accessor: (c) => c.profit },
+                { header: "Profit %", accessor: (c) => `${parseFloat(c.profit_percent).toFixed(1)}%` },
+              ]}
+            />
             <ColumnSelector columns={COSTING_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
           </div>
         }
@@ -168,11 +149,75 @@ export default function CostingPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {cols.has("date") && <th className={TH}>Date</th>}
-                {cols.has("client") && <th className={TH}>Client</th>}
-                {cols.has("supplier") && <th className={TH}>Supplier</th>}
+                {cols.has("date") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Date</span>
+                      {getColFilter("date") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("date")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("client") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Client</span>
+                      {getColFilter("client") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("client")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("supplier") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Supplier</span>
+                      {getColFilter("supplier") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("supplier")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("product") && <th className={TH}>Product</th>}
-                {cols.has("profit") && <th className={`${TH} text-right`}>Profit</th>}
+                {cols.has("profit") && (
+                  <th className={`${TH} text-right`}>
+                    <div className="inline-flex items-center justify-end">
+                      <span>Profit</span>
+                      {getColFilter("profit") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("profit")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("profit_percent") && <th className={`${TH} text-right`}>Profit %</th>}
                 {cols.has("actions") && <th className={TH}></th>}
               </tr>

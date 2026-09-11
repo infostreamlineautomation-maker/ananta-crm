@@ -1,9 +1,11 @@
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
-
 from apps.accounts.permissions import ModulePermission
 
+from .filters import DynamicQueryFilterBackend
 from .models import ActivityLog
 
 
@@ -19,6 +21,7 @@ class ModuleViewSet(viewsets.ModelViewSet):
     the organization scoping — it isn't applied automatically in that case."""
 
     permission_classes = [ModulePermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
 
     def get_queryset(self):
         qs = super().get_queryset()

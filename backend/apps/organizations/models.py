@@ -28,7 +28,8 @@ class Organization(models.Model):
     default_currency_code = models.CharField(max_length=3, default="INR")
     default_tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
 
-    quotation_prefix = models.CharField(max_length=20, default="QT-")
+    order_prefix = models.CharField(max_length=20, default="AG/", blank=True)
+    quotation_prefix = models.CharField(max_length=20, default="AG/")
     quotation_intro = models.TextField(blank=True)
     quotation_terms = models.TextField(blank=True)
     quotation_signature_name = models.CharField(max_length=150, blank=True)

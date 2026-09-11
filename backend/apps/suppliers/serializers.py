@@ -29,10 +29,12 @@ class SupplierContactSerializer(_SameOrgSupplierMixin, serializers.ModelSerializ
 
 class SupplierProductSerializer(_SameOrgSupplierMixin, serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.product_name", read_only=True)
+    product_description = serializers.CharField(source="product.description", read_only=True)
+    product_extra_data = serializers.JSONField(source="product.extra_data", read_only=True)
 
     class Meta:
         model = SupplierProduct
-        fields = ["id", "supplier", "product", "product_name"]
+        fields = ["id", "supplier", "product", "product_name", "product_description", "product_extra_data"]
 
     def validate_product(self, value):
         request = self.context["request"]
@@ -61,15 +63,37 @@ class SupplierSerializer(serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, read_only=True)
     supplier_products = SupplierProductSerializer(many=True, read_only=True)
     files = SupplierFileSerializer(many=True, read_only=True)
+    product_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False
+    )
 
     class Meta:
         model = Supplier
         fields = [
-            "id", "supplier_name", "owner_name_contact", "contact", "source",
-            "address", "email", "website", "remark", "extra_data", "is_deleted",
-            "contacts", "supplier_products", "files", "created_at", "updated_at",
+            "id", "supplier_name", "company_name", "owner_name_contact", "contact", "source",
+            "product_details", "address", "email", "website", "remark", "extra_data", "is_deleted",
+            "contacts", "supplier_products", "files", "product_ids", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        product_ids = validated_data.pop("product_ids", None)
+        supplier = super().create(validated_data)
+        if product_ids is not None:
+            for pid in product_ids:
+                SupplierProduct.objects.get_or_create(supplier=supplier, product_id=pid)
+        return supplier
+
+    def update(self, instance, validated_data):
+        product_ids = validated_data.pop("product_ids", None)
+        supplier = super().update(instance, validated_data)
+        if product_ids is not None:
+            existing_pids = set(instance.supplier_products.values_list("product_id", flat=True))
+            new_pids = set(product_ids)
+            instance.supplier_products.filter(product_id__in=existing_pids - new_pids).delete()
+            for pid in new_pids - existing_pids:
+                SupplierProduct.objects.get_or_create(supplier=instance, product_id=pid)
+        return supplier
 
 
     def validate(self, attrs):

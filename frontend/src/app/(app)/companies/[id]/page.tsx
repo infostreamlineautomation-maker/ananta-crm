@@ -36,7 +36,10 @@ import { SlideOver } from "@/components/ui/SlideOver";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 
 const CLIENT_FILTER_CONFIGS: FilterGroupConfig[] = [
   {
@@ -86,7 +89,7 @@ const QUOTATION_FILTER_CONFIGS: FilterGroupConfig[] = [
 ];
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { CompanyForm } from "../page";
+import { CompanyForm } from "../CompanyForm";
 import { ClientForm } from "../../clients/page";
 import clsx from "clsx";
 
@@ -673,6 +676,18 @@ export default function CompanyDetailPage() {
               }}
               actions={
                 <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredClients}
+                    filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_clients`}
+                    title={`${company?.company_name || "Company"} - Associated Clients`}
+                    columns={[
+                      { header: "Client Name", accessor: (c) => c.client_name },
+                      { header: "Type", accessor: (c) => `Type ${c.client_type}` },
+                      { header: "Phone", accessor: (c) => c.phone || "" },
+                      { header: "Email", accessor: (c) => c.email || "" },
+                      { header: "Country", accessor: (c) => c.country_name || "" },
+                    ]}
+                  />
                   <ColumnSelector
                     columns={CLIENT_COLUMNS}
                     visibleColumns={clientCols}
@@ -692,8 +707,30 @@ export default function CompanyDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {clientCols.has("client_name") && <th className={TH}>Client Name</th>}
-                  {clientCols.has("client_type") && <th className={TH}>Type</th>}
+                  {clientCols.has("client_name") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Client Name</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Client Name", type: "text" }}
+                          activeFilters={{ search: clientSearch }}
+                          onFilterChange={(_, v) => setClientSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {clientCols.has("client_type") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Type</span>
+                        <ColumnHeaderFilter
+                          column={CLIENT_FILTER_CONFIGS.find((f) => f.key === "client_type") as DynamicFilterColumn}
+                          activeFilters={{ client_type: clientTypeFilter }}
+                          onFilterChange={(_, v) => setClientTypeFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {clientCols.has("phone") && <th className={TH}>Phone</th>}
                   {clientCols.has("email") && <th className={TH}>Email</th>}
                   {clientCols.has("country_name") && <th className={TH}>Country</th>}
@@ -781,11 +818,27 @@ export default function CompanyDetailPage() {
                 setOrderDateTo("");
               }}
               actions={
-                <ColumnSelector
-                  columns={ORDER_COLUMNS}
-                  visibleColumns={orderCols}
-                  onChange={setOrderCols}
-                />
+                <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredOrders}
+                    filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_orders`}
+                    title={`${company?.company_name || "Company"} - Orders Report`}
+                    columns={[
+                      { header: "Order No", accessor: (o) => o.order_no },
+                      { header: "Date", accessor: (o) => o.date },
+                      { header: "Client", accessor: (o) => o.client_name },
+                      { header: "Project", accessor: (o) => o.project_name || "" },
+                      { header: "Grand Total", accessor: (o) => `${o.currency_code || "INR"} ${o.grand_total}` },
+                      { header: "Delivery Status", accessor: (o) => o.delivery_status },
+                      { header: "Payment Status", accessor: (o) => o.payment_status },
+                    ]}
+                  />
+                  <ColumnSelector
+                    columns={ORDER_COLUMNS}
+                    visibleColumns={orderCols}
+                    onChange={setOrderCols}
+                  />
+                </div>
               }
             />
           </div>
@@ -794,13 +847,46 @@ export default function CompanyDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {orderCols.has("order_no") && <th className={TH}>Order No</th>}
+                  {orderCols.has("order_no") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Order No</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Order No", type: "text" }}
+                          activeFilters={{ search: orderSearch }}
+                          onFilterChange={(_, v) => setOrderSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {orderCols.has("date") && <th className={TH}>Date</th>}
                   {orderCols.has("client_name") && <th className={TH}>Client</th>}
                   {orderCols.has("project_name") && <th className={TH}>Project</th>}
                   {orderCols.has("grand_total") && <th className={`${TH} text-right`}>Grand Total</th>}
-                  {orderCols.has("delivery_status") && <th className={TH}>Delivery</th>}
-                  {orderCols.has("payment_status") && <th className={TH}>Payment</th>}
+                  {orderCols.has("delivery_status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Delivery</span>
+                        <ColumnHeaderFilter
+                          column={ORDER_FILTER_CONFIGS.find((f) => f.key === "delivery_status") as DynamicFilterColumn}
+                          activeFilters={{ delivery_status: orderDeliveryFilter }}
+                          onFilterChange={(_, v) => setOrderDeliveryFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("payment_status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Payment</span>
+                        <ColumnHeaderFilter
+                          column={ORDER_FILTER_CONFIGS.find((f) => f.key === "payment_status") as DynamicFilterColumn}
+                          activeFilters={{ payment_status: orderPaymentFilter }}
+                          onFilterChange={(_, v) => setOrderPaymentFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {orderCols.has("actions") && <th className={TH}></th>}
                 </tr>
               </thead>
@@ -888,11 +974,26 @@ export default function CompanyDetailPage() {
                 setQuoteDateTo("");
               }}
               actions={
-                <ColumnSelector
-                  columns={QUOTATION_COLUMNS}
-                  visibleColumns={quoteCols}
-                  onChange={setQuoteCols}
-                />
+                <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredQuotations}
+                    filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_quotations`}
+                    title={`${company?.company_name || "Company"} - Quotations Report`}
+                    columns={[
+                      { header: "Quotation No", accessor: (q) => q.quotation_no },
+                      { header: "Date", accessor: (q) => q.quotation_date },
+                      { header: "Client", accessor: (q) => q.client_name || "" },
+                      { header: "Subject", accessor: (q) => q.subject || "" },
+                      { header: "Status", accessor: (q) => q.status },
+                      { header: "Subtotal", accessor: (q) => `${q.currency_code || "INR"} ${q.subtotal}` },
+                    ]}
+                  />
+                  <ColumnSelector
+                    columns={QUOTATION_COLUMNS}
+                    visibleColumns={quoteCols}
+                    onChange={setQuoteCols}
+                  />
+                </div>
               }
             />
           </div>
@@ -901,11 +1002,33 @@ export default function CompanyDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {quoteCols.has("quotation_no") && <th className={TH}>Quotation No</th>}
+                  {quoteCols.has("quotation_no") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Quotation No</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Quotation No", type: "text" }}
+                          activeFilters={{ search: quoteSearch }}
+                          onFilterChange={(_, v) => setQuoteSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {quoteCols.has("quotation_date") && <th className={TH}>Date</th>}
                   {quoteCols.has("client_name") && <th className={TH}>Client</th>}
                   {quoteCols.has("subject") && <th className={TH}>Subject</th>}
-                  {quoteCols.has("status") && <th className={TH}>Status</th>}
+                  {quoteCols.has("status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Status</span>
+                        <ColumnHeaderFilter
+                          column={QUOTATION_FILTER_CONFIGS.find((f) => f.key === "status") as DynamicFilterColumn}
+                          activeFilters={{ status: quoteStatusFilter }}
+                          onFilterChange={(_, v) => setQuoteStatusFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {quoteCols.has("subtotal") && <th className={`${TH} text-right`}>Subtotal</th>}
                   {quoteCols.has("actions") && <th className={TH}></th>}
                 </tr>

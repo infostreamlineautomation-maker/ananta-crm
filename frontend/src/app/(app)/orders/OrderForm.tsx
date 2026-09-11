@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Copy, MessageSquare, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, CustomFieldDefinition, OrderDetail, OrderItemDetail, Product, ProjectSummary, QuotationColumn, Supplier } from "@/lib/types";
+import { Client, Country, CustomFieldDefinition, OrderDetail, OrderImage, OrderItemDetail, Product, QuotationColumn, Supplier } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
@@ -15,8 +15,11 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
+import { SlideOver } from "@/components/ui/SlideOver";
+import { ClientForm } from "../clients/page";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
+import { ProjectImageUploader } from "@/components/orders/ProjectImageUploader";
 
 function blankItem(): OrderItemDetail {
   return { product: "", description: "", qty: "1", rate: "0", extra_data: {} };
@@ -28,27 +31,37 @@ function newColumnKey() {
   return `custom_${Date.now()}_${columnCounter}`;
 }
 
-export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; initialProjectId?: number }) {
+export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: number }) {
   const router = useRouter();
   const toast = useToast();
   const { activeOrganization } = useOrganization();
   const baseCurrency = activeOrganization?.default_currency_code || "INR";
   const { rates, getRate } = useForex();
 
-  const { items: clients } = useList<Client>("/api/clients/?page_size=200");
-  const { items: projects } = useList<ProjectSummary>("/api/projects/?page_size=200");
+  const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: countries } = useList<Country>("/api/countries/");
   const { items: suppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
   const { items: products } = useList<Product>("/api/products/?page_size=200");
 
+  const [clients, setClients] = useState<Client[]>([]);
+  const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
+
+  useEffect(() => {
+    if (rawClients.length) setClients(rawClients);
+  }, [rawClients]);
+
   const [date, setDate] = useState(order?.date ?? new Date().toISOString().slice(0, 10));
   const [client, setClient] = useState<number | "">(order?.client ?? "");
+  const [projectTitle, setProjectTitle] = useState(order?.project_title ?? "");
   const [currencyCode, setCurrencyCode] = useState(order?.currency_code ?? "");
-  const [project, setProject] = useState<number | "">(order?.project ?? initialProjectId ?? "");
   const [supplier, setSupplier] = useState<number | "">(order?.supplier ?? "");
+  const [deliveryTime, setDeliveryTime] = useState(order?.delivery_time ?? "");
   const [description, setDescription] = useState(order?.description ?? "");
   const [taxPercent, setTaxPercent] = useState(order?.tax_percent ?? "0");
   const [deliveryStatus, setDeliveryStatus] = useState(order?.delivery_status ?? "pending");
-  const [paymentStatus, setPaymentStatus] = useState(order?.payment_status ?? "pending");
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "advance" | "partial" | "paid">(order?.payment_status ?? "pending");
+  const [existingImages, setExistingImages] = useState<OrderImage[]>(order?.images ?? []);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [paidAmount, setPaidAmount] = useState(
     order?.paid_amount !== undefined && order?.paid_amount !== null
       ? String(order.paid_amount)
@@ -85,8 +98,11 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const clientOptions = clients.map((c) => ({ value: c.id, label: c.client_name }));
-  const projectOptions = projects.map((p) => ({ value: p.id, label: p.name, sublabel: p.client_name }));
+  const clientOptions = clients.map((c) => ({
+    value: c.id,
+    label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
+    sublabel: c.company_name || undefined,
+  }));
   const supplierOptions = suppliers.map((s) => ({ value: s.id, label: s.supplier_name }));
   const productOptions = products.map((p) => ({ value: p.id, label: p.product_name }));
 
@@ -138,13 +154,13 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
     return Math.max(0, total - paid);
   }, [totals.grandTotal, paidAmount]);
 
-  function handlePaymentStatusChange(status: "pending" | "partial" | "paid") {
+  function handlePaymentStatusChange(status: "pending" | "advance" | "partial" | "paid") {
     setPaymentStatus(status);
     if (status === "paid") {
       setPaidAmount(totals.grandTotal.toFixed(2));
     } else if (status === "pending") {
       setPaidAmount("0");
-    } else if (status === "partial") {
+    } else if (status === "advance" || status === "partial") {
       const currentPaid = parseFloat(paidAmount) || 0;
       if (currentPaid <= 0 || currentPaid >= totals.grandTotal) {
         setPaidAmount((totals.grandTotal / 2).toFixed(2));
@@ -165,8 +181,9 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
   }
 
   function addColumn() {
-    const col = { key: newColumnKey(), label: "New Column" };
-    setColumns((prev) => [...prev, col]);
+    const key = newColumnKey();
+    const label = `Field ${columns.length + 1}`;
+    setColumns((prev) => [...prev, { key, label }]);
   }
 
   function removeColumn(key: string) {
@@ -202,16 +219,17 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
       let finalPaid = "0.00";
       if (paymentStatus === "paid") {
         finalPaid = totals.grandTotal.toFixed(2);
-      } else if (paymentStatus === "partial") {
+      } else if (paymentStatus === "partial" || paymentStatus === "advance") {
         finalPaid = (parseFloat(paidAmount) || 0).toFixed(2);
       }
 
       const payload: Record<string, unknown> = {
         date,
         client,
+        project_title: projectTitle,
         currency_code: effectiveCurrency,
-        project: project || null,
         supplier: supplier || null,
+        delivery_time: deliveryTime,
         description,
         columns_config: columns,
         tax_percent: taxPercent,
@@ -227,17 +245,30 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
         })),
       };
 
+      let savedOrder: OrderDetail;
       if (order) {
-        await apiFetch<OrderDetail>(`/api/orders/${order.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
-        toast.success("Order updated.");
-        router.push("/orders");
+        savedOrder = await apiFetch<OrderDetail>(`/api/orders/${order.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
       } else {
-        await apiFetch<OrderDetail>("/api/orders/", { method: "POST", body: JSON.stringify(payload) });
-        toast.success("Order created.");
-        router.push("/orders");
+        savedOrder = await apiFetch<OrderDetail>("/api/orders/", { method: "POST", body: JSON.stringify(payload) });
       }
+
+      // Upload pending images
+      if (pendingFiles.length > 0) {
+        for (const file of pendingFiles) {
+          const fd = new FormData();
+          fd.append("order", String(savedOrder.id));
+          fd.append("image", file);
+          await apiFetch<OrderImage>("/api/order-images/", {
+            method: "POST",
+            body: fd,
+          });
+        }
+      }
+
+      toast.success(order ? "Project updated." : "Project created.");
+      router.push("/orders");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't save this order.");
+      setError(e instanceof ApiError ? e.message : "Couldn't save this project.");
     } finally {
       setSaving(false);
     }
@@ -254,7 +285,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
       toast.success(`Copied to ${copy.order_no}.`);
       router.push(`/orders/${copy.id}`);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't copy this order.");
+      toast.error(e instanceof ApiError ? e.message : "Couldn't copy this project.");
     } finally {
       setCopying(false);
     }
@@ -266,11 +297,11 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-mono text-2xl font-extrabold text-ink">{order ? order.order_no : "New Order"}</h1>
-          {order?.project && (
-            <Link href={`/projects/${order.project}`} className="text-[13px] font-semibold text-ink-muted hover:text-primary-500">
-              Part of {order.project_name}
-            </Link>
+          <h1 className="font-mono text-2xl font-extrabold text-ink">
+            {order ? order.order_no : "New Project (AUTO)"}
+          </h1>
+          {projectTitle && (
+            <p className="text-sm font-semibold text-ink-muted mt-0.5">{projectTitle}</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -280,22 +311,22 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                 type="button"
                 variant="secondary"
                 onClick={() => setNotifyOpen(true)}
-                className="gap-1.5 text-emerald-700 hover:text-emerald-800"
+                title="Send notification to client via Email or WhatsApp"
               >
-                <MessageSquare className="h-4 w-4 text-emerald-600" /> Send Notification
+                <MessageSquare className="h-4 w-4" /> Notify
               </Button>
-              <Link href={`/orders/${order.id}/print`} target="_blank">
-                <Button type="button" variant="secondary" className="gap-1.5">
-                  <Printer className="h-4 w-4" /> Print Bill / PDF
+              <Button type="button" variant="secondary" onClick={handleCopy} loading={copying}>
+                <Copy className="h-4 w-4" /> Duplicate
+              </Button>
+              <Link href={`/orders/${order.id}/print`} target="_blank" rel="noreferrer">
+                <Button type="button" variant="secondary">
+                  <Printer className="h-4 w-4" /> Print
                 </Button>
               </Link>
-              <Button type="button" variant="secondary" onClick={handleCopy} loading={copying}>
-                <Copy className="h-4 w-4" /> Copy Order
-              </Button>
             </>
           )}
           <Button type="submit" variant="primary" loading={saving}>
-            Save
+            Save Project
           </Button>
         </div>
       </div>
@@ -307,14 +338,12 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
           target={{
             type: "order",
             id: order.id,
-            title: `Order ${order.order_no}`,
-            clientName: order.client_name,
-            clientPhone: selectedClient?.phone,
-            clientEmail: selectedClient?.email,
+            title: `Project ${order.order_no}`,
+            clientName: selectedClient ? selectedClient.client_name : order.client_name,
             orderNo: order.order_no,
-            amount: totals.grandTotal,
-            paidAmount: parseFloat(paidAmount) || 0,
-            dueAmount: calculatedDueAmount,
+            amount: totals.grandTotal.toFixed(2),
+            paidAmount: parseFloat(paidAmount || "0").toFixed(2),
+            dueAmount: calculatedDueAmount.toFixed(2),
             currency: effectiveCurrency,
             date: date,
             status: deliveryStatus,
@@ -326,11 +355,26 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
         <div className="flex flex-col gap-5 lg:col-span-2">
           <Card className="flex flex-col gap-4 p-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Date" required>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              <Field label="Project / Job Name" required>
+                <Input
+                  value={projectTitle}
+                  onChange={(e) => setProjectTitle(e.target.value)}
+                  placeholder="e.g. Diamond Standy"
+                  required
+                />
               </Field>
               <Field label="Client" required>
-                <Combobox value={client || null} onChange={(v) => handleClientChange(Number(v))} options={clientOptions} placeholder="Select client..." />
+                <Combobox
+                  value={client || null}
+                  onChange={(v) => handleClientChange(Number(v))}
+                  options={clientOptions}
+                  placeholder="Select client..."
+                  onAddNew={() => setQuickAddClientOpen(true)}
+                  addNewLabel="Add new client"
+                />
+              </Field>
+              <Field label="Date" required>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
               </Field>
               <Field label="Currency" hint="Changing currency converts all rates instantly.">
                 <div className="flex flex-wrap items-center gap-2">
@@ -361,21 +405,39 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                   )}
                 </div>
               </Field>
-              <Field label="Project (optional)">
-                <Combobox value={project || null} onChange={(v) => setProject(Number(v))} options={projectOptions} placeholder="Select project..." />
+            </div>
+
+            <Field label="Notes / Description (optional)">
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. 350 gsm with matt / Additional notes about this project..."
+                rows={2}
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Vendor / Supplier (optional)">
+                <Combobox
+                  value={supplier || null}
+                  onChange={(v) => setSupplier(Number(v))}
+                  options={supplierOptions}
+                  placeholder="Select vendor / supplier..."
+                />
               </Field>
-              <Field label="Supplier (optional)">
-                <Combobox value={supplier || null} onChange={(v) => setSupplier(Number(v))} options={supplierOptions} placeholder="Select supplier..." />
+              <Field label="Delivery Time / Instructions">
+                <Input
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
+                  placeholder="e.g. Aje Joie chhe print thai ne / Urgent"
+                />
               </Field>
             </div>
-            <Field label="Description">
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Notes about this order..." />
-            </Field>
           </Card>
 
           <Card>
             <CardHeader
-              title="Line Items"
+              title="Line Items (Product & Specs)"
               action={
                 <button
                   type="button"
@@ -391,7 +453,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                 <thead>
                   <tr className="border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                     <th className="px-5 py-2.5 text-left">Product</th>
-                    <th className="px-3 py-2.5 text-left">Description</th>
+                    <th className="px-3 py-2.5 text-left">Description / Specs</th>
                     {columns.map((col) => (
                       <th key={col.key} className="px-3 py-2.5 text-left">
                         <div className="flex items-center gap-1">
@@ -429,7 +491,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                           <Combobox value={it.product || null} onChange={(v) => updateItem(i, { product: Number(v) })} options={productOptions} placeholder="Select..." />
                         </td>
                         <td className="px-3 py-2.5">
-                          <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Optional detail" />
+                          <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="e.g. 350 gsm with matt" />
                         </td>
                         {columns.map((col) => (
                           <td key={col.key} className="px-3 py-2.5">
@@ -477,19 +539,19 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
         <div className="flex flex-col gap-5">
           <Card className="flex flex-col gap-3 p-5">
             <div className="flex items-center justify-between text-[13.5px]">
-              <span className="text-ink-muted">Subtotal</span>
+              <span className="text-ink-muted">Total (Without GST)</span>
               <span className="tnum font-semibold text-ink">{formatCurrency(totals.subtotal, effectiveCurrency)}</span>
             </div>
-            <Field label="Tax %">
-              <Input type="number" step="0.01" min="0" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} />
+            <Field label="GST / Tax %">
+              <Input type="number" step="0.01" min="0" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} placeholder="0" />
             </Field>
             <div className="flex items-center justify-between text-[13.5px]">
-              <span className="text-ink-muted">Tax Amount</span>
+              <span className="text-ink-muted">GST Tax Amount</span>
               <span className="tnum font-semibold text-ink">{formatCurrency(totals.tax, effectiveCurrency)}</span>
             </div>
             <div className="mt-1 flex flex-col gap-1 border-t border-border pt-3">
               <div className="flex items-center justify-between">
-                <span className="text-[13.5px] font-bold text-ink">Total ({effectiveCurrency})</span>
+                <span className="text-[13.5px] font-bold text-ink">Total Bill (With GST)</span>
                 <span className="tnum text-xl font-extrabold text-primary-600">{formatCurrency(totals.grandTotal, effectiveCurrency)}</span>
               </div>
               {baseGrandTotal !== null && (
@@ -513,17 +575,17 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
             <Field label="Payment Status">
               <Select value={paymentStatus} onChange={(e) => handlePaymentStatusChange(e.target.value as typeof paymentStatus)}>
                 <option value="pending">Pending (Unpaid)</option>
-                <option value="partial">Partial (Advance / Partial Payment)</option>
+                <option value="advance">Advance (Advance Received)</option>
+                <option value="partial">Partial (Partial Payment)</option>
                 <option value="paid">Paid (Fully Paid)</option>
               </Select>
             </Field>
 
-            {/* If Partial: prompt for received amount with live balance due calculation */}
-            {paymentStatus === "partial" && (
+            {(paymentStatus === "advance" || paymentStatus === "partial") && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5 flex flex-col gap-3">
                 <Field
-                  label="Received / Collected Amount"
-                  hint={`Enter amount paid so far in ${effectiveCurrency}`}
+                  label={paymentStatus === "advance" ? "Advance Amount Received" : "Partial Amount Received"}
+                  hint={`Enter amount collected in ${effectiveCurrency}`}
                 >
                   <Input
                     type="number"
@@ -542,7 +604,7 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
                     <span className="font-mono font-semibold text-ink">{formatCurrency(totals.grandTotal, effectiveCurrency)}</span>
                   </div>
                   <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>Amount Received:</span>
+                    <span>{paymentStatus === "advance" ? "Advance Received:" : "Amount Received:"}</span>
                     <span className="font-mono">
                       {formatCurrency(parseFloat(paidAmount) || 0, effectiveCurrency)}
                     </span>
@@ -571,10 +633,44 @@ export function OrderForm({ order, initialProjectId }: { order?: OrderDetail; in
               </div>
             )}
           </Card>
+
+          <Card className="flex flex-col gap-3 p-5">
+            <CardHeader title="Project Images / Proofs" />
+            <ProjectImageUploader
+              orderId={order?.id}
+              existingImages={existingImages}
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+              onImageUploaded={(newImg) => setExistingImages((prev) => [...prev, newImg])}
+              onImageDeleted={(delId) => setExistingImages((prev) => prev.filter((img) => img.id !== delId))}
+            />
+          </Card>
         </div>
       </div>
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
+
+      <SlideOver
+        open={quickAddClientOpen}
+        onClose={() => setQuickAddClientOpen(false)}
+        title="Add New Client"
+        size="lg"
+      >
+        <ClientForm
+          client={null}
+          countries={countries}
+          onCancel={() => setQuickAddClientOpen(false)}
+          onSaved={(savedClient) => {
+            setQuickAddClientOpen(false);
+            if (savedClient) {
+              setClients((prev) => [savedClient, ...prev]);
+              handleClientChange(savedClient.id);
+            } else {
+              reloadClients();
+            }
+          }}
+        />
+      </SlideOver>
     </form>
   );
 }

@@ -2,33 +2,36 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Eye, MessageSquare, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Search, Trash2, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, Company, Country, OrderSummary } from "@/lib/types";
+import { Client, ClientGroup, Company, Country, OrderImage, OrderSummary } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { exportToCsv, CsvColumn } from "@/lib/csv-export";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input, Select } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
-import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
+import { FilterBar } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 const ORDERS_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Checkbox", required: true },
-  { key: "order_no", label: "Order No", required: true },
+  { key: "order_no", label: "Project No", required: true },
+  { key: "images", label: "Images" },
   { key: "date", label: "Date" },
   { key: "client_name", label: "Client" },
-  { key: "project_name", label: "Project" },
   { key: "grand_total", label: "Total Amount" },
   { key: "paid_amount", label: "Paid Amount" },
   { key: "due_amount", label: "Balance Due" },
@@ -41,104 +44,89 @@ export default function OrdersPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [deliveryFilter, setDeliveryFilter] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [countryFilter, setCountryFilter] = useState("");
-  const [amountMin, setAmountMin] = useState("");
-  const [amountMax, setAmountMax] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [projectScope, setProjectScope] = useState<"" | "false" | "true">("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [cols, setCols] = useState<Set<string>>(new Set(ORDERS_COLUMNS.map((c) => c.key)));
   const [deleting, setDeleting] = useState<OrderSummary | null>(null);
   const [notifyingOrder, setNotifyingOrder] = useState<OrderSummary | null>(null);
+  const [activeLightboxImages, setActiveLightboxImages] = useState<OrderImage[] | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
-  const { items: clients } = useList<Client>("/api/clients/");
-  const { items: companies } = useList<Company>("/api/companies/");
   const { items: countries } = useList<Country>("/api/countries/");
+  const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
+  const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=300");
 
-  const orderFilterConfigs: FilterGroupConfig[] = useMemo(() => [
-    {
-      key: "client",
-      label: "Client",
-      options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
-    },
-    {
-      key: "company",
-      label: "Company",
-      options: companies.map((c) => ({ value: String(c.id), label: c.company_name })),
-    },
-    {
-      key: "country",
-      label: "Country",
-      options: countries.map((c) => ({ value: c.code, label: c.name })),
-    },
-    {
-      key: "delivery_status",
-      label: "Delivery",
-      options: [
-        { value: "pending", label: "Pending", dotColor: "#64748b" },
-        { value: "in_process", label: "In Process", dotColor: "#2563eb" },
-        { value: "ready", label: "Ready", dotColor: "#0d9488" },
-        { value: "delivered", label: "Delivered", dotColor: "#16a34a" },
-      ],
-    },
-    {
-      key: "payment_status",
-      label: "Payment",
-      options: [
-        { value: "pending", label: "Pending", dotColor: "#e11d48" },
-        { value: "partial", label: "Partial", dotColor: "#d97706" },
-        { value: "paid", label: "Paid", dotColor: "#16a34a" },
-      ],
-    },
-    {
-      key: "amount",
-      label: "Amount",
-      type: "amount_range",
-    },
-    {
-      key: "date",
-      label: "Date",
-      type: "date_range",
-    },
-  ], [clients, companies, countries]);
+  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+
+  const baseFilterColumns: DynamicFilterColumn[] = useMemo(
+    () => [
+      {
+        key: "order_no",
+        label: "Project No",
+        type: "text",
+      },
+      {
+        key: "client_name",
+        label: "Client",
+        type: "text",
+      },
+      {
+        key: "delivery_status",
+        label: "Delivery Status",
+        type: "select",
+        options: [
+          { value: "pending", label: "Pending", dotColor: "#64748b" },
+          { value: "in_process", label: "In Process", dotColor: "#2563eb" },
+          { value: "ready", label: "Ready", dotColor: "#0d9488" },
+          { value: "delivered", label: "Delivered", dotColor: "#16a34a" },
+        ],
+      },
+      {
+        key: "payment_status",
+        label: "Payment Status",
+        type: "select",
+        options: [
+          { value: "pending", label: "Pending", dotColor: "#e11d48" },
+          { value: "advance", label: "Advance", dotColor: "#0284c7" },
+          { value: "partial", label: "Partial", dotColor: "#d97706" },
+          { value: "paid", label: "Paid", dotColor: "#16a34a" },
+        ],
+      },
+      {
+        key: "amount",
+        label: "Total Amount",
+        type: "amount_range",
+      },
+      {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+    ],
+    []
+  );
+
+  const {
+    columns: filterColumns,
+    activeFilters,
+    setFilter,
+    resetFilters,
+    appendQueryParams,
+  } = useDynamicColumnFilters({
+    module: "order_item",
+    baseColumns: baseFilterColumns,
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
-    if (deliveryFilter) params.set("delivery_status", deliveryFilter);
-    if (paymentFilter) params.set("payment_status", paymentFilter);
-    if (clientFilter) params.set("client", clientFilter);
-    if (companyFilter) params.set("client__company", companyFilter);
-    if (countryFilter) params.set("country", countryFilter);
-    if (amountMin) params.set("min_amount", amountMin);
-    if (amountMax) params.set("max_amount", amountMax);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
-    if (projectScope) params.set("has_project", projectScope);
+    if (selectedGroup !== "all") params.set("client_group", String(selectedGroup));
+    appendQueryParams(params);
     params.set("page", String(page));
     return `/api/orders/?${params.toString()}`;
-  }, [
-    debouncedSearch,
-    deliveryFilter,
-    paymentFilter,
-    clientFilter,
-    companyFilter,
-    countryFilter,
-    amountMin,
-    amountMax,
-    dateFrom,
-    dateTo,
-    projectScope,
-    page,
-  ]);
+  }, [debouncedSearch, selectedGroup, appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<OrderSummary>(path);
 
@@ -164,64 +152,27 @@ export default function OrdersPage() {
     setBulkDeleting(true);
     try {
       await Promise.all(Array.from(selected).map((id) => apiFetch(`/api/orders/${id}/`, { method: "DELETE" })));
-      toast.success(`${selected.size} order${selected.size === 1 ? "" : "s"} deleted.`);
+      toast.success(`${selected.size} project${selected.size === 1 ? "" : "s"} deleted.`);
       setSelected(new Set());
       reload();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't delete some orders.");
+      toast.error(e instanceof ApiError ? e.message : "Couldn't delete some projects.");
     } finally {
       setBulkDeleting(false);
     }
   }
 
-  const activeFilters = {
-    delivery_status: deliveryFilter,
-    payment_status: paymentFilter,
-    client: clientFilter,
-    company: companyFilter,
-    country: countryFilter,
-    amount_min: amountMin,
-    amount_max: amountMax,
-    date_from: dateFrom,
-    date_to: dateTo,
-  };
-
-  function handleFilterChange(key: string, val: string) {
-    if (key === "delivery_status") setDeliveryFilter(val);
-    if (key === "payment_status") setPaymentFilter(val);
-    if (key === "client") setClientFilter(val);
-    if (key === "company") setCompanyFilter(val);
-    if (key === "country") setCountryFilter(val);
-    if (key === "amount_min") setAmountMin(val);
-    if (key === "amount_max") setAmountMax(val);
-    if (key === "date_from") setDateFrom(val);
-    if (key === "date_to") setDateTo(val);
-    setPage(1);
-  }
-
-  function handleResetFilters() {
-    setDeliveryFilter("");
-    setPaymentFilter("");
-    setClientFilter("");
-    setCompanyFilter("");
-    setCountryFilter("");
-    setAmountMin("");
-    setAmountMax("");
-    setDateFrom("");
-    setDateTo("");
-    setSearch("");
-    setPage(1);
-  }
+  const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Orders"
+        title="Projects"
         action={
           canAdd && (
             <Link href="/orders/new">
               <Button variant="primary">
-                <Plus className="h-4 w-4" /> New Order
+                <Plus className="h-4 w-4" /> New Project
               </Button>
             </Link>
           )
@@ -249,82 +200,116 @@ export default function OrdersPage() {
             setSearch(val);
             setPage(1);
           }}
-          searchPlaceholder="Search order no, description..."
-          filters={orderFilterConfigs}
+          searchPlaceholder="Search project no, description..."
+          filters={filterColumns}
           activeFilters={activeFilters}
-          onFilterChange={handleFilterChange}
-          onReset={handleResetFilters}
+          onFilterChange={(k, v) => {
+            setFilter(k, v);
+            setPage(1);
+          }}
+          onReset={() => {
+            resetFilters();
+            setSearch("");
+            setPage(1);
+          }}
           actions={
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-lg border border-border bg-surface-sunken p-0.5">
-                <button
-                  onClick={() => {
-                    setProjectScope("");
-                    setPage(1);
-                  }}
-                  className={clsx(
-                    "rounded-md px-2.5 py-1 text-[12px] font-semibold transition-all",
-                    projectScope === "" ? "bg-white text-primary-600 shadow-xs" : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => {
-                    setProjectScope("false");
-                    setPage(1);
-                  }}
-                  className={clsx(
-                    "rounded-md px-2.5 py-1 text-[12px] font-semibold transition-all",
-                    projectScope === "false" ? "bg-white text-primary-600 shadow-xs" : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  Standalone
-                </button>
-                <button
-                  onClick={() => {
-                    setProjectScope("true");
-                    setPage(1);
-                  }}
-                  className={clsx(
-                    "rounded-md px-2.5 py-1 text-[12px] font-semibold transition-all",
-                    projectScope === "true" ? "bg-white text-primary-600 shadow-xs" : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  Project
-                </button>
-              </div>
-
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const list = data?.results || [];
-                  if (!list.length) return;
-                  const cols: CsvColumn<OrderSummary>[] = [
-                    { header: "Order No", accessor: (o) => o.order_no },
-                    { header: "Date", accessor: (o) => o.date },
-                    { header: "Client", accessor: (o) => o.client_name },
-                    { header: "Project", accessor: (o) => o.project_name || "" },
-                    { header: "Supplier", accessor: (o) => o.supplier_name || "" },
-                    { header: "Currency", accessor: (o) => o.currency_code || "INR" },
-                    { header: "Total Amount", accessor: (o) => o.grand_total },
-                    { header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00" },
-                    { header: "Balance Due", accessor: (o) => o.due_amount || "0.00" },
-                    { header: "Delivery Status", accessor: (o) => o.delivery_status },
-                    { header: "Payment Status", accessor: (o) => o.payment_status },
-                  ];
-                  exportToCsv(list, cols, "orders_export");
-                }}
-                className="h-9 gap-1.5 text-xs font-semibold"
-              >
-                <Download className="h-3.5 w-3.5" /> Export CSV
-              </Button>
+              <ExportDropdown
+                data={data?.results || []}
+                filename="projects_export"
+                title="Projects Report"
+                columns={[
+                  { header: "Project No", accessor: (o) => o.order_no },
+                  { header: "Project Name", accessor: (o) => o.project_title || "" },
+                  { header: "Date", accessor: (o) => o.date },
+                  { header: "Client", accessor: (o) => o.company_name ? `${o.client_name} (${o.company_name})` : o.client_name },
+                  { header: "Company", accessor: (o) => o.company_name || "" },
+                  { header: "Supplier", accessor: (o) => o.supplier_name || "" },
+                  { header: "Currency", accessor: (o) => o.currency_code || "INR" },
+                  { header: "Total Amount", accessor: (o) => o.grand_total },
+                  { header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00" },
+                  { header: "Balance Due", accessor: (o) => o.due_amount || "0.00" },
+                  { header: "Delivery Status", accessor: (o) => o.delivery_status },
+                  { header: "Payment Status", accessor: (o) => o.payment_status },
+                ]}
+              />
 
               <ColumnSelector columns={ORDERS_COLUMNS} visibleColumns={cols} onChange={setCols} />
             </div>
           }
         />
       )}
+
+      {/* Client Group Filter Tabs */}
+      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 text-xs -mt-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mr-1 flex items-center gap-1">
+            <Layers className="h-3.5 w-3.5 text-primary-600" />
+            Group:
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedGroup("all");
+              setPage(1);
+            }}
+            className={clsx(
+              "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
+              selectedGroup === "all"
+                ? "bg-primary-600 text-white border-primary-600 shadow-xs"
+                : "bg-white text-ink-muted hover:text-ink hover:bg-sand-50 border-border"
+            )}
+          >
+            All Clients
+          </button>
+          {clientGroups.map((grp) => {
+            const isSelected = selectedGroup === grp.id;
+            const count = grp.clients_count ?? (grp.clients?.length || 0);
+            return (
+              <button
+                key={grp.id}
+                type="button"
+                onClick={() => {
+                  setSelectedGroup(grp.id);
+                  setPage(1);
+                }}
+                className={clsx(
+                  "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
+                  isSelected
+                    ? "bg-primary-50 text-primary-800 border-primary-300 shadow-xs ring-1 ring-primary-300"
+                    : "bg-white text-ink hover:text-primary-700 hover:bg-sand-50 border-border"
+                )}
+              >
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: grp.color || "#881337" }}
+                />
+                <span>{grp.name}</span>
+                <span
+                  className={clsx(
+                    "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none",
+                    isSelected
+                      ? "bg-primary-200/80 text-primary-900"
+                      : "bg-sand-100 text-ink-muted"
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setGroupModalOpen(true)}
+          className="shrink-0 text-xs text-ink font-medium h-7.5 border-dashed"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1 text-primary-600" />
+          Manage Groups
+        </Button>
+      </div>
 
       <Card>
         <div className="overflow-x-auto">
@@ -338,19 +323,115 @@ export default function OrdersPage() {
                       checked={!!data && data.results.length > 0 && selected.size === data.results.length}
                       onChange={toggleAll}
                       aria-label="Select all"
-                      className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)]"
+                      className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
                     />
                   </th>
                 )}
-                {cols.has("order_no") && <th className={TH}>Order No</th>}
-                {cols.has("date") && <th className={TH}>Date</th>}
-                {cols.has("client_name") && <th className={TH}>Client</th>}
-                {cols.has("project_name") && <th className={TH}>Project</th>}
-                {cols.has("grand_total") && <th className={`${TH} text-right`}>Total Amount</th>}
+                {cols.has("order_no") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Project No</span>
+                      {getColFilter("order_no") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("order_no")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("images") && <th className={TH}>Images</th>}
+                {cols.has("date") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Date</span>
+                      {getColFilter("date") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("date")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("client_name") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Client</span>
+                      {getColFilter("client_name") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("client_name")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("grand_total") && (
+                  <th className={`${TH} text-right`}>
+                    <div className="inline-flex items-center justify-end">
+                      <span>Total Amount</span>
+                      {getColFilter("amount") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("amount")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("paid_amount") && <th className={`${TH} text-right`}>Paid Amount</th>}
                 {cols.has("due_amount") && <th className={`${TH} text-right`}>Balance Due</th>}
-                {cols.has("delivery_status") && <th className={TH}>Delivery Status</th>}
-                {cols.has("payment_status") && <th className={TH}>Payment Status</th>}
+                {cols.has("delivery_status") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Delivery Status</span>
+                      {getColFilter("delivery_status") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("delivery_status")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("payment_status") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>Payment Status</span>
+                      {getColFilter("payment_status") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("payment_status")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("actions") && <th className={`${TH} text-right`}>Actions</th>}
               </tr>
             </thead>
@@ -359,7 +440,7 @@ export default function OrdersPage() {
                 loading={loading}
                 empty={!loading && (data?.results.length ?? 0) === 0}
                 colSpan={cols.size}
-                emptyLabel="No orders found matching criteria."
+                emptyLabel="No projects found matching criteria."
               />
               {data?.results.map((o) => (
                 <tr key={o.id} className={`${TR} hover:bg-surface-hover transition-colors`}>
@@ -369,7 +450,7 @@ export default function OrdersPage() {
                         type="checkbox"
                         checked={selected.has(o.id)}
                         onChange={() => toggle(o.id)}
-                        className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)]"
+                        className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
                       />
                     </td>
                   )}
@@ -378,11 +459,54 @@ export default function OrdersPage() {
                       <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
                         {o.order_no}
                       </Link>
+                      {o.project_title && (
+                        <div className="text-[12px] font-medium text-ink-muted truncate max-w-[180px]" title={o.project_title}>
+                          {o.project_title}
+                        </div>
+                      )}
+                    </td>
+                  )}
+                  {cols.has("images") && (
+                    <td className={TD}>
+                      {o.images && o.images.length > 0 ? (
+                        <div
+                          onClick={() => setActiveLightboxImages(o.images || [])}
+                          className="flex items-center -space-x-2 overflow-hidden hover:opacity-80 transition-opacity cursor-pointer w-fit"
+                          title={`View ${o.images.length} image${o.images.length === 1 ? "" : "s"}`}
+                        >
+                          {o.images.slice(0, 3).map((img, idx) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={img.id || idx}
+                              src={img.image}
+                              alt="thumb"
+                              className="inline-block h-8 w-8 rounded-md border-2 border-white bg-surface-sunken object-cover shadow-xs"
+                            />
+                          ))}
+                          {o.images.length > 3 && (
+                            <span className="flex h-8 w-8 items-center justify-center rounded-md border-2 border-white bg-slate-700 text-[10px] font-bold text-white shadow-xs">
+                              +{o.images.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-faint text-xs">—</span>
+                      )}
                     </td>
                   )}
                   {cols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                  {cols.has("client_name") && <td className={`${TD} text-ink`}>{o.client_name}</td>}
-                  {cols.has("project_name") && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
+                  {cols.has("client_name") && (
+                    <td className={TD}>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-ink">{o.client_name}</span>
+                        {o.company_name && (
+                          <span className="text-[12px] font-medium text-ink-muted">
+                            ({o.company_name})
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   {cols.has("grand_total") && (
                     <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
                   )}
@@ -420,12 +544,12 @@ export default function OrdersPage() {
                           <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
                         </RowActionButton>
                         <Link href={`/orders/${o.id}/print`} target="_blank">
-                          <RowActionButton label="Print Invoice / Bill" onClick={() => {}}>
+                          <RowActionButton label="Print Bill / PDF" onClick={() => {}}>
                             <Printer className="h-3.5 w-3.5 text-primary-600" />
                           </RowActionButton>
                         </Link>
                         <Link href={`/orders/${o.id}`}>
-                          <RowActionButton label="View" onClick={() => {}}>
+                          <RowActionButton label="View / Edit" onClick={() => {}}>
                             {canEdit ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </RowActionButton>
                         </Link>
@@ -445,6 +569,14 @@ export default function OrdersPage() {
         {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
       </Card>
 
+      {activeLightboxImages && (
+        <ImageLightboxModal
+          open={true}
+          onClose={() => setActiveLightboxImages(null)}
+          images={activeLightboxImages}
+        />
+      )}
+
       {notifyingOrder && (
         <SendNotificationModal
           open
@@ -452,7 +584,7 @@ export default function OrdersPage() {
           target={{
             type: "order",
             id: notifyingOrder.id,
-            title: `Order ${notifyingOrder.order_no}`,
+            title: `Project ${notifyingOrder.order_no}`,
             clientName: notifyingOrder.client_name,
             orderNo: notifyingOrder.order_no,
             amount: notifyingOrder.grand_total,
@@ -469,20 +601,32 @@ export default function OrdersPage() {
         <ConfirmDialog
           open
           onClose={() => setDeleting(null)}
-          title="Delete order"
+          title="Delete project"
           description={`Delete "${deleting.order_no}"? This cannot be undone.`}
           onConfirm={async () => {
             try {
               await apiFetch(`/api/orders/${deleting.id}/`, { method: "DELETE" });
-              toast.success("Order deleted.");
+              toast.success("Project deleted.");
               setDeleting(null);
               reload();
             } catch (e) {
-              toast.error(e instanceof ApiError ? e.message : "Couldn't delete this order.");
+              toast.error(e instanceof ApiError ? e.message : "Couldn't delete this project.");
             }
           }}
         />
       )}
+
+      <ClientGroupModal
+        open={groupModalOpen}
+        onClose={() => setGroupModalOpen(false)}
+        groups={clientGroups}
+        allClients={allClients}
+        onGroupsChanged={() => {
+          reloadGroups();
+          reloadClients();
+          reload();
+        }}
+      />
     </div>
   );
 }

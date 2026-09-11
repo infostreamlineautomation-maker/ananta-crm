@@ -16,6 +16,11 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
+import { FilterBar } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ProductModal } from "@/components/products/ProductModal";
+import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 export default function ProductsPage() {
   const { can } = useAuth();
@@ -23,14 +28,42 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
-  const { items: customFields } = useList<CustomFieldDefinition>("/api/custom-fields/?module=product");
+
+  const baseFilterColumns: DynamicFilterColumn[] = useMemo(
+    () => [
+      {
+        key: "product_name",
+        label: "Product Name",
+        type: "text",
+      },
+      {
+        key: "description",
+        label: "Description",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const {
+    columns: filterColumns,
+    customFields,
+    activeFilters,
+    setFilter,
+    resetFilters,
+    appendQueryParams,
+  } = useDynamicColumnFilters({
+    module: "product",
+    baseColumns: baseFilterColumns,
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
+    appendQueryParams(params);
     params.set("page", String(page));
     return `/api/products/?${params.toString()}`;
-  }, [debouncedSearch, page]);
+  }, [debouncedSearch, appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<Product>(path);
 
@@ -42,6 +75,7 @@ export default function ProductsPage() {
   const canDelete = can("catalog", "delete");
 
   const colSpan = 3 + (customFields?.length || 0);
+  const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   return (
     <div className="flex flex-col gap-5">
@@ -56,31 +90,97 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="relative max-w-xs">
-        <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-        <Input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Search products..."
-          className="pl-9"
-        />
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        searchPlaceholder="Search products..."
+        filters={filterColumns}
+        activeFilters={activeFilters}
+        onFilterChange={(k, v) => {
+          setFilter(k, v);
+          setPage(1);
+        }}
+        onReset={() => {
+          resetFilters();
+          setSearch("");
+          setPage(1);
+        }}
+        actions={
+          <ExportDropdown
+            data={data?.results || []}
+            filename="products_export"
+            title="Product Catalog"
+            columns={[
+              { header: "Product Name", accessor: (p) => p.product_name },
+              { header: "Description", accessor: (p) => p.description || "" },
+              ...(customFields || []).map((f) => ({
+                header: f.label,
+                accessor: (p: Product) => String(p.extra_data?.[f.field_key] ?? ""),
+              })),
+            ]}
+          />
+        }
+      />
 
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className={TH}>Product Name</th>
-                <th className={TH}>Description</th>
-                {customFields?.map((f) => (
-                  <th key={f.id} className={TH}>
-                    {f.label}
-                  </th>
-                ))}
+                <th className={TH}>
+                  <div className="inline-flex items-center">
+                    <span>Product Name</span>
+                    {getColFilter("product_name") && (
+                      <ColumnHeaderFilter
+                        column={getColFilter("product_name")!}
+                        activeFilters={activeFilters}
+                        onFilterChange={(k, v) => {
+                          setFilter(k, v);
+                          setPage(1);
+                        }}
+                      />
+                    )}
+                  </div>
+                </th>
+                <th className={TH}>
+                  <div className="inline-flex items-center">
+                    <span>Description</span>
+                    {getColFilter("description") && (
+                      <ColumnHeaderFilter
+                        column={getColFilter("description")!}
+                        activeFilters={activeFilters}
+                        onFilterChange={(k, v) => {
+                          setFilter(k, v);
+                          setPage(1);
+                        }}
+                      />
+                    )}
+                  </div>
+                </th>
+                {customFields?.map((f) => {
+                  const filterKey = `custom__${f.field_key}`;
+                  const colFilter = getColFilter(filterKey);
+                  return (
+                    <th key={f.id} className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>{f.label}</span>
+                        {colFilter && (
+                          <ColumnHeaderFilter
+                            column={colFilter}
+                            activeFilters={activeFilters}
+                            onFilterChange={(k, v) => {
+                              setFilter(k, v);
+                              setPage(1);
+                            }}
+                          />
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th className={TH}></th>
               </tr>
             </thead>
@@ -117,19 +217,15 @@ export default function ProductsPage() {
         {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
       </Card>
 
-      <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Add Product" : "Edit Product"}>
-        {editing !== null && (
-          <ProductForm
-            key={editing === "new" ? "new" : editing.id}
-            product={editing === "new" ? null : editing}
-            onCancel={() => setEditing(null)}
-            onSaved={() => {
-              setEditing(null);
-              reload();
-            }}
-          />
-        )}
-      </Modal>
+      <ProductModal
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        product={editing === "new" ? null : editing}
+        onSaved={() => {
+          setEditing(null);
+          reload();
+        }}
+      />
 
       {deleting && (
         <ConfirmDialog
@@ -150,85 +246,5 @@ export default function ProductsPage() {
         />
       )}
     </div>
-  );
-}
-
-function ProductForm({
-  product,
-  onCancel,
-  onSaved,
-}: {
-  product: Product | null;
-  onCancel: () => void;
-  onSaved: () => void;
-}) {
-  const toast = useToast();
-  const [name, setName] = useState(product?.product_name ?? "");
-  const [description, setDescription] = useState(product?.description ?? "");
-  const [extraData, setExtraData] = useState<Record<string, any>>(product?.extra_data || {});
-  const [customFields, setCustomFields] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiFetch<Paginated<any>>("/api/custom-fields/?module=product")
-      .then((res) => setCustomFields(res.results || []))
-      .catch(() => {});
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const payload = { product_name: name, description, extra_data: extraData };
-      if (product) {
-        await apiFetch(`/api/products/${product.id}/`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-        toast.success("Product updated.");
-      } else {
-        await apiFetch("/api/products/", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        toast.success("Product added.");
-      }
-      onSaved();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't save this product.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Field label="Product Name" required>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-      </Field>
-      <Field label="Description">
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-      </Field>
-
-      {customFields.length > 0 && (
-        <DynamicFormFields
-          fields={customFields}
-          values={extraData}
-          onChange={(k, v) => setExtraData((prev) => ({ ...prev, [k]: v }))}
-        />
-      )}
-
-      {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
-      <div className="mt-1 flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" loading={saving}>
-          Save Product
-        </Button>
-      </div>
-    </form>
   );
 }

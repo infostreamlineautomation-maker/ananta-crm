@@ -29,6 +29,9 @@ import { DatePresets } from "@/components/charts/DatePresets";
 import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { ProgressBarList } from "@/components/charts/ProgressBarList";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
+import { ExportFormat, exportAnalyticsReport, getOrgPrefix } from "@/lib/export-utils";
+import { useOrganization } from "@/lib/organization-context";
 
 const TABS = [
   { key: "overview", label: "Overview & Trends" },
@@ -45,6 +48,7 @@ function defaultMonth() {
 }
 
 export default function ReportsPage() {
+  const { activeOrganization } = useOrganization();
   const initial = useMemo(() => defaultMonth(), []);
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
@@ -70,27 +74,34 @@ export default function ReportsPage() {
     };
   }, [query]);
 
-  async function handleExportCsv() {
-    const baseUrl = getApiBaseUrl();
-    try {
-      const res = await fetch(`${baseUrl}/api/reports/export/?${query}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to export report");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `financial_report_${baseCurr}_${dateFrom}_to_${dateTo}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.open(`${baseUrl}/api/reports/export/?${query}`, "_blank");
-    }
-  }
-
   const kpis = data?.kpis;
   const baseCurr = data?.base_currency_code || "INR";
+  const companyName = activeOrganization?.name || "Ananta Graphics";
+
+  async function handleReportExport(format: ExportFormat) {
+    if (!data) return;
+    if (format === "csv") {
+      const baseUrl = getApiBaseUrl();
+      const prefix = getOrgPrefix(companyName);
+      try {
+        const res = await fetch(`${baseUrl}/api/reports/export/?${query}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to export report");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${prefix}financial_report_${baseCurr}_${dateFrom}_to_${dateTo}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch {
+        window.open(`${baseUrl}/api/reports/export/?${query}`, "_blank");
+      }
+    } else {
+      exportAnalyticsReport(format, data, companyName);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,9 +127,13 @@ export default function ReportsPage() {
             }}
           />
 
-          <Button variant="secondary" onClick={handleExportCsv} className="h-9">
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </Button>
+          <ExportDropdown
+            disabled={!data || loading}
+            onExport={handleReportExport}
+            buttonText="Export Report"
+            filename={`financial_report_${baseCurr}_${dateFrom}_to_${dateTo}`}
+            title="Financial Analytics Report"
+          />
         </div>
       </div>
 

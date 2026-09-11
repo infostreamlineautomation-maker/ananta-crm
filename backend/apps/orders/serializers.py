@@ -2,7 +2,14 @@ from rest_framework import serializers
 
 from apps.core.serializers import SameOrganizationFieldsMixin
 
-from .models import Order, OrderItem
+from .models import Order, OrderImage, OrderItem
+
+
+class OrderImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderImage
+        fields = ["id", "order", "image", "caption", "uploaded_at"]
+        read_only_fields = ["uploaded_at"]
 
 
 class OrderItemSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -33,7 +40,9 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     legacy app's "browser computes the total, server trusts it" flaw."""
 
     items = OrderItemSerializer(many=True)
+    images = OrderImageSerializer(many=True, read_only=True)
     client_name = serializers.CharField(source="client.client_name", read_only=True)
+    company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
     supplier_name = serializers.CharField(source="supplier.supplier_name", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
@@ -43,12 +52,12 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            "id", "order_no", "date", "client", "client_name", "project", "project_name",
-            "supplier", "supplier_name",
+            "id", "order_no", "date", "client", "client_name", "company_name", "project", "project_name",
+            "project_title", "supplier", "supplier_name", "delivery_time",
             "description", "columns_config", "tax_percent", "subtotal", "tax_amount", "grand_total",
             "currency_code", "exchange_rate", "base_currency_code",
             "delivery_status", "payment_status", "paid_amount", "due_amount", "is_visible_to_staff",
-            "copied_from", "created_by", "created_by_name", "items", "created_at", "updated_at",
+            "copied_from", "created_by", "created_by_name", "items", "images", "created_at", "updated_at",
         ]
         read_only_fields = [
             "order_no", "subtotal", "tax_amount", "grand_total", "due_amount",
@@ -84,7 +93,7 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
         from apps.core.numbering import next_number
 
         order = Order(**validated_data)
-        order.order_no = next_number(order.organization, "ORD-")
+        order.order_no = next_number(order.organization, getattr(order.organization, "order_prefix", "AG/"))
         order.save()
         for i, item_data in enumerate(items_data):
             OrderItem.objects.create(order=order, sort_order=i, **item_data)

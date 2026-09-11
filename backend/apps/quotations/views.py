@@ -5,6 +5,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
 from apps.accounts.permissions import has_permission
+from apps.core.filters import DynamicQueryFilterBackend
 from apps.core.modules import ADD, ORDERS, QUOTATIONS
 from apps.core.numbering import next_number
 from apps.core.viewsets import SoftDeleteModuleViewSet
@@ -21,19 +22,20 @@ class QuotationFilter(django_filters.FilterSet):
     date_from = django_filters.DateFilter(field_name="quotation_date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="quotation_date", lookup_expr="lte")
     country = django_filters.NumberFilter(field_name="client__country_id")
+    client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
 
     class Meta:
         model = Quotation
         fields = [
             "status",
             "client",
-            "client__company",
             "project",
             "min_amount",
             "max_amount",
             "date_from",
             "date_to",
             "country",
+            "client_group",
         ]
 
 
@@ -41,7 +43,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
     queryset = Quotation.objects.select_related("client", "project").prefetch_related("items")
     serializer_class = QuotationSerializer
     module_name = QUOTATIONS
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_class = QuotationFilter
     search_fields = ["quotation_no", "subject", "to_name", "client__client_name"]
 
@@ -207,7 +209,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
 
         order = Order.objects.create(
             organization=quotation.organization,
-            order_no=next_number(quotation.organization, "ORD-"),
+            order_no=next_number(quotation.organization, getattr(quotation.organization, "order_prefix", "AG/")),
             date=input_serializer.validated_data["date"],
             client=quotation.client,
             project=quotation.project,

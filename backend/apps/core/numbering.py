@@ -1,30 +1,28 @@
-"""Shared PREFIX+YEAR+sequence document numbering (e.g. ORD-2026-0001,
-QT-2026-0001), matching the pattern the legacy app already used for
-quotations — generalized here so Orders gets the same scheme, and scoped per
-organization so Ananta and Meewa each have their own independent sequence.
-
-Uses a locked NumberSequence row rather than scanning
-MAX(existing number): two requests calling next_number() for the same key at
-the same instant used to be able to compute the same next value and then
-fail on the model's unique constraint. select_for_update() serializes them —
-the second request blocks until the first commits, then sees the updated
-counter. The trade-off is the usual one for any sequence generator (DB SERIAL
-columns included): if the surrounding save fails after next_number() already
-committed its own short transaction, that number is skipped, not reused.
+"""Document numbering in the format PREFIX/001-YY (e.g. AG/001-26, QT/001-26).
+Scoped per organization and document type using NumberSequence with row-level locks.
 """
 
 from datetime import date
-
 from django.db import transaction
-
 from .models import NumberSequence
 
 
-def next_number(organization, prefix: str, width: int = 4) -> str:
-    year = date.today().year
-    key = f"{prefix}{year}"
+def next_number(organization, prefix: str = None, doc_type: str = "order", width: int = 3) -> str:
+    """Generate next document number in format PREFIX/001-YY (e.g. AG/001-26)."""
+    year_2digit = date.today().strftime("%y")
+
+    clean_prefix = (prefix or getattr(organization, f"{doc_type}_prefix", None) or "AG/").strip()
+    if clean_prefix.endswith("-"):
+        clean_prefix = clean_prefix[:-1] + "/"
+    elif not clean_prefix.endswith("/"):
+        clean_prefix = f"{clean_prefix}/"
+
+    key = f"{doc_type}:{clean_prefix}{year_2digit}"
     with transaction.atomic():
-        seq, _ = NumberSequence.objects.select_for_update().get_or_create(organization=organization, key=key)
+        seq, _ = NumberSequence.objects.select_for_update().get_or_create(
+            organization=organization, key=key
+        )
         seq.last_value += 1
         seq.save(update_fields=["last_value"])
-        return f"{key}-{str(seq.last_value).zfill(width)}"
+        seq_str = str(seq.last_value).zfill(width)
+        return f"{clean_prefix}{seq_str}-{year_2digit}"

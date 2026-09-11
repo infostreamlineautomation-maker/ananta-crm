@@ -1,24 +1,47 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from apps.core.filters import DynamicQueryFilterBackend
 from apps.core.modules import CLIENTS, COMPANIES
 from apps.core.viewsets import SoftDeleteModuleViewSet
-from .models import Client, Company
-from .serializers import ClientSerializer, CompanySerializer
+from .models import Client, ClientGroup, Company
+from .serializers import ClientGroupSerializer, ClientSerializer, CompanySerializer
+
+
+class ClientGroupViewSet(SoftDeleteModuleViewSet):
+    queryset = ClientGroup.objects.prefetch_related("clients").all()
+    serializer_class = ClientGroupSerializer
+    module_name = CLIENTS
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    search_fields = ["name", "description"]
+
+    def perform_create(self, serializer):
+        extra = {}
+        if hasattr(ClientGroup, "created_by"):
+            extra["created_by"] = self.request.user
+        if hasattr(ClientGroup, "organization_id") and getattr(self.request, "organization", None):
+            extra["organization"] = self.request.organization
+        group = serializer.save(**extra)
+
+
 class CompanyViewSet(SoftDeleteModuleViewSet):
     queryset = Company.objects.select_related("country").all()
     serializer_class = CompanySerializer
     module_name = COMPANIES
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_fields = ["country"]
     search_fields = ["company_name", "contact_email", "contact_phone"]
+
+
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+
 class ClientViewSet(SoftDeleteModuleViewSet):
-    queryset = Client.objects.select_related("company", "country", "company__country").all()
+    queryset = Client.objects.select_related("company", "country", "company__country").prefetch_related("groups").all()
     serializer_class = ClientSerializer
     module_name = CLIENTS
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["client_type", "company", "country"]
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filterset_fields = ["client_type", "company", "country", "groups"]
     search_fields = ["client_name", "phone", "email"]
 
     def perform_create(self, serializer):

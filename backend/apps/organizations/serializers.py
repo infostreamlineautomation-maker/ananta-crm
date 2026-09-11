@@ -20,7 +20,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             "id", "name", "slug", "logo", "primary_color", "tagline",
             "contact_email", "contact_phone", "address",
             "default_currency_code", "default_tax_percent",
-            "quotation_prefix", "quotation_intro", "quotation_terms",
+            "order_prefix", "quotation_prefix", "quotation_intro", "quotation_terms",
             "quotation_signature_name", "quotation_designation", "quotation_contact_person",
             "quotation_background_image", "quotation_signature_image",
             "smtp_host", "smtp_port", "smtp_user", "smtp_password",

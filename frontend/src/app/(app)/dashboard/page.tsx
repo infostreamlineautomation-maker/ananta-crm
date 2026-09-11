@@ -281,10 +281,10 @@ export default function DashboardPage() {
         {canOrders && (
           <Card className="lg:col-span-2">
             <CardHeader
-              title="Recent Orders"
+              title="Recent Projects"
               action={
                 <Link href="/orders" className="text-[13px] font-semibold text-primary-500 hover:text-primary-600">
-                  View all orders
+                  View all projects
                 </Link>
               }
             />
@@ -292,7 +292,7 @@ export default function DashboardPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                    <th className="px-5 py-2.5 font-bold">Order No</th>
+                    <th className="px-5 py-2.5 font-bold">Project No</th>
                     <th className="px-5 py-2.5 font-bold">Client</th>
                     <th className="px-5 py-2.5 font-bold">Delivery</th>
                     <th className="px-5 py-2.5 font-bold">Payment</th>
@@ -304,7 +304,7 @@ export default function DashboardPage() {
                   {!loading && recentOrders.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-5 py-8 text-center text-ink-faint">
-                        No orders in this range.
+                        No projects in this range.
                       </td>
                     </tr>
                   )}

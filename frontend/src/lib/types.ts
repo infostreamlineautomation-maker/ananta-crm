@@ -38,16 +38,27 @@ export interface OrderItemDetail {
   sort_order?: number;
 }
 
+export interface OrderImage {
+  id: number;
+  order: number;
+  image: string;
+  caption?: string;
+  uploaded_at: string;
+}
+
 export interface OrderDetail {
   id: number;
   order_no: string;
   date: string;
   client: number;
   client_name: string;
-  project: number | null;
-  project_name: string | null;
+  company_name?: string | null;
+  project?: number | null;
+  project_name?: string | null;
+  project_title?: string;
   supplier: number | null;
   supplier_name: string | null;
+  delivery_time?: string;
   description: string;
   columns_config: QuotationColumn[];
   tax_percent: string;
@@ -58,7 +69,7 @@ export interface OrderDetail {
   exchange_rate?: string;
   base_currency_code?: string;
   delivery_status: "pending" | "in_process" | "ready" | "delivered";
-  payment_status: "pending" | "partial" | "paid";
+  payment_status: "pending" | "advance" | "partial" | "paid";
   paid_amount?: string;
   due_amount?: string;
   is_visible_to_staff: boolean;
@@ -66,6 +77,7 @@ export interface OrderDetail {
   created_by: number | null;
   created_by_name: string | null;
   items: OrderItemDetail[];
+  images?: OrderImage[];
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +171,7 @@ export interface AppSettings {
   company_address: string;
   default_currency_code: string;
   default_tax_percent: string;
+  order_prefix?: string;
   quotation_prefix: string;
   quotation_intro: string;
   quotation_terms: string;
@@ -229,6 +242,8 @@ export interface QuotationDetail {
   quotation_date: string;
   client: number | null;
   client_name: string | null;
+  company_name?: string | null;
+  client_address?: string | null;
   project: number | null;
   project_name: string | null;
   to_name: string;
@@ -256,6 +271,7 @@ export interface QuotationSummary {
   quotation_date: string;
   client: number | null;
   client_name: string | null;
+  company_name?: string | null;
   project: number | null;
   subject: string;
   status: QuotationStatus;
@@ -302,16 +318,20 @@ export interface OrderSummary {
   date: string;
   client: number;
   client_name: string;
-  project: number | null;
-  project_name: string | null;
+  company_name?: string | null;
+  project?: number | null;
+  project_name?: string | null;
+  project_title?: string;
   supplier: number | null;
   supplier_name: string | null;
+  delivery_time?: string;
   grand_total: string;
   currency_code?: string;
   delivery_status: "pending" | "in_process" | "ready" | "delivered";
-  payment_status: "pending" | "partial" | "paid";
+  payment_status: "pending" | "advance" | "partial" | "paid";
   paid_amount?: string;
   due_amount?: string;
+  images?: OrderImage[];
 }
 
 export interface ProjectSummary {
@@ -455,6 +475,17 @@ export interface Company {
 
 export type ClientType = "A" | "B" | "C";
 
+export interface ClientGroup {
+  id: number;
+  name: string;
+  description: string;
+  color?: string;
+  clients: number[];
+  clients_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Client {
   id: number;
   client_name: string;
@@ -467,6 +498,7 @@ export interface Client {
   country: string | null;
   country_name: string | null;
   currency_code: string | null;
+  group_ids?: number[];
   extra_data?: Record<string, any>;
   is_deleted: boolean;
   created_at: string;
@@ -486,6 +518,8 @@ export interface SupplierProduct {
   supplier: number;
   product: number;
   product_name: string;
+  product_description?: string;
+  product_extra_data?: Record<string, any>;
 }
 
 export interface SupplierFile {
@@ -525,9 +559,11 @@ export interface TimelineEvent {
 export interface Supplier {
   id: number;
   supplier_name: string;
-  owner_name_contact: string;
+  company_name?: string;
+  owner_name_contact?: string;
   contact: string;
   source: string;
+  product_details?: string;
   address: string;
   email: string;
   website: string;

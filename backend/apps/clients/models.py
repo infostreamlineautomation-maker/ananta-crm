@@ -65,3 +65,20 @@ class Client(AuditedModel, SoftDeleteModel):
         doesn't have one set."""
         return self.country or (self.company.country if self.company_id else None)
 
+
+class ClientGroup(AuditedModel, SoftDeleteModel):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="client_groups")
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=30, blank=True, default="#881337")
+    clients = models.ManyToManyField(Client, blank=True, related_name="groups")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Client Group"
+        verbose_name_plural = "Client Groups"
+
+    def __str__(self):
+        return self.name
+
+

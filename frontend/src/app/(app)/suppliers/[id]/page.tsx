@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Download,
@@ -9,6 +9,7 @@ import {
   Globe,
   Loader2,
   Mail,
+  Package,
   Phone,
   Plus,
   Trash2,
@@ -31,6 +32,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { RowActionButton } from "@/components/ui/PageHeader";
+import { ProductModal } from "@/components/products/ProductModal";
 import { SupplierForm } from "../page";
 
 const TABS = [
@@ -45,13 +47,27 @@ export default function SupplierDetailPage() {
   const params = useParams<{ id: string }>();
   const supplierId = Number(params.id);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { can } = useAuth();
 
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("overview");
+  const urlTab = searchParams.get("tab");
+  const [tab, setTab] = useState(urlTab && TABS.some((t) => t.key === urlTab) ? urlTab : "overview");
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    const qTab = searchParams.get("tab");
+    if (qTab && TABS.some((t) => t.key === qTab)) {
+      setTab(qTab);
+    }
+  }, [searchParams]);
+
+  function handleTabChange(newTab: string) {
+    setTab(newTab);
+    router.replace(`/suppliers/${supplierId}?tab=${newTab}`, { scroll: false });
+  }
 
   async function loadSupplier() {
     try {
@@ -117,7 +133,7 @@ export default function SupplierDetailPage() {
         )}
       </div>
 
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
+      <Tabs tabs={TABS} active={tab} onChange={handleTabChange} />
 
       {tab === "overview" && <OverviewTab supplier={supplier} />}
       {tab === "contacts" && <ContactsTab supplier={supplier} onChange={loadSupplier} />}
@@ -141,8 +157,8 @@ export default function SupplierDetailPage() {
 
 function OverviewTab({ supplier }: { supplier: Supplier }) {
   const rows: [string, string][] = [
-    ["Owner / Contact Name", supplier.owner_name_contact || "—"],
-    ["Source", supplier.source || "—"],
+    ["Company Name", supplier.company_name || supplier.owner_name_contact || "—"],
+    ["Source / Origin", supplier.source || "—"],
     ["Address", supplier.address || "—"],
     ["Remark", supplier.remark || "—"],
   ];
@@ -288,26 +304,36 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [picking, setPicking] = useState<number | "">("");
   const [adding, setAdding] = useState(false);
+  const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [unlinking, setUnlinking] = useState<SupplierProduct | null>(null);
+
   const canEdit = can("suppliers", "edit");
   const canDelete = can("suppliers", "delete");
+  const canAddProduct = can("catalog", "add");
+
+  async function loadCatalogProducts() {
+    try {
+      const res = await apiFetch<Paginated<Product>>("/api/products/?page_size=200");
+      setAllProducts(res.results);
+    } catch {}
+  }
 
   useEffect(() => {
-    apiFetch<Paginated<Product>>("/api/products/?page_size=200")
-      .then((res) => setAllProducts(res.results))
-      .catch(() => {});
+    loadCatalogProducts();
   }, []);
 
   const linkedIds = new Set(supplier.supplier_products.map((sp) => sp.product));
   const options = allProducts.filter((p) => !linkedIds.has(p.id)).map((p) => ({ value: p.id, label: p.product_name }));
 
   async function addProduct(productId: number | string) {
+    if (!productId) return;
     setAdding(true);
     try {
       await apiFetch("/api/supplier-products/", {
         method: "POST",
-        body: JSON.stringify({ supplier: supplier.id, product: productId }),
+        body: JSON.stringify({ supplier: supplier.id, product: Number(productId) }),
       });
-      toast.success("Product linked.");
+      toast.success("Product linked successfully.");
       setPicking("");
       onChange();
     } catch (e) {
@@ -317,10 +343,26 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
     }
   }
 
+  async function handleProductCreated(newProduct: Product) {
+    loadCatalogProducts();
+    // Automatically link the newly created product to this supplier
+    try {
+      await apiFetch("/api/supplier-products/", {
+        method: "POST",
+        body: JSON.stringify({ supplier: supplier.id, product: newProduct.id }),
+      });
+      toast.success(`"${newProduct.product_name}" created and linked.`);
+      onChange();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Product created, but couldn't link it automatically.");
+    }
+  }
+
   async function removeProduct(sp: SupplierProduct) {
     try {
       await apiFetch(`/api/supplier-products/${sp.id}/`, { method: "DELETE" });
       toast.success("Product unlinked.");
+      setUnlinking(null);
       onChange();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't unlink this product.");
@@ -328,29 +370,114 @@ function ProductsTab({ supplier, onChange }: { supplier: Supplier; onChange: () 
   }
 
   return (
-    <Card>
-      {canEdit && (
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
-          <div className="w-64">
-            <Combobox value={picking || null} onChange={addProduct} options={options} placeholder="Link a product..." disabled={adding} />
+    <div className="flex flex-col gap-4">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-ink">
+              Linked Products ({supplier.supplier_products.length})
+            </span>
           </div>
-          {adding && <Loader2 className="h-4 w-4 animate-spin text-ink-faint" />}
-        </div>
-      )}
-      {supplier.supplier_products.length === 0 && <p className="px-5 py-8 text-center text-sm text-ink-faint">No products linked yet.</p>}
-      <div className="divide-y divide-border">
-        {supplier.supplier_products.map((sp) => (
-          <div key={sp.id} className="flex items-center justify-between px-5 py-3">
-            <span className="text-[13.5px] font-medium text-ink">{sp.product_name}</span>
-            {canDelete && (
-              <RowActionButton label="Unlink" tone="danger" onClick={() => removeProduct(sp)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </RowActionButton>
+
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <div className="w-56">
+                <Combobox
+                  value={picking || null}
+                  onChange={addProduct}
+                  options={options}
+                  placeholder="Link existing product..."
+                  disabled={adding}
+                />
+              </div>
+            )}
+            {canAddProduct && (
+              <Button size="sm" variant="primary" onClick={() => setCreateProductOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Add New Product
+              </Button>
             )}
           </div>
-        ))}
-      </div>
-    </Card>
+        </div>
+
+        {supplier.supplier_products.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <Package className="mx-auto h-8 w-8 text-ink-faint" />
+            <p className="mt-2 text-sm font-semibold text-ink">No products linked yet</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Link catalog products that this supplier manufactures or supplies.
+            </p>
+            {canAddProduct && (
+              <div className="mt-4 flex justify-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setCreateProductOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Create & Link Product
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {supplier.supplier_products.map((sp) => (
+              <div key={sp.id} className="flex items-start justify-between gap-4 px-5 py-3.5 hover:bg-surface-hover transition">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[13.5px] text-ink">{sp.product_name}</span>
+                  </div>
+
+                  {sp.product_description && (
+                    <p className="mt-1 text-[12.5px] text-ink-muted whitespace-pre-line line-clamp-2">
+                      {sp.product_description}
+                    </p>
+                  )}
+
+                  {sp.product_extra_data && Object.keys(sp.product_extra_data).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {Object.entries(sp.product_extra_data).map(([key, val]) =>
+                        val ? (
+                          <span
+                            key={key}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-surface-sunken text-ink border border-border"
+                          >
+                            <span className="text-ink-faint mr-1 capitalize">{key.replace(/_/g, " ")}:</span>
+                            <span>{String(val)}</span>
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {canDelete && (
+                  <RowActionButton
+                    label="Unlink"
+                    tone="danger"
+                    onClick={() => setUnlinking(sp)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </RowActionButton>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <ProductModal
+        open={createProductOpen}
+        onClose={() => setCreateProductOpen(false)}
+        onSaved={handleProductCreated}
+      />
+
+      {unlinking && (
+        <ConfirmDialog
+          open
+          onClose={() => setUnlinking(null)}
+          title="Unlink Product"
+          description={`Unlink "${unlinking.product_name}" from this supplier? The product will remain in your product catalog.`}
+          confirmLabel="Unlink"
+          onConfirm={() => removeProduct(unlinking)}
+        />
+      )}
+    </div>
   );
 }
 

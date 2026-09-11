@@ -5,12 +5,25 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
+from apps.core.filters import DynamicQueryFilterBackend
 from apps.core.modules import ORDERS
 from apps.core.numbering import next_number
 from apps.core.viewsets import ModuleViewSet
 
-from .models import Order, OrderItem
-from .serializers import OrderCopySerializer, OrderSerializer
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import IsAuthenticated
+from .models import Order, OrderImage, OrderItem
+from .serializers import OrderCopySerializer, OrderImageSerializer, OrderSerializer
+
+
+class OrderImageViewSet(ModelViewSet):
+    serializer_class = OrderImageSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return OrderImage.objects.filter(order__organization=self.request.organization)
 
 
 def can_view_all_orders(user) -> bool:
@@ -23,6 +36,7 @@ class OrderFilter(django_filters.FilterSet):
     date_from = django_filters.DateFilter(field_name="date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="date", lookup_expr="lte")
     country = django_filters.NumberFilter(field_name="client__country_id")
+    client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
 
     class Meta:
         model = Order
@@ -38,20 +52,21 @@ class OrderFilter(django_filters.FilterSet):
             "date_from",
             "date_to",
             "country",
+            "client_group",
         ]
 
 
 class OrderViewSet(ModuleViewSet):
     serializer_class = OrderSerializer
     module_name = ORDERS
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_class = OrderFilter
     search_fields = ["order_no", "description", "client__client_name", "client__company__company_name"]
 
     def get_queryset(self):
         qs = Order.objects.filter(organization=self.request.organization).select_related(
-            "client", "supplier", "project", "created_by"
-        ).prefetch_related("items__product")
+            "client", "client__company", "supplier", "project", "created_by"
+        ).prefetch_related("items__product", "images")
         has_project = self.request.query_params.get("has_project")
         if has_project == "true":
             qs = qs.filter(project__isnull=False)
@@ -285,7 +300,7 @@ class OrderViewSet(ModuleViewSet):
 
         new_order = Order.objects.create(
             organization=source.organization,
-            order_no=next_number(source.organization, "ORD-"),
+            order_no=next_number(source.organization, getattr(source.organization, "order_prefix", "AG/")),
             date=input_serializer.validated_data["date"],
             client=source.client,
             project=source.project,

@@ -8,7 +8,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ProjectSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
-import { exportToCsv, CsvColumn } from "@/lib/csv-export";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -19,80 +19,64 @@ import { Combobox } from "@/components/ui/Combobox";
 import { StatusPill, PROJECT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
-
-import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
-
-const PROJECT_PAGE_FILTER_CONFIGS: FilterGroupConfig[] = [
-  {
-    key: "status",
-    label: "Status",
-    options: [
-      { value: "active", label: "Active", dotColor: "#16a34a" },
-      { value: "on_hold", label: "On Hold", dotColor: "#d97706" },
-      { value: "completed", label: "Completed", dotColor: "#2563eb" },
-      { value: "cancelled", label: "Cancelled", dotColor: "#e11d48" },
-    ],
-  },
-];
+import { FilterBar } from "@/components/ui/FilterBar";
+import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 export default function ProjectsPage() {
   const { can } = useAuth();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
   const [addOpen, setAddOpen] = useState(false);
 
-  const { items: clients } = useList<Client>("/api/clients/");
+  const baseFilterColumns: DynamicFilterColumn[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Project Name",
+        type: "text",
+      },
+      {
+        key: "client",
+        label: "Client",
+        type: "text",
+      },
+      {
+        key: "status",
+        label: "Status",
+        type: "select",
+        options: [
+          { value: "active", label: "Active", dotColor: "#16a34a" },
+          { value: "on_hold", label: "On Hold", dotColor: "#d97706" },
+          { value: "completed", label: "Completed", dotColor: "#2563eb" },
+          { value: "cancelled", label: "Cancelled", dotColor: "#e11d48" },
+        ],
+      },
+    ],
+    []
+  );
 
-  const projectFilterConfigs: FilterGroupConfig[] = useMemo(() => [
-    {
-      key: "client",
-      label: "Client",
-      options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
-    },
-    {
-      key: "status",
-      label: "Status",
-      options: [
-        { value: "active", label: "Active", dotColor: "#16a34a" },
-        { value: "on_hold", label: "On Hold", dotColor: "#d97706" },
-        { value: "completed", label: "Completed", dotColor: "#2563eb" },
-        { value: "cancelled", label: "Cancelled", dotColor: "#e11d48" },
-      ],
-    },
-  ], [clients]);
+  const {
+    columns: filterColumns,
+    activeFilters,
+    setFilter,
+    resetFilters,
+    appendQueryParams,
+  } = useDynamicColumnFilters({
+    module: "project",
+    baseColumns: baseFilterColumns,
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
-    if (statusFilter) params.set("status", statusFilter);
-    if (clientFilter) params.set("client", clientFilter);
+    appendQueryParams(params);
     params.set("page", String(page));
     return `/api/projects/?${params.toString()}`;
-  }, [debouncedSearch, statusFilter, clientFilter, page]);
+  }, [debouncedSearch, appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<ProjectSummary>(path);
   const canAdd = can("projects", "add");
-
-  const activeFilters = {
-    status: statusFilter,
-    client: clientFilter,
-  };
-
-  function handleFilterChange(key: string, val: string) {
-    if (key === "status") setStatusFilter(val);
-    if (key === "client") setClientFilter(val);
-    setPage(1);
-  }
-
-  function handleResetFilters() {
-    setStatusFilter("");
-    setClientFilter("");
-    setSearch("");
-    setPage(1);
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -114,31 +98,32 @@ export default function ProjectsPage() {
           setPage(1);
         }}
         searchPlaceholder="Search projects by name, client..."
-        filters={projectFilterConfigs}
+        filters={filterColumns}
         activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
+        onFilterChange={(k, v) => {
+          setFilter(k, v);
+          setPage(1);
+        }}
+        onReset={() => {
+          resetFilters();
+          setSearch("");
+          setPage(1);
+        }}
         actions={
-          <Button
-            variant="secondary"
-            onClick={() => {
-              const list = data?.results || [];
-              if (!list.length) return;
-              const cols: CsvColumn<ProjectSummary>[] = [
-                { header: "Project Name", accessor: (p) => p.name },
-                { header: "Client", accessor: (p) => p.client_name },
-                { header: "Status", accessor: (p) => p.status },
-                { header: "Orders Count", accessor: (p) => p.orders_count },
-                { header: "Quotations Count", accessor: (p) => p.quotations_count },
-                { header: "Total Order Value", accessor: (p) => p.total_order_value },
-                { header: "Description", accessor: (p) => p.description },
-              ];
-              exportToCsv(list, cols, "projects_export");
-            }}
-            className="h-9 gap-1.5 text-xs font-semibold"
-          >
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </Button>
+          <ExportDropdown
+            data={data?.results || []}
+            filename="projects_export"
+            title="Projects Report"
+            columns={[
+              { header: "Project Name", accessor: (p) => p.name },
+              { header: "Client", accessor: (p) => p.client_name },
+              { header: "Status", accessor: (p) => p.status },
+              { header: "Orders Count", accessor: (p) => p.orders_count },
+              { header: "Quotations Count", accessor: (p) => p.quotations_count },
+              { header: "Total Order Value", accessor: (p) => p.total_order_value },
+              { header: "Description", accessor: (p) => p.description },
+            ]}
+          />
         }
       />
 

@@ -36,8 +36,11 @@ import { SlideOver } from "@/components/ui/SlideOver";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
+import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { ExportDropdown } from "@/components/ui/ExportDropdown";
 
 const ORDER_FILTER_CONFIGS: FilterGroupConfig[] = [
   {
@@ -115,9 +118,8 @@ import clsx from "clsx";
 const TABS = [
   { key: "overview", label: "Overview & Account" },
   { key: "timeline", label: "Relationship Timeline" },
-  { key: "orders", label: "Orders History" },
+  { key: "orders", label: "Projects" },
   { key: "quotations", label: "Quotations" },
-  { key: "projects", label: "Projects" },
   { key: "communications", label: "Communication History" },
 ];
 
@@ -134,9 +136,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const ORDER_COLUMNS: ColumnDef[] = [
-  { key: "order_no", label: "Order No", required: true },
+  { key: "order_no", label: "Project No", required: true },
   { key: "date", label: "Date" },
-  { key: "project_name", label: "Project" },
   { key: "grand_total", label: "Grand Total" },
   { key: "delivery_status", label: "Delivery Status" },
   { key: "payment_status", label: "Payment Status" },
@@ -388,7 +389,7 @@ export default function ClientDetailPage() {
           {canAddOrder && (
             <Link href="/orders/new">
               <Button variant="primary" className="h-9">
-                <Plus className="h-3.5 w-3.5" /> New Order
+                <Plus className="h-3.5 w-3.5" /> New Project
               </Button>
             </Link>
           )}
@@ -667,6 +668,22 @@ export default function ClientDetailPage() {
               }}
               actions={
                 <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredOrders}
+                    filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_orders`}
+                    title={`${client?.client_name || "Client"} - Orders Report`}
+                    columns={[
+                      { header: "Order No", accessor: (o) => o.order_no },
+                      { header: "Date", accessor: (o) => o.date },
+                      { header: "Project", accessor: (o) => o.project_name || "" },
+                      { header: "Supplier", accessor: (o) => o.supplier_name || "" },
+                      { header: "Total Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.grand_total}` },
+                      { header: "Paid Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.paid_amount || "0.00"}` },
+                      { header: "Balance Due", accessor: (o) => `${o.currency_code || "INR"} ${o.due_amount || "0.00"}` },
+                      { header: "Delivery Status", accessor: (o) => o.delivery_status },
+                      { header: "Payment Status", accessor: (o) => o.payment_status },
+                    ]}
+                  />
                   <ColumnSelector
                     columns={ORDER_COLUMNS}
                     visibleColumns={orderCols}
@@ -675,7 +692,7 @@ export default function ClientDetailPage() {
                   {canAddOrder && (
                     <Link href="/orders/new">
                       <Button size="sm" variant="primary">
-                        <Plus className="h-3.5 w-3.5" /> Create Order
+                        <Plus className="h-3.5 w-3.5" /> Create Project
                       </Button>
                     </Link>
                   )}
@@ -688,12 +705,66 @@ export default function ClientDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {orderCols.has("order_no") && <th className={TH}>Order No</th>}
-                  {orderCols.has("date") && <th className={TH}>Date</th>}
-                  {orderCols.has("project_name") && <th className={TH}>Project</th>}
-                  {orderCols.has("grand_total") && <th className={`${TH} text-right`}>Grand Total</th>}
-                  {orderCols.has("delivery_status") && <th className={TH}>Delivery</th>}
-                  {orderCols.has("payment_status") && <th className={TH}>Payment</th>}
+                  {orderCols.has("order_no") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Project No</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Project No", type: "text" }}
+                          activeFilters={{ search: orderSearch }}
+                          onFilterChange={(_, v) => setOrderSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("date") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Date</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "date", label: "Date", type: "date_range" }}
+                          activeFilters={{ date_from: orderDateFrom, date_to: orderDateTo }}
+                          onFilterChange={(k, v) => (k === "date_from" ? setOrderDateFrom(v) : setOrderDateTo(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("grand_total") && (
+                    <th className={`${TH} text-right`}>
+                      <div className="inline-flex items-center justify-end">
+                        <span>Grand Total</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "amount", label: "Amount", type: "amount_range" }}
+                          activeFilters={{ amount_min: orderAmountMin, amount_max: orderAmountMax }}
+                          onFilterChange={(k, v) => (k === "amount_min" ? setOrderAmountMin(v) : setOrderAmountMax(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("delivery_status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Delivery</span>
+                        <ColumnHeaderFilter
+                          column={ORDER_FILTER_CONFIGS.find((f) => f.key === "delivery_status") as DynamicFilterColumn}
+                          activeFilters={{ delivery_status: orderDeliveryFilter }}
+                          onFilterChange={(_, v) => setOrderDeliveryFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("payment_status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Payment</span>
+                        <ColumnHeaderFilter
+                          column={ORDER_FILTER_CONFIGS.find((f) => f.key === "payment_status") as DynamicFilterColumn}
+                          activeFilters={{ payment_status: orderPaymentFilter }}
+                          onFilterChange={(_, v) => setOrderPaymentFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {orderCols.has("actions") && <th className={TH}></th>}
                 </tr>
               </thead>
@@ -714,7 +785,6 @@ export default function ClientDetailPage() {
                       </td>
                     )}
                     {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                    {orderCols.has("project_name") && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
                     {orderCols.has("grand_total") && (
                       <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(o.grand_total, o.currency_code || client.currency_code || undefined)}</td>
                     )}
@@ -778,6 +848,18 @@ export default function ClientDetailPage() {
               }}
               actions={
                 <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredQuotations}
+                    filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_quotations`}
+                    title={`${client?.client_name || "Client"} - Quotations Report`}
+                    columns={[
+                      { header: "Quotation No", accessor: (q) => q.quotation_no },
+                      { header: "Date", accessor: (q) => q.quotation_date },
+                      { header: "Subject", accessor: (q) => q.subject || "" },
+                      { header: "Status", accessor: (q) => q.status },
+                      { header: "Subtotal", accessor: (q) => `${q.currency_code || "INR"} ${q.subtotal}` },
+                    ]}
+                  />
                   <ColumnSelector
                     columns={QUOTATION_COLUMNS}
                     visibleColumns={quoteCols}
@@ -799,11 +881,55 @@ export default function ClientDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {quoteCols.has("quotation_no") && <th className={TH}>Quotation No</th>}
-                  {quoteCols.has("quotation_date") && <th className={TH}>Date</th>}
+                  {quoteCols.has("quotation_no") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Quotation No</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Quotation No", type: "text" }}
+                          activeFilters={{ search: quoteSearch }}
+                          onFilterChange={(_, v) => setQuoteSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {quoteCols.has("quotation_date") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Date</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "date", label: "Date", type: "date_range" }}
+                          activeFilters={{ date_from: quoteDateFrom, date_to: quoteDateTo }}
+                          onFilterChange={(k, v) => (k === "date_from" ? setQuoteDateFrom(v) : setQuoteDateTo(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {quoteCols.has("subject") && <th className={TH}>Subject</th>}
-                  {quoteCols.has("status") && <th className={TH}>Status</th>}
-                  {quoteCols.has("subtotal") && <th className={`${TH} text-right`}>Subtotal</th>}
+                  {quoteCols.has("status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Status</span>
+                        <ColumnHeaderFilter
+                          column={QUOTATION_FILTER_CONFIGS.find((f) => f.key === "status") as DynamicFilterColumn}
+                          activeFilters={{ status: quoteStatusFilter }}
+                          onFilterChange={(_, v) => setQuoteStatusFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {quoteCols.has("subtotal") && (
+                    <th className={`${TH} text-right`}>
+                      <div className="inline-flex items-center justify-end">
+                        <span>Subtotal</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "amount", label: "Amount", type: "amount_range" }}
+                          activeFilters={{ amount_min: quoteAmountMin, amount_max: quoteAmountMax }}
+                          onFilterChange={(k, v) => (k === "amount_min" ? setQuoteAmountMin(v) : setQuoteAmountMax(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {quoteCols.has("actions") && <th className={TH}></th>}
                 </tr>
               </thead>
@@ -870,11 +996,26 @@ export default function ClientDetailPage() {
                 setProjectStatusFilter("");
               }}
               actions={
-                <ColumnSelector
-                  columns={PROJECT_COLUMNS}
-                  visibleColumns={projectCols}
-                  onChange={setProjectCols}
-                />
+                <div className="flex items-center gap-2">
+                  <ExportDropdown
+                    data={filteredProjects}
+                    filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_projects`}
+                    title={`${client?.client_name || "Client"} - Projects Report`}
+                    columns={[
+                      { header: "Project Name", accessor: (p) => p.name },
+                      { header: "Description", accessor: (p) => p.description || "" },
+                      { header: "Status", accessor: (p) => p.status },
+                      { header: "Orders Count", accessor: (p) => p.orders_count },
+                      { header: "Quotations Count", accessor: (p) => p.quotations_count },
+                      { header: "Total Order Value", accessor: (p) => p.total_order_value },
+                    ]}
+                  />
+                  <ColumnSelector
+                    columns={PROJECT_COLUMNS}
+                    visibleColumns={projectCols}
+                    onChange={setProjectCols}
+                  />
+                </div>
               }
             />
           </div>
@@ -883,9 +1024,31 @@ export default function ClientDetailPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {projectCols.has("name") && <th className={TH}>Project Name</th>}
+                  {projectCols.has("name") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Project Name</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "search", label: "Project Name", type: "text" }}
+                          activeFilters={{ search: projectSearch }}
+                          onFilterChange={(_, v) => setProjectSearch(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {projectCols.has("description") && <th className={TH}>Description</th>}
-                  {projectCols.has("status") && <th className={TH}>Status</th>}
+                  {projectCols.has("status") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Status</span>
+                        <ColumnHeaderFilter
+                          column={PROJECT_FILTER_CONFIGS.find((f) => f.key === "status") as DynamicFilterColumn}
+                          activeFilters={{ status: projectStatusFilter }}
+                          onFilterChange={(_, v) => setProjectStatusFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {projectCols.has("orders_count") && <th className={`${TH} text-center`}>Orders</th>}
                   {projectCols.has("quotations_count") && <th className={`${TH} text-center`}>Quotations</th>}
                   {projectCols.has("total_order_value") && <th className={`${TH} text-right`}>Order Value</th>}

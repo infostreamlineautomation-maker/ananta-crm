@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Info, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
+import { Client, Country, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { useForex } from "@/lib/forex";
@@ -15,7 +15,8 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
-import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
+import { SlideOver } from "@/components/ui/SlideOver";
+import { ClientForm } from "../clients/page";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 
 function blankItem(): QuotationItemDetail {
@@ -35,7 +36,8 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const baseCurrency = activeOrganization?.default_currency_code || "INR";
   const { rates, getRate } = useForex();
 
-  const { items: rawClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: countries } = useList<Country>("/api/countries/");
   const [clients, setClients] = useState<Client[]>([]);
   // Seed local state from the fetched list, but keep it separate so a
   // fast-track "+ Add new client" can append to it without a refetch.
@@ -52,11 +54,17 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const [subject, setSubject] = useState(quotation?.subject ?? "");
   const [toName, setToName] = useState(quotation?.to_name ?? "");
   const [toAddress, setToAddress] = useState(quotation?.to_address ?? "");
-  const [introText, setIntroText] = useState(quotation?.intro_text ?? "");
-  const [notes, setNotes] = useState(quotation?.notes ?? "");
+  const [introText, setIntroText] = useState(
+    quotation?.intro_text ??
+      "With The Above Reference, We Are Pleased To Supply The Material With The Following Rates As Per Terms & Conditions Stated Below. Please Sanction The Rates And Place The Order At The Earliest."
+  );
+  const [notes, setNotes] = useState(
+    quotation?.notes ??
+      "1. GST Should be Extra as per Government Rules.\n2. Transportation charge will be extra as per the Location of Delivery.\n3. Payment to be made by Payees A/c. Cheque, Draft or NEFT / RTGS / IMPS only.\n4. Subject to Surat Jurisdiction."
+  );
   const [footerContent, setFooterContent] = useState(quotation?.footer_content ?? "");
   const [colQtyLabel, setColQtyLabel] = useState(quotation?.col_qty_label ?? "Qty");
-  const [colRateLabel, setColRateLabel] = useState(quotation?.col_rate_label ?? "Rate");
+  const [colRateLabel, setColRateLabel] = useState(quotation?.col_rate_label ?? "Rate (Per Piece)");
   const [currencyCode, setCurrencyCode] = useState(quotation?.currency_code ?? "");
   const [status, setStatus] = useState<QuotationStatus>(quotation?.status ?? "draft");
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
@@ -83,18 +91,30 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const clientOptions = clients.map((c) => ({ value: c.id, label: c.client_name }));
+  const clientOptions = clients.map((c) => ({
+    value: c.id,
+    label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
+    sublabel: c.company_name || undefined,
+  }));
   const projectOptions = projects.map((p) => ({ value: p.id, label: p.name, sublabel: p.client_name }));
 
   const selectedClient = clients.find((c) => c.id === client);
   const effectiveCurrency = currencyCode || selectedClient?.currency_code || baseCurrency;
 
-  // Auto-sync client's currency if not manually changed
+  // Auto-sync client's details and currency if not manually changed
   const handleClientChange = (newClientId: number) => {
     setClient(newClientId);
     const cli = clients.find((c) => c.id === newClientId);
-    if (cli && cli.currency_code && !quotation) {
-      handleCurrencyChange(cli.currency_code);
+    if (cli) {
+      if (!toName || toName.trim() === "") {
+        setToName(cli.company_name || cli.client_name);
+      }
+      if ((!toAddress || toAddress.trim() === "") && cli.address) {
+        setToAddress(cli.address);
+      }
+      if (cli.currency_code && !quotation) {
+        handleCurrencyChange(cli.currency_code);
+      }
     }
   };
 
@@ -262,18 +282,9 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
               addNewLabel="Add new client"
             />
           </Field>
-          <Field label="Project (optional)">
-            <Combobox value={project || null} onChange={(v) => setProject(Number(v))} options={projectOptions} placeholder="Select project..." />
-          </Field>
           <Field label="Quotation Date" required>
             <Input type="date" value={quotationDate} onChange={(e) => setQuotationDate(e.target.value)} required />
           </Field>
-          <Field label="Subject">
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Brochure printing quote" />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Currency" hint="Changing currency instantly converts all line item rates.">
             <div className="flex flex-wrap items-center gap-3">
               <Select
@@ -303,16 +314,11 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
               )}
             </div>
           </Field>
-
-          <Field label="Status">
-            <Select value={status} onChange={(e) => setStatus(e.target.value as QuotationStatus)}>
-              <option value="draft">Draft</option>
-              <option value="sent">Sent</option>
-              <option value="accepted">Accepted</option>
-              <option value="rejected">Rejected</option>
-            </Select>
+          <Field label="Subject">
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Brochure printing quote" />
           </Field>
         </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="To Name" hint="For a recipient not on file as a client.">
             <Input value={toName} onChange={(e) => setToName(e.target.value)} />
@@ -439,18 +445,27 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 
-      <QuickCreateModal
+      <SlideOver
         open={quickAddClientOpen}
         onClose={() => setQuickAddClientOpen(false)}
-        title="Add Client"
-        label="Client Name"
-        onCreate={async (name) => {
-          const created = await apiFetch<Client>("/api/clients/", { method: "POST", body: JSON.stringify({ client_name: name }) });
-          setClients((prev) => [...prev, created]);
-          setClient(created.id);
-          toast.success("Client added.");
-        }}
-      />
+        title="Add New Client"
+        size="lg"
+      >
+        <ClientForm
+          client={null}
+          countries={countries}
+          onCancel={() => setQuickAddClientOpen(false)}
+          onSaved={(savedClient) => {
+            setQuickAddClientOpen(false);
+            if (savedClient) {
+              setClients((prev) => [savedClient, ...prev]);
+              handleClientChange(savedClient.id);
+            } else {
+              reloadClients();
+            }
+          }}
+        />
+      </SlideOver>
     </form>
   );
 }

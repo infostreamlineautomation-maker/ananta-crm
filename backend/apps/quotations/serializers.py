@@ -16,6 +16,8 @@ class QuotationItemSerializer(serializers.ModelSerializer):
 class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     items = QuotationItemSerializer(many=True)
     client_name = serializers.CharField(source="client.client_name", read_only=True)
+    company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
+    client_address = serializers.CharField(source="client.address", read_only=True, default="")
     project_name = serializers.CharField(source="project.name", read_only=True)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     same_organization_fields = ["client", "project"]
@@ -23,7 +25,7 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
     class Meta:
         model = Quotation
         fields = [
-            "id", "quotation_no", "quotation_date", "client", "client_name", "project", "project_name", "to_name", "to_address",
+            "id", "quotation_no", "quotation_date", "client", "client_name", "company_name", "client_address", "project", "project_name", "to_name", "to_address",
             "subject", "intro_text", "notes", "footer_content", "col_qty_label", "col_rate_label",
             "columns_config", "currency_code", "exchange_rate", "base_currency_code", "status", "subtotal", "items",
             "is_deleted", "created_by", "created_at", "updated_at",
@@ -57,7 +59,7 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
         from apps.core.numbering import next_number
 
         quotation = Quotation(**validated_data)
-        quotation.quotation_no = next_number(organization, organization.quotation_prefix)
+        quotation.quotation_no = next_number(organization, organization.quotation_prefix, doc_type="quotation")
         quotation.save()
         for i, item_data in enumerate(items_data):
             QuotationItem.objects.create(quotation=quotation, sort_order=i, **item_data)

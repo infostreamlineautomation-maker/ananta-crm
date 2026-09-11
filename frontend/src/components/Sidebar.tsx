@@ -46,8 +46,7 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Work",
     items: [
-      { href: "/orders", label: "Orders", icon: ClipboardList, module: MODULES.ORDERS },
-      { href: "/projects", label: "Projects", icon: FolderKanban, module: MODULES.PROJECTS },
+      { href: "/orders", label: "Projects", icon: FolderKanban, module: MODULES.ORDERS },
       { href: "/quotations", label: "Quotations", icon: FileText, module: MODULES.QUOTATIONS },
       { href: "/costing", label: "Costing", icon: Calculator, module: MODULES.COSTING },
     ],

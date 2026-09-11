@@ -20,9 +20,10 @@ class Order(AuditedModel):
         (DELIVERED, "Delivered"),
     ]
 
-    PAYMENT_PENDING, PAYMENT_PARTIAL, PAYMENT_PAID = "pending", "partial", "paid"
+    PAYMENT_PENDING, PAYMENT_ADVANCE, PAYMENT_PARTIAL, PAYMENT_PAID = "pending", "advance", "partial", "paid"
     PAYMENT_STATUS_CHOICES = [
         (PAYMENT_PENDING, "Pending"),
+        (PAYMENT_ADVANCE, "Advance"),
         (PAYMENT_PARTIAL, "Partial"),
         (PAYMENT_PAID, "Paid"),
     ]
@@ -31,12 +32,14 @@ class Order(AuditedModel):
     order_no = models.CharField(max_length=30, editable=False)
     date = models.DateField()
     client = models.ForeignKey("clients.Client", on_delete=models.PROTECT, related_name="orders")
+    project_title = models.CharField(max_length=200, blank=True, help_text="e.g. Diamond Standy")
     project = models.ForeignKey(
         "projects.Project", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders"
     )
     supplier = models.ForeignKey(
         "suppliers.Supplier", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders"
     )
+    delivery_time = models.CharField(max_length=200, blank=True, help_text="e.g. Aje Joie chhe print thai ne")
     description = models.TextField(blank=True)
 
     tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
@@ -78,8 +81,8 @@ class Order(AuditedModel):
 
     @property
     def due_amount(self):
-        gt = self.grand_total or Decimal("0.00")
-        pd = self.paid_amount or Decimal("0.00")
+        gt = Decimal(str(self.grand_total)) if self.grand_total is not None else Decimal("0.00")
+        pd = Decimal(str(self.paid_amount)) if self.paid_amount is not None else Decimal("0.00")
         return max(Decimal("0.00"), gt - pd)
 
     def recalc_totals(self, save=True):
@@ -116,4 +119,18 @@ class OrderItem(models.Model):
     @property
     def amount(self):
         return self.qty * self.rate
+
+
+class OrderImage(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="orders/images/")
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"Image for {self.order.order_no} ({self.id})"
+
 

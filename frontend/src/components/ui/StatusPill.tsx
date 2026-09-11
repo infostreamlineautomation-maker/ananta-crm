@@ -33,6 +33,7 @@ export const DELIVERY_STATUS_TONE: Record<string, Tone> = {
 
 export const PAYMENT_STATUS_TONE: Record<string, Tone> = {
   pending: "warning",
+  advance: "info",
   partial: "info",
   paid: "success",
 };

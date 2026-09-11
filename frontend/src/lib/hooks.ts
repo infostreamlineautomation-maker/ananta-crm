@@ -49,6 +49,7 @@ export function usePaginatedList<T>(path: string) {
 export function useList<T>(path: string) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,9 +63,10 @@ export function useList<T>(path: string) {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, reloadKey]);
 
-  return { items, loading };
+  const reload = () => setReloadKey((k) => k + 1);
+  return { items, loading, reload };
 }
 
 export function useDebouncedValue<T>(value: T, delayMs = 300): T {

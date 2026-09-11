@@ -52,7 +52,8 @@ export default function SettingsPage() {
           company_address: s.company_address || "",
           default_currency_code: s.default_currency_code || "INR",
           default_tax_percent: s.default_tax_percent || "0",
-          quotation_prefix: s.quotation_prefix || "QT-",
+          order_prefix: s.order_prefix || "AG/",
+          quotation_prefix: s.quotation_prefix || "AG/",
           quotation_intro: s.quotation_intro || "",
           quotation_terms: s.quotation_terms || "",
           quotation_signature_name: s.quotation_signature_name || "",
@@ -206,9 +207,14 @@ export default function SettingsPage() {
 
           {tab === "quotation" && (
             <>
-              <Field label="Quotation Number Prefix" hint="e.g. QT- produces QT-2026-0001">
-                <Input value={form.quotation_prefix ?? ""} onChange={(e) => set("quotation_prefix", e.target.value)} className="max-w-[160px]" />
-              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Project / Order Number Prefix" hint="e.g. AG/ produces AG/001-26">
+                  <Input value={form.order_prefix ?? ""} onChange={(e) => set("order_prefix", e.target.value)} className="max-w-[160px] font-mono font-bold" />
+                </Field>
+                <Field label="Quotation Number Prefix" hint="e.g. AG/ produces AG/001-26">
+                  <Input value={form.quotation_prefix ?? ""} onChange={(e) => set("quotation_prefix", e.target.value)} className="max-w-[160px] font-mono font-bold" />
+                </Field>
+              </div>
               <Field label="Intro Text">
                 <Textarea value={form.quotation_intro ?? ""} onChange={(e) => set("quotation_intro", e.target.value)} />
               </Field>
