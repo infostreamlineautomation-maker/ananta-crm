@@ -4,8 +4,16 @@ from apps.core.models import AuditedModel, SoftDeleteModel
 
 
 class Supplier(AuditedModel, SoftDeleteModel):
+    RATING_A, RATING_B, RATING_C = "A", "B", "C"
+    RATING_CHOICES = [
+        (RATING_A, "Grade A (Top / Best)"),
+        (RATING_B, "Grade B (Standard)"),
+        (RATING_C, "Grade C (Low Priority)"),
+    ]
+
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="suppliers")
     supplier_name = models.CharField(max_length=200)
+    rating = models.CharField(max_length=1, choices=RATING_CHOICES, default=RATING_B, help_text="ABC Supplier rating / classification tier")
     company_name = models.CharField(max_length=200, blank=True)
     owner_name_contact = models.CharField(max_length=150, blank=True)
     contact = models.CharField(max_length=30, blank=True)

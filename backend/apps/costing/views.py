@@ -10,7 +10,7 @@ from .serializers import CostingSerializer
 
 
 class CostingViewSet(SoftDeleteModuleViewSet):
-    queryset = Costing.objects.select_related("supplier", "product", "client", "project").prefetch_related("items")
+    queryset = Costing.objects.select_related("supplier", "product", "client", "project").prefetch_related("items", "files")
     serializer_class = CostingSerializer
     module_name = COSTING
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]

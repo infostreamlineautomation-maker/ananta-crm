@@ -27,7 +27,9 @@ export function CompanyForm({
   const [form, setForm] = useState({
     company_name: company?.company_name ?? "",
     contact_name: company?.contact_name ?? "",
-    vat_id: company?.vat_id ?? "",
+    gstin: company?.gstin || company?.vat_id || "",
+    msin_number: company?.msin_number ?? "",
+    vat_id: company?.gstin || company?.vat_id || "",
     reg_no: company?.reg_no ?? "",
     contact_email: company?.contact_email ?? "",
     contact_phone: company?.contact_phone ?? "",
@@ -89,8 +91,22 @@ export function CompanyForm({
       </FieldGroup>
 
       <FieldGroup title="Registration">
-        <Field label="VAT ID">
-          <Input value={form.vat_id} onChange={(e) => set("vat_id", e.target.value)} />
+        <Field label="GSTIN">
+          <Input
+            value={form.gstin}
+            onChange={(e) => {
+              set("gstin", e.target.value);
+              set("vat_id", e.target.value);
+            }}
+            placeholder="e.g. 24ABCDE1234F1Z5"
+          />
+        </Field>
+        <Field label="MSIN Number">
+          <Input
+            value={form.msin_number}
+            onChange={(e) => set("msin_number", e.target.value)}
+            placeholder="e.g. MSIN123456"
+          />
         </Field>
         <Field label="Registration No.">
           <Input value={form.reg_no} onChange={(e) => set("reg_no", e.target.value)} />

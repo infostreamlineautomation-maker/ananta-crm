@@ -469,9 +469,14 @@ export default function CompanyDetailPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-2xl font-extrabold text-ink">{company.company_name}</h1>
-                {company.vat_id && (
+                {(company.gstin || company.vat_id) && (
                   <span className="rounded-md bg-surface-sunken px-2 py-0.5 font-mono text-[11px] font-bold text-ink-muted">
-                    VAT: {company.vat_id}
+                    GSTIN: {company.gstin || company.vat_id}
+                  </span>
+                )}
+                {company.msin_number && (
+                  <span className="rounded-md bg-surface-sunken px-2 py-0.5 font-mono text-[11px] font-bold text-ink-muted">
+                    MSIN: {company.msin_number}
                   </span>
                 )}
                 {company.reg_no && (
@@ -594,8 +599,12 @@ export default function CompanyDetailPage() {
             <h3 className="mb-4 text-[15px] font-bold text-ink">Address & Tax Information</h3>
             <dl className="flex flex-col divide-y divide-border/60 text-sm">
               <div className="flex justify-between py-2.5">
-                <dt className="text-ink-muted">Tax / VAT ID</dt>
-                <dd className="font-mono font-bold text-ink">{company.vat_id || "—"}</dd>
+                <dt className="text-ink-muted">GSTIN</dt>
+                <dd className="font-mono font-bold text-ink">{company.gstin || company.vat_id || "—"}</dd>
+              </div>
+              <div className="flex justify-between py-2.5">
+                <dt className="text-ink-muted">MSIN Number</dt>
+                <dd className="font-mono font-bold text-ink">{company.msin_number || "—"}</dd>
               </div>
               <div className="flex justify-between py-2.5">
                 <dt className="text-ink-muted">Registration Number</dt>
@@ -681,11 +690,13 @@ export default function CompanyDetailPage() {
                     filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_clients`}
                     title={`${company?.company_name || "Company"} - Associated Clients`}
                     columns={[
-                      { header: "Client Name", accessor: (c) => c.client_name },
-                      { header: "Type", accessor: (c) => `Type ${c.client_type}` },
-                      { header: "Phone", accessor: (c) => c.phone || "" },
-                      { header: "Email", accessor: (c) => c.email || "" },
-                      { header: "Country", accessor: (c) => c.country_name || "" },
+                      { key: "client_name", header: "Client Name", accessor: (c) => c.client_name, category: "Basic Information", defaultSelected: true },
+                      { key: "type", header: "Client Type", accessor: (c) => `Type ${c.client_type}`, category: "Basic Information", defaultSelected: true },
+                      { key: "phone", header: "Primary Phone", accessor: (c) => c.phone || "", category: "Contact Details", defaultSelected: true },
+                      { key: "email", header: "Email Address", accessor: (c) => c.email || "", category: "Contact Details", defaultSelected: true },
+                      { key: "address", header: "Address", accessor: (c) => c.address || "", category: "Contact Details", defaultSelected: true },
+                      { key: "country", header: "Country", accessor: (c) => c.country_name || "", category: "Contact Details", defaultSelected: true },
+                      { key: "created_at", header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
                     ]}
                   />
                   <ColumnSelector
@@ -824,13 +835,19 @@ export default function CompanyDetailPage() {
                     filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_orders`}
                     title={`${company?.company_name || "Company"} - Orders Report`}
                     columns={[
-                      { header: "Order No", accessor: (o) => o.order_no },
-                      { header: "Date", accessor: (o) => o.date },
-                      { header: "Client", accessor: (o) => o.client_name },
-                      { header: "Project", accessor: (o) => o.project_name || "" },
-                      { header: "Grand Total", accessor: (o) => `${o.currency_code || "INR"} ${o.grand_total}` },
-                      { header: "Delivery Status", accessor: (o) => o.delivery_status },
-                      { header: "Payment Status", accessor: (o) => o.payment_status },
+                      { key: "order_no", header: "Order No", accessor: (o) => o.order_no, category: "Basic Information", defaultSelected: true },
+                      { key: "date", header: "Order Date", accessor: (o) => o.date, category: "Basic Information", defaultSelected: true },
+                      { key: "client_name", header: "Client Name", accessor: (o) => o.client_name, category: "Basic Information", defaultSelected: true },
+                      { key: "project_name", header: "Project / Job Name", accessor: (o) => o.project_name || o.project_title || "", category: "Basic Information", defaultSelected: true },
+                      { key: "supplier_name", header: "Vendor / Supplier", accessor: (o) => o.supplier_name || "", category: "Basic Information", defaultSelected: true },
+                      { key: "delivery_time", header: "Delivery Instructions", accessor: (o) => o.delivery_time || "", category: "Workflow & Status" },
+                      { key: "currency_code", header: "Currency", accessor: (o) => o.currency_code || "INR", category: "Financials" },
+                      { key: "grand_total", header: "Grand Total", accessor: (o) => o.grand_total, category: "Financials", defaultSelected: true },
+                      { key: "paid_amount", header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00", category: "Financials", defaultSelected: true },
+                      { key: "due_amount", header: "Balance Due", accessor: (o) => o.due_amount || "0.00", category: "Financials", defaultSelected: true },
+                      { key: "delivery_status", header: "Delivery Status", accessor: (o) => o.delivery_status, category: "Workflow & Status", defaultSelected: true },
+                      { key: "payment_status", header: "Payment Status", accessor: (o) => o.payment_status, category: "Workflow & Status", defaultSelected: true },
+                      { key: "proofs", header: "Proof Images (URLs)", accessor: (o) => o.images?.map((img) => mediaUrl(img.image)).join(", ") || "", category: "Proofs & Attachments" },
                     ]}
                   />
                   <ColumnSelector
@@ -859,10 +876,48 @@ export default function CompanyDetailPage() {
                       </div>
                     </th>
                   )}
-                  {orderCols.has("date") && <th className={TH}>Date</th>}
-                  {orderCols.has("client_name") && <th className={TH}>Client</th>}
-                  {orderCols.has("project_name") && <th className={TH}>Project</th>}
-                  {orderCols.has("grand_total") && <th className={`${TH} text-right`}>Grand Total</th>}
+                  {orderCols.has("date") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Date</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "date", label: "Date", type: "date_range" }}
+                          activeFilters={{ date_from: orderDateFrom, date_to: orderDateTo }}
+                          onFilterChange={(k, v) => (k === "date_from" ? setOrderDateFrom(v) : setOrderDateTo(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("client") && (
+                    <th className={TH}>
+                      <div className="inline-flex items-center">
+                        <span>Client</span>
+                        <ColumnHeaderFilter
+                          column={{
+                            key: "client",
+                            label: "Client",
+                            type: "select",
+                            options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
+                          }}
+                          activeFilters={{ client: orderClientFilter }}
+                          onFilterChange={(_, v) => setOrderClientFilter(v)}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {orderCols.has("project") && <th className={TH}>Project</th>}
+                  {orderCols.has("grand_total") && (
+                    <th className={`${TH} text-right`}>
+                      <div className="inline-flex items-center justify-end">
+                        <span>Grand Total</span>
+                        <ColumnHeaderFilter
+                          column={{ key: "amount", label: "Amount", type: "amount_range" }}
+                          activeFilters={{ amount_min: orderAmountMin, amount_max: orderAmountMax }}
+                          onFilterChange={(k, v) => (k === "amount_min" ? setOrderAmountMin(v) : setOrderAmountMax(v))}
+                        />
+                      </div>
+                    </th>
+                  )}
                   {orderCols.has("delivery_status") && (
                     <th className={TH}>
                       <div className="inline-flex items-center">
@@ -895,7 +950,7 @@ export default function CompanyDetailPage() {
                   loading={false}
                   empty={filteredOrders.length === 0}
                   colSpan={orderCols.size}
-                  emptyLabel={orders.length === 0 ? "No orders placed by this company's clients yet." : "No orders match filter criteria."}
+                  emptyLabel={orders.length === 0 ? "No orders found for this company." : "No orders match filter criteria."}
                 />
                 {filteredOrders.map((o) => (
                   <tr key={o.id} className={TR}>
@@ -907,10 +962,18 @@ export default function CompanyDetailPage() {
                       </td>
                     )}
                     {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                    {orderCols.has("client_name") && <td className={`${TD} font-medium text-ink`}>{o.client_name}</td>}
-                    {orderCols.has("project_name") && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
+                    {orderCols.has("client") && (
+                      <td className={TD}>
+                        <Link href={`/clients/${o.client}`} className="font-semibold text-ink hover:text-primary-600">
+                          {o.client_name}
+                        </Link>
+                      </td>
+                    )}
+                    {orderCols.has("project") && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
                     {orderCols.has("grand_total") && (
-                      <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
+                      <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>
+                        {formatCurrency(o.grand_total, o.currency_code)}
+                      </td>
                     )}
                     {orderCols.has("delivery_status") && (
                       <td className={TD}>
@@ -924,11 +987,13 @@ export default function CompanyDetailPage() {
                     )}
                     {orderCols.has("actions") && (
                       <td className={`${TD} text-right`}>
-                        <Link href={`/orders/${o.id}`}>
-                          <Button size="sm" variant="secondary">
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </Button>
-                        </Link>
+                        <div className="flex justify-end gap-1">
+                          <Link href={`/orders/${o.id}`}>
+                            <Button size="sm" variant="secondary">
+                              <Eye className="h-3.5 w-3.5" /> View
+                            </Button>
+                          </Link>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -939,26 +1004,26 @@ export default function CompanyDetailPage() {
         </Card>
       )}
 
-      {/* Tab 4: Quotations */}
+      {/* Tab 3: Quotations */}
       {tab === "quotations" && (
         <Card>
           <div className="p-4 border-b border-border">
             <FilterBar
               search={quoteSearch}
               onSearchChange={setQuoteSearch}
-              searchPlaceholder="Search quotations by number, subject, client..."
-              filters={quotationFilterConfigs}
+              searchPlaceholder="Search quotation number, subject..."
+              filters={QUOTATION_FILTER_CONFIGS}
               activeFilters={{
-                client: quoteClientFilter,
                 status: quoteStatusFilter,
+                client: quoteClientFilter,
                 amount_min: quoteAmountMin,
                 amount_max: quoteAmountMax,
                 date_from: quoteDateFrom,
                 date_to: quoteDateTo,
               }}
               onFilterChange={(key, val) => {
-                if (key === "client") setQuoteClientFilter(val);
                 if (key === "status") setQuoteStatusFilter(val);
+                if (key === "client") setQuoteClientFilter(val);
                 if (key === "amount_min") setQuoteAmountMin(val);
                 if (key === "amount_max") setQuoteAmountMax(val);
                 if (key === "date_from") setQuoteDateFrom(val);
@@ -966,8 +1031,8 @@ export default function CompanyDetailPage() {
               }}
               onReset={() => {
                 setQuoteSearch("");
-                setQuoteClientFilter("");
                 setQuoteStatusFilter("");
+                setQuoteClientFilter("");
                 setQuoteAmountMin("");
                 setQuoteAmountMax("");
                 setQuoteDateFrom("");
@@ -980,12 +1045,13 @@ export default function CompanyDetailPage() {
                     filename={`${company?.company_name?.replace(/\s+/g, "_") || "company"}_quotations`}
                     title={`${company?.company_name || "Company"} - Quotations Report`}
                     columns={[
-                      { header: "Quotation No", accessor: (q) => q.quotation_no },
-                      { header: "Date", accessor: (q) => q.quotation_date },
-                      { header: "Client", accessor: (q) => q.client_name || "" },
-                      { header: "Subject", accessor: (q) => q.subject || "" },
-                      { header: "Status", accessor: (q) => q.status },
-                      { header: "Subtotal", accessor: (q) => `${q.currency_code || "INR"} ${q.subtotal}` },
+                      { key: "quotation_no", header: "Quotation No", accessor: (q) => q.quotation_no, category: "Basic Information", defaultSelected: true },
+                      { key: "date", header: "Quotation Date", accessor: (q) => q.quotation_date, category: "Basic Information", defaultSelected: true },
+                      { key: "client_name", header: "Client Name", accessor: (q) => q.client_name || "", category: "Basic Information", defaultSelected: true },
+                      { key: "subject", header: "Subject / Heading", accessor: (q) => q.subject || "", category: "Basic Information", defaultSelected: true },
+                      { key: "status", header: "Quotation Status", accessor: (q) => q.status, category: "Basic Information", defaultSelected: true },
+                      { key: "currency", header: "Currency", accessor: (q) => q.currency_code || "INR", category: "Financials" },
+                      { key: "subtotal", header: "Subtotal / Total", accessor: (q) => q.subtotal, category: "Financials", defaultSelected: true },
                     ]}
                   />
                   <ColumnSelector

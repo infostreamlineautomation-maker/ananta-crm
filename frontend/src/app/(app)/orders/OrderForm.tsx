@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, MessageSquare, Printer, RefreshCw, Trash2, X } from "lucide-react";
+import { Copy, MessageSquare, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import { Client, Country, CustomFieldDefinition, OrderDetail, OrderImage, OrderItemDetail, Product, QuotationColumn, Supplier } from "@/lib/types";
@@ -17,13 +17,10 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { ClientForm } from "../clients/page";
+import { ProductModal } from "@/components/products/ProductModal";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ProjectImageUploader } from "@/components/orders/ProjectImageUploader";
-
-function blankItem(): OrderItemDetail {
-  return { product: "", description: "", qty: "1", rate: "0", extra_data: {} };
-}
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -41,14 +38,22 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
   const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: suppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
-  const { items: products } = useList<Product>("/api/products/?page_size=200");
+  const { items: rawProducts, reload: reloadProducts } = useList<Product>("/api/products/?page_size=200");
 
   const [clients, setClients] = useState<Client[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
+  const [quickAddProductOpen, setQuickAddProductOpen] = useState(false);
 
   useEffect(() => {
     if (rawClients.length) setClients(rawClients);
   }, [rawClients]);
+
+  useEffect(() => {
+    if (rawProducts.length) setProducts(rawProducts);
+  }, [rawProducts]);
+
+  const firstItem = order?.items?.[0];
 
   const [date, setDate] = useState(order?.date ?? new Date().toISOString().slice(0, 10));
   const [client, setClient] = useState<number | "">(order?.client ?? "");
@@ -56,8 +61,22 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
   const [currencyCode, setCurrencyCode] = useState(order?.currency_code ?? "");
   const [supplier, setSupplier] = useState<number | "">(order?.supplier ?? "");
   const [deliveryTime, setDeliveryTime] = useState(order?.delivery_time ?? "");
-  const [description, setDescription] = useState(order?.description ?? "");
-  const [taxPercent, setTaxPercent] = useState(order?.tax_percent ?? "0");
+
+  // Single Item States
+  const [productId, setProductId] = useState<number | "">(firstItem?.product ?? "");
+  const [qty, setQty] = useState<string>(firstItem?.qty ?? "1");
+  const [rate, setRate] = useState<string>(firstItem?.rate ?? "0");
+  const [description, setDescription] = useState(firstItem?.description || order?.description || "");
+  const [extraData, setExtraData] = useState<Record<string, string>>(firstItem?.extra_data || {});
+  const [columns, setColumns] = useState<QuotationColumn[]>(order?.columns_config ?? []);
+
+  // GST / Tax settings
+  const hasExistingTax = order?.tax_percent !== undefined && parseFloat(order.tax_percent) > 0;
+  const [includeGst, setIncludeGst] = useState<boolean>(hasExistingTax);
+  const [taxPercent, setTaxPercent] = useState<string>(
+    order?.tax_percent && parseFloat(order.tax_percent) > 0 ? order.tax_percent : "18"
+  );
+
   const [deliveryStatus, setDeliveryStatus] = useState(order?.delivery_status ?? "pending");
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "advance" | "partial" | "paid">(order?.payment_status ?? "pending");
   const [existingImages, setExistingImages] = useState<OrderImage[]>(order?.images ?? []);
@@ -68,12 +87,6 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
       : order?.payment_status === "paid" && order?.grand_total
       ? String(order.grand_total)
       : "0"
-  );
-  const [columns, setColumns] = useState<QuotationColumn[]>(order?.columns_config ?? []);
-  const [items, setItems] = useState<OrderItemDetail[]>(
-    order?.items.length
-      ? order.items.map((it) => ({ ...it, extra_data: it.extra_data || {} }))
-      : [blankItem()]
   );
 
   // If creating new order, load default custom field columns for order_item
@@ -103,7 +116,11 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
     label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
     sublabel: c.company_name || undefined,
   }));
-  const supplierOptions = suppliers.map((s) => ({ value: s.id, label: s.supplier_name }));
+  const supplierOptions = suppliers.map((s) => ({
+    value: s.id,
+    label: s.rating ? `${s.supplier_name} (Grade ${s.rating})` : s.supplier_name,
+    sublabel: s.company_name ? `${s.company_name}${s.rating ? ` · Grade ${s.rating}` : ""}` : s.rating ? `Grade ${s.rating} Supplier` : undefined,
+  }));
   const productOptions = products.map((p) => ({ value: p.id, label: p.product_name }));
 
   const selectedClient = clients.find((c) => c.id === client);
@@ -125,28 +142,24 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
     if (fromCurr && toCurr && fromCurr !== toCurr) {
       const factor = getRate(fromCurr, toCurr, baseCurrency);
       if (factor > 0 && factor !== 1) {
-        setItems((prev) =>
-          prev.map((it) => {
-            const currentRate = parseFloat(it.rate);
-            if (!isNaN(currentRate) && currentRate > 0) {
-              const convertedRate = (currentRate * factor).toFixed(2);
-              return { ...it, rate: convertedRate };
-            }
-            return it;
-          }),
-        );
-        toast.success(
-          `Converted items from ${fromCurr} to ${toCurr} (1 ${fromCurr} = ${factor < 0.01 ? factor.toFixed(6) : factor.toFixed(4)} ${toCurr}).`,
-        );
+        const currentRate = parseFloat(rate);
+        if (!isNaN(currentRate) && currentRate > 0) {
+          const convertedRate = (currentRate * factor).toFixed(2);
+          setRate(convertedRate);
+          toast.success(
+            `Converted rate from ${fromCurr} to ${toCurr} (1 ${fromCurr} = ${factor < 0.01 ? factor.toFixed(6) : factor.toFixed(4)} ${toCurr}).`,
+          );
+        }
       }
     }
   };
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0), 0);
-    const tax = subtotal * ((parseFloat(taxPercent) || 0) / 100);
+    const subtotal = (parseFloat(qty) || 0) * (parseFloat(rate) || 0);
+    const effectiveTaxRate = includeGst ? parseFloat(taxPercent) || 0 : 0;
+    const tax = subtotal * (effectiveTaxRate / 100);
     return { subtotal, tax, grandTotal: subtotal + tax };
-  }, [items, taxPercent]);
+  }, [qty, rate, includeGst, taxPercent]);
 
   const calculatedDueAmount = useMemo(() => {
     const total = totals.grandTotal;
@@ -168,16 +181,8 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
     }
   }
 
-  function updateItem(index: number, patch: Partial<OrderItemDetail>) {
-    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
-  }
-
-  function updateItemExtra(index: number, key: string, value: string) {
-    setItems((prev) =>
-      prev.map((it, i) =>
-        i === index ? { ...it, extra_data: { ...(it.extra_data || {}), [key]: value } } : it
-      )
-    );
+  function updateExtraField(key: string, value: string) {
+    setExtraData((prev) => ({ ...prev, [key]: value }));
   }
 
   function addColumn() {
@@ -188,17 +193,11 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
 
   function removeColumn(key: string) {
     setColumns((prev) => prev.filter((c) => c.key !== key));
-    setItems((prev) =>
-      prev.map((it) => {
-        const rest = { ...(it.extra_data || {}) };
-        delete rest[key];
-        return { ...it, extra_data: rest };
-      })
-    );
-  }
-
-  function removeItem(index: number) {
-    setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+    setExtraData((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -209,8 +208,8 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
       setError("Pick a client before saving.");
       return;
     }
-    if (items.some((it) => !it.product)) {
-      setError("Every line item needs a product selected.");
+    if (!productId) {
+      setError("Pick a product before saving.");
       return;
     }
 
@@ -230,19 +229,21 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
         currency_code: effectiveCurrency,
         supplier: supplier || null,
         delivery_time: deliveryTime,
-        description,
+        description: description,
         columns_config: columns,
-        tax_percent: taxPercent,
+        tax_percent: includeGst ? taxPercent : "0",
         delivery_status: deliveryStatus,
         payment_status: paymentStatus,
         paid_amount: finalPaid,
-        items: items.map((it) => ({
-          product: it.product,
-          description: it.description,
-          qty: it.qty,
-          rate: it.rate,
-          extra_data: it.extra_data || {},
-        })),
+        items: [
+          {
+            product: productId,
+            description: description,
+            qty: qty || "1",
+            rate: rate || "0",
+            extra_data: extraData,
+          },
+        ],
       };
 
       let savedOrder: OrderDetail;
@@ -353,7 +354,13 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
-          <Card className="flex flex-col gap-4 p-5">
+          {/* Main Job Details Card */}
+          <Card className="flex flex-col gap-5 p-5">
+            <div className="border-b border-border pb-3">
+              <h2 className="text-base font-bold text-ink">Project Information</h2>
+              <p className="text-xs text-ink-muted mt-0.5">Basic client and project details</p>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Project / Job Name" required>
                 <Input
@@ -376,7 +383,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               <Field label="Date" required>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
               </Field>
-              <Field label="Currency" hint="Changing currency converts all rates instantly.">
+              <Field label="Currency" hint="Changing currency converts rates instantly.">
                 <div className="flex flex-wrap items-center gap-2">
                   <Select
                     value={effectiveCurrency}
@@ -407,123 +414,142 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               </Field>
             </div>
 
-            <Field label="Notes / Description (optional)">
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. 350 gsm with matt / Additional notes about this project..."
-                rows={2}
-              />
-            </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Vendor / Supplier (optional)">
-                <Combobox
-                  value={supplier || null}
-                  onChange={(v) => setSupplier(Number(v))}
-                  options={supplierOptions}
-                  placeholder="Select vendor / supplier..."
-                />
-              </Field>
-              <Field label="Delivery Time / Instructions">
-                <Input
-                  value={deliveryTime}
-                  onChange={(e) => setDeliveryTime(e.target.value)}
-                  placeholder="e.g. Aje Joie chhe print thai ne / Urgent"
-                />
-              </Field>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader
-              title="Line Items (Product & Specs)"
-              action={
+            {/* Product & Specifications Section */}
+            <div className="mt-2 border-t border-border pt-4">
+              <div className="flex items-center justify-between pb-3">
+                <div>
+                  <h2 className="text-base font-bold text-ink">Product & Specifications</h2>
+                  <p className="text-xs text-ink-muted mt-0.5">Define the product, quantity, rate, and job specifications</p>
+                </div>
                 <button
                   type="button"
                   onClick={addColumn}
-                  className="text-[13px] font-semibold text-ink-muted hover:text-primary-500 cursor-pointer"
+                  className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1"
                 >
-                  + Add Custom Column
+                  <Plus className="h-3.5 w-3.5" /> Add Custom Spec Field
                 </button>
-              }
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                    <th className="px-5 py-2.5 text-left">Product</th>
-                    <th className="px-3 py-2.5 text-left">Description / Specs</th>
-                    {columns.map((col) => (
-                      <th key={col.key} className="px-3 py-2.5 text-left">
-                        <div className="flex items-center gap-1">
-                          <input
-                            value={col.label}
-                            onChange={(e) =>
-                              setColumns((prev) =>
-                                prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
-                              )
-                            }
-                            className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase focus:border-primary-400 focus:outline-hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeColumn(col.key)}
-                            className="text-ink-faint hover:text-primary-600 cursor-pointer"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </th>
-                    ))}
-                    <th className="w-24 px-3 py-2.5 text-right">Qty</th>
-                    <th className="w-28 px-3 py-2.5 text-right">Rate</th>
-                    <th className="w-28 px-3 py-2.5 text-right">Amount</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it, i) => {
-                    const amount = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
-                    return (
-                      <tr key={i} className="border-b border-border last:border-b-0">
-                        <td className="px-5 py-2.5">
-                          <Combobox value={it.product || null} onChange={(v) => updateItem(i, { product: Number(v) })} options={productOptions} placeholder="Select..." />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="e.g. 350 gsm with matt" />
-                        </td>
-                        {columns.map((col) => (
-                          <td key={col.key} className="px-3 py-2.5">
-                            <Input
-                              value={it.extra_data?.[col.key] ?? ""}
-                              onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
-                              placeholder={col.label}
-                            />
-                          </td>
-                        ))}
-                        <td className="px-3 py-2.5">
-                          <Input type="number" step="0.01" min="0" value={it.qty} onChange={(e) => updateItem(i, { qty: e.target.value })} className="text-right" />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Input type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, { rate: e.target.value })} className="text-right" />
-                        </td>
-                        <td className="tnum px-3 py-2.5 text-right text-[13.5px] font-semibold text-ink">{formatCurrency(amount, effectiveCurrency)}</td>
-                        <td className="px-3 py-2.5 text-right">
-                          <button type="button" onClick={() => removeItem(i)} className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-3">
+                  <Field label="Product" required>
+                    <Combobox
+                      value={productId || null}
+                      onChange={(v) => setProductId(Number(v))}
+                      options={productOptions}
+                      placeholder="Select product..."
+                      onAddNew={() => setQuickAddProductOpen(true)}
+                      addNewLabel="Add new product"
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Quantity (Qty)" required>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    placeholder="e.g. 100"
+                    required
+                  />
+                </Field>
+
+                <Field label="Rate" required>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    placeholder="e.g. 45"
+                    required
+                  />
+                </Field>
+
+                <Field label="Calculated Amount">
+                  <div className="h-10 px-3 py-2 rounded-lg bg-surface-sunken border border-border flex items-center justify-between">
+                    <span className="text-xs text-ink-muted">
+                      {qty && rate ? `${rate} × ${qty}` : "Total"}
+                    </span>
+                    <span className="font-mono text-sm font-bold text-ink">
+                      {formatCurrency(totals.subtotal, effectiveCurrency)}
+                    </span>
+                  </div>
+                </Field>
+              </div>
+
+              <div className="mt-4">
+                <Field label="Description / Specifications">
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="e.g. 350 gsm with matt / size details / finishing requirements..."
+                    rows={2}
+                  />
+                </Field>
+              </div>
+
+              {/* Dynamic Custom Spec Fields */}
+              {columns.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 bg-surface-sunken/50 p-3 rounded-lg border border-border/80">
+                  {columns.map((col) => (
+                    <div key={col.key} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-xs font-semibold text-ink-muted">
+                        <input
+                          value={col.label}
+                          onChange={(e) =>
+                            setColumns((prev) =>
+                              prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
+                            )
+                          }
+                          className="border-b border-dashed border-border-strong bg-transparent pb-0.5 text-xs font-bold text-ink-muted focus:border-primary-400 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeColumn(col.key)}
+                          className="text-ink-faint hover:text-rose-600 cursor-pointer p-0.5"
+                          title="Remove custom field"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <Input
+                        value={extraData[col.key] || ""}
+                        onChange={(e) => updateExtraField(col.key, e.target.value)}
+                        placeholder={`Enter ${col.label.toLowerCase()}...`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="border-t border-border px-5 py-3">
-              <button type="button" onClick={() => setItems((prev) => [...prev, blankItem()])} className="text-[13px] font-semibold text-primary-500 hover:text-primary-600 cursor-pointer">
-                + Add Line Item
-              </button>
+
+            {/* Vendor & Delivery Section */}
+            <div className="mt-2 border-t border-border pt-4">
+              <div className="pb-3">
+                <h2 className="text-base font-bold text-ink">Vendor & Delivery</h2>
+                <p className="text-xs text-ink-muted mt-0.5">Supplier assignment and delivery schedule</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Vendor / Supplier (optional)">
+                  <Combobox
+                    value={supplier || null}
+                    onChange={(v) => setSupplier(Number(v))}
+                    options={supplierOptions}
+                    placeholder="Select vendor / supplier..."
+                  />
+                </Field>
+                <Field label="Delivery Time / Instructions">
+                  <Input
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    placeholder="e.g. Aje Joie chhe print thai ne / Urgent"
+                  />
+                </Field>
+              </div>
             </div>
           </Card>
 
@@ -536,31 +562,73 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
           )}
         </div>
 
+        {/* Right Sidebar: Billing, Status & Proofs */}
         <div className="flex flex-col gap-5">
-          <Card className="flex flex-col gap-3 p-5">
-            <div className="flex items-center justify-between text-[13.5px]">
-              <span className="text-ink-muted">Total (Without GST)</span>
-              <span className="tnum font-semibold text-ink">{formatCurrency(totals.subtotal, effectiveCurrency)}</span>
-            </div>
-            <Field label="GST / Tax %">
-              <Input type="number" step="0.01" min="0" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} placeholder="0" />
-            </Field>
-            <div className="flex items-center justify-between text-[13.5px]">
-              <span className="text-ink-muted">GST Tax Amount</span>
-              <span className="tnum font-semibold text-ink">{formatCurrency(totals.tax, effectiveCurrency)}</span>
-            </div>
-            <div className="mt-1 flex flex-col gap-1 border-t border-border pt-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[13.5px] font-bold text-ink">Total Bill (With GST)</span>
-                <span className="tnum text-xl font-extrabold text-primary-600">{formatCurrency(totals.grandTotal, effectiveCurrency)}</span>
-              </div>
-              {baseGrandTotal !== null && (
-                <div className="flex items-center justify-between text-xs text-ink-muted">
-                  <span>In Org Base ({baseCurrency}):</span>
-                  <span className="font-mono font-bold text-ink">{formatCurrency(baseGrandTotal, baseCurrency)}</span>
+          <Card className="flex flex-col gap-3.5 p-5">
+            <CardHeader title="Billing & Taxation" />
+
+            {/* GST / Tax Checkbox */}
+            <label className="flex items-center gap-2 text-sm font-semibold text-ink cursor-pointer select-none bg-surface-sunken p-2.5 rounded-lg border border-border hover:bg-surface-elevated transition">
+              <input
+                type="checkbox"
+                checked={includeGst}
+                onChange={(e) => setIncludeGst(e.target.checked)}
+                className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500/20 cursor-pointer"
+              />
+              <span>Include GST / Tax</span>
+            </label>
+
+            {/* GST details shown only when checkbox is checked */}
+            {includeGst ? (
+              <div className="flex flex-col gap-3 pt-1 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-ink-muted">Total (Without GST)</span>
+                  <span className="tnum font-semibold text-ink">{formatCurrency(totals.subtotal, effectiveCurrency)}</span>
                 </div>
-              )}
-            </div>
+
+                <Field label="GST / Tax %">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={taxPercent}
+                    onChange={(e) => setTaxPercent(e.target.value)}
+                    placeholder="18"
+                  />
+                </Field>
+
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-ink-muted">GST Tax Amount ({taxPercent}%)</span>
+                  <span className="tnum font-semibold text-ink">{formatCurrency(totals.tax, effectiveCurrency)}</span>
+                </div>
+
+                <div className="mt-1 flex flex-col gap-1 border-t border-border pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13.5px] font-bold text-ink">Total Bill (With GST)</span>
+                    <span className="tnum text-xl font-extrabold text-primary-600">{formatCurrency(totals.grandTotal, effectiveCurrency)}</span>
+                  </div>
+                  {baseGrandTotal !== null && (
+                    <div className="flex items-center justify-between text-xs text-ink-muted">
+                      <span>In Org Base ({baseCurrency}):</span>
+                      <span className="font-mono font-bold text-ink">{formatCurrency(baseGrandTotal, baseCurrency)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="pt-1 flex flex-col gap-1 border-t border-border mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13.5px] font-bold text-ink">Total Bill</span>
+                  <span className="tnum text-xl font-extrabold text-primary-600">{formatCurrency(totals.grandTotal, effectiveCurrency)}</span>
+                </div>
+                {baseGrandTotal !== null && (
+                  <div className="flex items-center justify-between text-xs text-ink-muted">
+                    <span>In Org Base ({baseCurrency}):</span>
+                    <span className="font-mono font-bold text-ink">{formatCurrency(baseGrandTotal, baseCurrency)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="flex flex-col gap-4 p-5">
@@ -650,6 +718,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 
+      {/* Quick Add Client Modal */}
       <SlideOver
         open={quickAddClientOpen}
         onClose={() => setQuickAddClientOpen(false)}
@@ -671,6 +740,19 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
           }}
         />
       </SlideOver>
+
+      {/* Quick Add Product Modal */}
+      <ProductModal
+        open={quickAddProductOpen}
+        onClose={() => setQuickAddProductOpen(false)}
+        onSaved={(savedProduct) => {
+          setQuickAddProductOpen(false);
+          setProducts((prev) => [savedProduct, ...prev]);
+          setProductId(savedProduct.id);
+          reloadProducts();
+        }}
+      />
     </form>
   );
 }
+

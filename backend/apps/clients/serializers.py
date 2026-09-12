@@ -23,12 +23,20 @@ class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = [
-            "id", "company_name", "contact_name", "vat_id", "reg_no",
+            "id", "company_name", "contact_name", "gstin", "msin_number", "vat_id", "reg_no",
             "contact_email", "contact_phone", "company_phone", "country", "country_name",
             "state", "city", "zip_code", "address", "facebook", "twitter", "linkedin",
             "remarks", "logo", "extra_data", "is_deleted", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
+
+    def to_internal_value(self, data):
+        ret = super().to_internal_value(data)
+        if "gstin" in ret and not ret.get("vat_id"):
+            ret["vat_id"] = ret["gstin"]
+        elif "vat_id" in ret and not ret.get("gstin"):
+            ret["gstin"] = ret["vat_id"]
+        return ret
 
 
 class ClientSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):

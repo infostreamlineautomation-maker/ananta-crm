@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Printer } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Plus, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, Paginated } from "@/lib/api";
 import { CostingDetail, OrderSummary, ProjectSummary, QuotationSummary } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,8 @@ import { ProjectForm } from "../page";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { CostingViewModal } from "@/app/(app)/costing/CostingViewModal";
+import { AttachmentDropdown } from "@/components/ui/AttachmentDropdown";
 
 const TABS = [
   { key: "orders", label: "Orders" },
@@ -208,15 +210,18 @@ function OrdersTab({ projectId }: { projectId: number }) {
                 filename={`project_${projectId}_orders`}
                 title="Project Orders Report"
                 columns={[
-                  { header: "Order No", accessor: (o) => o.order_no },
-                  { header: "Date", accessor: (o) => o.date },
-                  { header: "Client", accessor: (o) => o.client_name },
-                  { header: "Supplier", accessor: (o) => o.supplier_name || "" },
-                  { header: "Total Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.grand_total}` },
-                  { header: "Paid Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.paid_amount || "0.00"}` },
-                  { header: "Balance Due", accessor: (o) => `${o.currency_code || "INR"} ${o.due_amount || "0.00"}` },
-                  { header: "Delivery Status", accessor: (o) => o.delivery_status },
-                  { header: "Payment Status", accessor: (o) => o.payment_status },
+                  { key: "order_no", header: "Order No", accessor: (o) => o.order_no, category: "Basic Information", defaultSelected: true },
+                  { key: "date", header: "Order Date", accessor: (o) => o.date, category: "Basic Information", defaultSelected: true },
+                  { key: "client_name", header: "Client Name", accessor: (o) => o.client_name, category: "Basic Information", defaultSelected: true },
+                  { key: "supplier_name", header: "Vendor / Supplier", accessor: (o) => o.supplier_name || "", category: "Basic Information", defaultSelected: true },
+                  { key: "delivery_time", header: "Delivery Instructions", accessor: (o) => o.delivery_time || "", category: "Workflow & Status" },
+                  { key: "currency_code", header: "Currency", accessor: (o) => o.currency_code || "INR", category: "Financials" },
+                  { key: "grand_total", header: "Grand Total", accessor: (o) => o.grand_total, category: "Financials", defaultSelected: true },
+                  { key: "paid_amount", header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00", category: "Financials", defaultSelected: true },
+                  { key: "due_amount", header: "Balance Due", accessor: (o) => o.due_amount || "0.00", category: "Financials", defaultSelected: true },
+                  { key: "delivery_status", header: "Delivery Status", accessor: (o) => o.delivery_status, category: "Workflow & Status", defaultSelected: true },
+                  { key: "payment_status", header: "Payment Status", accessor: (o) => o.payment_status, category: "Workflow & Status", defaultSelected: true },
+                  { key: "proofs", header: "Proof Images (URLs)", accessor: (o) => o.images?.map((img) => mediaUrl(img.image)).join(", ") || "", category: "Proofs & Attachments" },
                 ]}
               />
               {canAdd && (
@@ -354,12 +359,13 @@ function QuotationsTab({ projectId }: { projectId: number }) {
                 filename={`project_${projectId}_quotations`}
                 title="Project Quotations Report"
                 columns={[
-                  { header: "Quotation No", accessor: (q) => q.quotation_no },
-                  { header: "Date", accessor: (q) => q.quotation_date },
-                  { header: "Client", accessor: (q) => q.client_name || "" },
-                  { header: "Subject", accessor: (q) => q.subject || "" },
-                  { header: "Status", accessor: (q) => q.status },
-                  { header: "Subtotal", accessor: (q) => `${q.currency_code || "INR"} ${q.subtotal}` },
+                  { key: "quotation_no", header: "Quotation No", accessor: (q) => q.quotation_no, category: "Basic Information", defaultSelected: true },
+                  { key: "date", header: "Quotation Date", accessor: (q) => q.quotation_date, category: "Basic Information", defaultSelected: true },
+                  { key: "client_name", header: "Client Name", accessor: (q) => q.client_name || "", category: "Basic Information", defaultSelected: true },
+                  { key: "subject", header: "Subject / Heading", accessor: (q) => q.subject || "", category: "Basic Information", defaultSelected: true },
+                  { key: "status", header: "Quotation Status", accessor: (q) => q.status, category: "Basic Information", defaultSelected: true },
+                  { key: "currency", header: "Currency", accessor: (q) => q.currency_code || "INR", category: "Financials" },
+                  { key: "subtotal", header: "Subtotal / Total", accessor: (q) => q.subtotal, category: "Financials", defaultSelected: true },
                 ]}
               />
               {canAdd && (
@@ -430,7 +436,9 @@ function CostingsTab({ projectId }: { projectId: number }) {
   const { can } = useAuth();
   const [costings, setCostings] = useState<CostingDetail[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewingCosting, setViewingCosting] = useState<CostingDetail | null>(null);
   const canAdd = can("costing", "add");
+  const canEdit = can("costing", "edit");
 
   useEffect(() => {
     apiFetch<Paginated<CostingDetail>>(`/api/costings/?project=${projectId}`)
@@ -440,58 +448,104 @@ function CostingsTab({ projectId }: { projectId: number }) {
   }, [projectId]);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-        <span className="text-[13px] font-semibold text-ink-muted">{costings.length} costing sheet{costings.length === 1 ? "" : "s"}</span>
-        <div className="flex items-center gap-2">
-          <ExportDropdown
-            data={costings}
-            filename={`project_${projectId}_costings`}
-            title="Project Costings Report"
-            columns={[
-              { header: "Date", accessor: (c) => c.costing_date },
-              { header: "Supplier", accessor: (c) => c.supplier_display || "" },
-              { header: "Product", accessor: (c) => c.product_display || "" },
-              { header: "Supplier Cost", accessor: (c) => c.supplier_cost },
-              { header: "Client Revenue", accessor: (c) => c.client_revenue },
-              { header: "Profit", accessor: (c) => c.profit },
-              { header: "Profit %", accessor: (c) => `${parseFloat(c.profit_percent).toFixed(1)}%` },
-            ]}
-          />
-          {canAdd && (
-            <Link href={`/costing/new?project=${projectId}`}>
-              <Button size="sm" variant="secondary">
-                <Plus className="h-3.5 w-3.5" /> New Costing
-              </Button>
-            </Link>
-          )}
+    <>
+      <Card>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <span className="text-[13px] font-semibold text-ink-muted">{costings.length} costing sheet{costings.length === 1 ? "" : "s"}</span>
+          <div className="flex items-center gap-2">
+            <ExportDropdown
+              data={costings}
+              filename={`project_${projectId}_costings`}
+              title="Project Costings Report"
+              columns={[
+                { key: "date", header: "Costing Date", accessor: (c) => c.costing_date, category: "Basic Information", defaultSelected: true },
+                { key: "supplier", header: "Supplier Name", accessor: (c) => c.supplier_display || "", category: "Basic Information", defaultSelected: true },
+                { key: "product", header: "Product Name", accessor: (c) => c.product_display || "", category: "Basic Information", defaultSelected: true },
+                { key: "description", header: "Description / Job Title", accessor: (c) => c.description || "", category: "Basic Information", defaultSelected: true },
+                { key: "supplier_cost", header: "Supplier Cost", accessor: (c) => c.supplier_cost, category: "Financials", defaultSelected: true },
+                { key: "client_revenue", header: "Client Revenue", accessor: (c) => c.client_revenue, category: "Financials", defaultSelected: true },
+                { key: "profit", header: "Profit", accessor: (c) => c.profit, category: "Financials", defaultSelected: true },
+                { key: "profit_percent", header: "Profit %", accessor: (c) => `${parseFloat(c.profit_percent || "0").toFixed(1)}%`, category: "Financials", defaultSelected: true },
+              ]}
+            />
+            {canAdd && (
+              <Link href={`/costing/new?project=${projectId}`}>
+                <Button size="sm" variant="secondary">
+                  <Plus className="h-3.5 w-3.5" /> New Costing
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className={TH}>Date</th>
-              <th className={TH}>Supplier</th>
-              <th className={TH}>Product</th>
-              <th className={`${TH} text-right`}>Profit</th>
-              <th className={`${TH} text-right`}>Profit %</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState loading={loading} empty={!loading && costings.length === 0} colSpan={5} emptyLabel="No costing sheets linked to this project yet." />
-            {costings.map((c) => (
-              <tr key={c.id} className={TR}>
-                <td className={`${TD} text-ink-muted`}>{formatDate(c.costing_date)}</td>
-                <td className={`${TD} text-ink-muted`}>{c.supplier_display || "—"}</td>
-                <td className={`${TD} text-ink-muted`}>{c.product_display || "—"}</td>
-                <td className={`${TD} tnum text-right font-semibold text-success-700`}>{formatCurrency(c.profit)}</td>
-                <td className={`${TD} tnum text-right text-ink-muted`}>{parseFloat(c.profit_percent).toFixed(1)}%</td>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className={TH}>Date</th>
+                <th className={TH}>Supplier</th>
+                <th className={TH}>Product</th>
+                <th className={`${TH} text-right`}>Profit</th>
+                <th className={`${TH} text-right`}>Profit %</th>
+                <th className={TH}>Attachment</th>
+                <th className={`${TH} text-right`}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+            </thead>
+            <tbody>
+              <TableState loading={loading} empty={!loading && costings.length === 0} colSpan={7} emptyLabel="No costing sheets linked to this project yet." />
+              {costings.map((c) => (
+                <tr key={c.id} className={TR}>
+                  <td className={`${TD} text-ink-muted`}>{formatDate(c.costing_date)}</td>
+                  <td className={`${TD} text-ink-muted`}>{c.supplier_display || "—"}</td>
+                  <td className={`${TD} text-ink`}>
+                    <button
+                      type="button"
+                      onClick={() => setViewingCosting(c)}
+                      className="font-medium text-ink hover:text-primary-600 hover:underline transition-colors text-left"
+                    >
+                      {c.product_display || "View Costing"}
+                    </button>
+                  </td>
+                  <td className={`${TD} tnum text-right font-semibold text-success-700`}>{formatCurrency(c.profit)}</td>
+                  <td className={`${TD} tnum text-right text-ink-muted`}>{parseFloat(c.profit_percent).toFixed(1)}%</td>
+                  <td className={TD}>
+                    <AttachmentDropdown
+                      files={
+                        c.files && c.files.length > 0
+                          ? c.files
+                          : c.file
+                          ? [{ file: c.file, file_name: c.file_name }]
+                          : []
+                      }
+                      maxDisplayWidth="max-w-[110px]"
+                    />
+                  </td>
+                  <td className={`${TD} text-right`}>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setViewingCosting(c)}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1" /> View
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {viewingCosting && (
+        <CostingViewModal
+          open={Boolean(viewingCosting)}
+          costing={viewingCosting}
+          onClose={() => setViewingCosting(null)}
+          canEdit={canEdit}
+        />
+      )}
+    </>
   );
 }

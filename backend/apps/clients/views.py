@@ -29,7 +29,7 @@ class CompanyViewSet(SoftDeleteModuleViewSet):
     module_name = COMPANIES
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_fields = ["country"]
-    search_fields = ["company_name", "contact_email", "contact_phone"]
+    search_fields = ["company_name", "contact_name", "gstin", "msin_number", "vat_id", "reg_no", "contact_email", "contact_phone"]
 
 
 from rest_framework.decorators import action

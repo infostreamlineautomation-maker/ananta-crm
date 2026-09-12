@@ -122,10 +122,10 @@ if CLOUDINARY_CLOUD_NAME:
         "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
         "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
     }
-    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+    DEFAULT_FILE_STORAGE = "apps.core.storage.DynamicCloudinaryStorage"
     STORAGES = {
         "default": {
-            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+            "BACKEND": "apps.core.storage.DynamicCloudinaryStorage",
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
@@ -207,3 +207,8 @@ if not DEBUG:
 else:
     SESSION_COOKIE_SAMESITE = "Lax"
     CSRF_COOKIE_SAMESITE = "Lax"
+
+# Upload limits (allow multiple base64 document and asset attachments up to 100MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", 100 * 1024 * 1024))  # 100MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_UPLOAD_MAX_MEMORY_SIZE", 100 * 1024 * 1024))  # 100MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get("DATA_UPLOAD_MAX_NUMBER_FIELDS", 5000))

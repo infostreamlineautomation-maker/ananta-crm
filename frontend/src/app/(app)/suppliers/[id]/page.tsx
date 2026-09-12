@@ -33,7 +33,8 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { RowActionButton } from "@/components/ui/PageHeader";
 import { ProductModal } from "@/components/products/ProductModal";
-import { SupplierForm } from "../page";
+import { SupplierForm, SUPPLIER_RATING_TONE } from "../page";
+import clsx from "clsx";
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -116,7 +117,24 @@ export default function SupplierDetailPage() {
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">{supplier.supplier_name}</h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-extrabold text-ink">{supplier.supplier_name}</h1>
+            <span
+              className={clsx(
+                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black border shadow-xs",
+                (supplier.rating || "B") === "A"
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                  : (supplier.rating || "B") === "B"
+                  ? "bg-sky-100 text-sky-800 border-sky-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300"
+              )}
+            >
+              <span>{SUPPLIER_RATING_TONE[supplier.rating || "B"]?.label || `Grade ${supplier.rating}`}</span>
+              <span className="text-[10.5px] font-semibold opacity-80">
+                · {SUPPLIER_RATING_TONE[supplier.rating || "B"]?.description || ""}
+              </span>
+            </span>
+          </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-muted">
             {supplier.email && (
               <span className="flex items-center gap-1.5">
@@ -183,6 +201,7 @@ export default function SupplierDetailPage() {
 
 function OverviewTab({ supplier }: { supplier: Supplier }) {
   const rows: [string, string][] = [
+    ["ABC Rating", `Grade ${supplier.rating || "B"} — ${(supplier.rating || "B") === "A" ? "Top / Best Tier" : (supplier.rating || "B") === "B" ? "Standard Tier" : "Low Priority / Backup"}`],
     ["Company Name", supplier.company_name || supplier.owner_name_contact || "—"],
     ["Source / Origin", supplier.source || "—"],
     ["Address", supplier.address || "—"],

@@ -273,11 +273,24 @@ export interface QuotationSummary {
   client: number | null;
   client_name: string | null;
   company_name?: string | null;
+  client_address?: string | null;
   project: number | null;
+  project_name?: string | null;
+  to_name?: string | null;
+  to_address?: string | null;
   subject: string;
+  intro_text?: string;
+  notes?: string;
+  footer_content?: string;
   status: QuotationStatus;
   currency_code: string;
   subtotal: string;
+  col_qty_label?: string;
+  col_rate_label?: string;
+  columns_config?: QuotationColumn[];
+  items?: QuotationItemDetail[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface CostingItemDetail {
@@ -287,6 +300,15 @@ export interface CostingItemDetail {
   client_rate: string;
   profit?: string;
   extra_data: Record<string, string>;
+}
+
+export interface CostingFile {
+  id?: number;
+  file?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  uploaded_at?: string;
+  file_url?: string | null;
 }
 
 export interface CostingDetail {
@@ -300,6 +322,9 @@ export interface CostingDetail {
   product_display: string | null;
   client: number | null;
   client_display: string | null;
+  file?: string | null;
+  file_name?: string | null;
+  files?: CostingFile[];
   description: string;
   columns_config: QuotationColumn[];
   items: CostingItemDetail[];
@@ -326,6 +351,10 @@ export interface OrderSummary {
   supplier: number | null;
   supplier_name: string | null;
   delivery_time?: string;
+  description?: string;
+  subtotal?: string;
+  tax_percent?: string;
+  tax_amount?: string;
   grand_total: string;
   currency_code?: string;
   delivery_status: "pending" | "in_process" | "ready" | "delivered";
@@ -333,6 +362,8 @@ export interface OrderSummary {
   paid_amount?: string;
   due_amount?: string;
   images?: OrderImage[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProjectSummary {
@@ -452,6 +483,8 @@ export interface Company {
   id: number;
   company_name: string;
   contact_name: string;
+  gstin: string;
+  msin_number: string;
   vat_id: string;
   reg_no: string;
   contact_email: string;
@@ -557,9 +590,12 @@ export interface TimelineEvent {
   source: "activity" | "communication";
 }
 
+export type SupplierRating = "A" | "B" | "C";
+
 export interface Supplier {
   id: number;
   supplier_name: string;
+  rating?: SupplierRating;
   company_name?: string;
   owner_name_contact?: string;
   contact: string;

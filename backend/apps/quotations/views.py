@@ -185,6 +185,61 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
         events.sort(key=lambda x: x["created_at"], reverse=True)
         return Response(events)
 
+    @action(detail=True, methods=["post"])
+    def copy(self, request, pk=None):
+        """Clone an existing quotation into a fresh draft."""
+        source = self.get_object()
+        copy_date = request.data.get("date") or request.data.get("quotation_date") or str(source.quotation_date)
+
+        copied_subject = f"{source.subject} (Copy)".strip() if source.subject else "(Copy)"
+
+        new_quotation = Quotation.objects.create(
+            organization=source.organization,
+            quotation_no=next_number(source.organization, getattr(source.organization, "quotation_prefix", "Q-"), doc_type="quotation"),
+            quotation_date=copy_date,
+            client=source.client,
+            project=source.project,
+            to_name=source.to_name,
+            to_address=source.to_address,
+            subject=copied_subject,
+            intro_text=source.intro_text,
+            notes=source.notes,
+            footer_content=source.footer_content,
+            col_qty_label=source.col_qty_label,
+            col_rate_label=source.col_rate_label,
+            columns_config=source.columns_config or [],
+            currency_code=source.currency_code,
+            exchange_rate=source.exchange_rate,
+            base_currency_code=source.base_currency_code,
+            status=Quotation.DRAFT,
+            created_by=request.user,
+        )
+
+        for i, item in enumerate(source.items.all()):
+            QuotationItem.objects.create(
+                quotation=new_quotation,
+                description=item.description,
+                qty=item.qty,
+                rate=item.rate,
+                image=item.image,
+                extra_data=item.extra_data or {},
+                sort_order=i,
+            )
+
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=request.user,
+                module="quotations",
+                object_id=str(new_quotation.id),
+                action="created",
+                details=f"Quotation {new_quotation.quotation_no} cloned from {source.quotation_no}",
+            )
+        except Exception:
+            pass
+
+        return Response(QuotationSerializer(new_quotation).data, status=201)
+
     @action(detail=True, methods=["post"], url_path="create-order")
     def create_order(self, request, pk=None):
         """"Create Order from this Quotation": copies client + line items into
@@ -294,6 +349,65 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
                 pass
 
         return Response(OrderSerializer(order).data, status=201)
+
+    @action(detail=True, methods=["post"])
+    def copy(self, request, pk=None):
+        """Clone an existing quotation into a fresh draft — creating a new quotation
+        with the next quotation number, preserving client, project, line items,
+        images, specifications, and tagging the subject with (Copy)."""
+        source = self.get_object()
+        organization = source.organization
+
+        copied_subject = f"{source.subject} (Copy)".strip() if source.subject else "(Copy)"
+        import datetime
+        from apps.quotations.models import QuotationItem
+
+        new_quote = Quotation.objects.create(
+            organization=organization,
+            quotation_no=next_number(organization, organization.quotation_prefix, doc_type="quotation"),
+            quotation_date=datetime.date.today(),
+            client=source.client,
+            project=source.project,
+            to_name=source.to_name,
+            to_address=source.to_address,
+            subject=copied_subject,
+            intro_text=source.intro_text,
+            notes=source.notes,
+            footer_content=source.footer_content,
+            col_qty_label=source.col_qty_label,
+            col_rate_label=source.col_rate_label,
+            columns_config=source.columns_config or [],
+            currency_code=source.currency_code,
+            exchange_rate=source.exchange_rate,
+            base_currency_code=source.base_currency_code,
+            status=Quotation.DRAFT,
+            created_by=request.user,
+        )
+
+        for i, item in enumerate(source.items.all()):
+            QuotationItem.objects.create(
+                quotation=new_quote,
+                description=item.description,
+                qty=item.qty,
+                rate=item.rate,
+                image=item.image,
+                extra_data=item.extra_data or {},
+                sort_order=i,
+            )
+
+        from apps.core.models import ActivityLog
+        try:
+            ActivityLog.objects.create(
+                user=request.user,
+                module="quotations",
+                object_id=str(new_quote.id),
+                action="created",
+                details=f"Quotation {new_quote.quotation_no} cloned from {source.quotation_no}",
+            )
+        except Exception:
+            pass
+
+        return Response(QuotationSerializer(new_quote).data, status=201)
 
     @action(detail=True, methods=["post"], url_path="send-notification")
     def send_notification(self, request, pk=None):

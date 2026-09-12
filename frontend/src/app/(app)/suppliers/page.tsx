@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Check, FileText, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Copy, Check, FileText, Pencil, Plus, Trash2, X, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
@@ -22,14 +22,37 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
+import { ExportColumn } from "@/lib/export-utils";
+import { formatDate, mediaUrl } from "@/lib/format";
 import { ProductModal } from "@/components/products/ProductModal";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import clsx from "clsx";
+
+export const SUPPLIER_RATING_TONE: Record<string, { badge: string; label: string; description: string }> = {
+  A: {
+    badge: "bg-emerald-100 text-emerald-800 border-emerald-300 ring-emerald-500/20",
+    label: "Grade A",
+    description: "Top / Best Supplier",
+  },
+  B: {
+    badge: "bg-sky-100 text-sky-800 border-sky-300 ring-sky-500/20",
+    label: "Grade B",
+    description: "Standard Supplier",
+  },
+  C: {
+    badge: "bg-amber-100 text-amber-800 border-amber-300 ring-amber-500/20",
+    label: "Grade C",
+    description: "Low Priority Supplier",
+  },
+};
 
 const TH_CELL = "px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-ink-faint whitespace-nowrap";
 const TD_CELL = "px-3 py-2.5 text-[12.5px] text-ink align-middle";
 
 const SUPPLIERS_PAGE_COLUMNS: ColumnDef[] = [
+  { key: "select", label: "Select", required: true },
   { key: "sr", label: "SR", required: true },
+  { key: "rating", label: "Rating (ABC)" },
   { key: "supplier_name", label: "Supplier Name", required: true },
   { key: "source", label: "Source / Origin" },
   { key: "products", label: "Products" },
@@ -40,6 +63,8 @@ const SUPPLIERS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "address", label: "Office Address" },
   { key: "remark", label: "Internal Notes" },
   { key: "docs", label: "Docs" },
+  { key: "created_at", label: "Created Date", defaultVisible: false },
+  { key: "updated_at", label: "Updated Date", defaultVisible: false },
   { key: "actions", label: "Action", required: true },
 ];
 
@@ -54,6 +79,16 @@ export default function SuppliersPage() {
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
+      {
+        key: "rating",
+        label: "ABC Rating",
+        type: "select",
+        options: [
+          { value: "A", label: "Grade A (Top / Best)", dotColor: "#10b981" },
+          { value: "B", label: "Grade B (Standard)", dotColor: "#0284c7" },
+          { value: "C", label: "Grade C (Low Priority)", dotColor: "#f59e0b" },
+        ],
+      },
       {
         key: "supplier_name",
         label: "Supplier Name",
@@ -144,10 +179,89 @@ export default function SuppliersPage() {
 
   const [editing, setEditing] = useState<Supplier | "new" | null>(null);
   const [deleting, setDeleting] = useState<Supplier | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const canAdd = can("suppliers", "add");
   const canEdit = can("suppliers", "edit");
   const canDelete = can("suppliers", "delete");
+
+  const toggleSelectAll = () => {
+    if (!data?.results) return;
+    if (selected.size === data.results.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(data.results.map((s) => s.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selected.size} selected supplier(s)?`)) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map((id) => apiFetch(`/api/suppliers/${id}/`, { method: "DELETE" }))
+      );
+      toast.success(`${selected.size} supplier(s) deleted successfully`);
+      setSelected(new Set());
+      reload();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete selected suppliers");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const supplierExportColumns: ExportColumn<Supplier>[] = useMemo(() => {
+    const base: ExportColumn<Supplier>[] = [
+      { key: "supplier_name", header: "Supplier Name", accessor: (s) => s.supplier_name, category: "Basic Information", defaultSelected: true },
+      { key: "rating", header: "Rating (ABC)", accessor: (s) => s.rating ? `Grade ${s.rating}` : "Grade B", category: "Basic Information", defaultSelected: true },
+      { key: "company_name", header: "Company Name", accessor: (s) => s.company_name || s.owner_name_contact || "", category: "Basic Information", defaultSelected: true },
+      { key: "source", header: "Source / Origin", accessor: (s) => s.source || "", category: "Basic Information", defaultSelected: true },
+      { key: "contact", header: "Primary Contact Number", accessor: (s) => s.contact || "", category: "Contact Details", defaultSelected: true },
+      { key: "additional_contacts", header: "Additional Contacts", accessor: (s) => s.contacts?.map((c) => `${c.contact_name} (${c.contact_number}${c.designation ? ` - ${c.designation}` : ""})`).join("; ") || "", category: "Contact Details" },
+      { key: "email", header: "Email Address", accessor: (s) => s.email || "", category: "Contact Details", defaultSelected: true },
+      { key: "website", header: "Website", accessor: (s) => s.website || "", category: "Contact Details" },
+      { key: "address", header: "Office Address", accessor: (s) => s.address || "", category: "Contact Details", defaultSelected: true },
+      { key: "products", header: "Products List", accessor: (s) => s.supplier_products?.map((p) => p.product_name).join(", ") || "", category: "Products & Materials", defaultSelected: true },
+      { key: "product_details", header: "Product Details / Notes", accessor: (s) => s.product_details || "", category: "Products & Materials" },
+      { key: "quotation_files", header: "Quotation Files (URLs)", accessor: (s) => s.files?.filter((f) => f.file_type === "quotation").map((f) => mediaUrl(f.file)).join(", ") || "", category: "Files & Documents" },
+      { key: "rate_card_files", header: "Rate Card Files (URLs)", accessor: (s) => s.files?.filter((f) => f.file_type === "rate_card").map((f) => mediaUrl(f.file)).join(", ") || "", category: "Files & Documents" },
+      { key: "other_docs", header: "Brochures & Other Documents", accessor: (s) => s.files?.filter((f) => f.file_type !== "quotation" && f.file_type !== "rate_card").map((f) => mediaUrl(f.file)).join(", ") || "", category: "Files & Documents" },
+      { key: "all_files", header: "All Attached Files (URLs)", accessor: (s) => s.files?.map((f) => `${f.file_type.toUpperCase()}: ${mediaUrl(f.file)}`).join("\n") || "", category: "Files & Documents" },
+      { key: "remark", header: "Internal Notes / Remarks", accessor: (s) => s.remark || "", category: "Internal Notes", defaultSelected: true },
+      { key: "created_at", header: "Created Date", accessor: (s) => formatDate(s.created_at), category: "System Dates" },
+      { key: "updated_at", header: "Last Updated", accessor: (s) => formatDate(s.updated_at), category: "System Dates" },
+    ];
+
+    if (customFields && customFields.length > 0) {
+      customFields.forEach((cf: CustomFieldDefinition) => {
+        base.push({
+          key: `custom_${cf.field_key}`,
+          header: cf.label,
+          accessor: (s) => {
+            const val = s.extra_data?.[cf.field_key];
+            if (val === undefined || val === null) return "";
+            if (typeof val === "boolean") return val ? "Yes" : "No";
+            return String(val);
+          },
+          category: "Custom Fields",
+        });
+      });
+    }
+
+    return base;
+  }, [customFields]);
 
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
@@ -194,31 +308,84 @@ export default function SuppliersPage() {
           <div className="flex items-center gap-2">
             <ExportDropdown
               data={data?.results || []}
+              selectedIds={selected}
               filename="suppliers_export"
               title="Suppliers Directory"
-              columns={[
-                { header: "Supplier Name", accessor: (s) => s.supplier_name },
-                { header: "Company Name", accessor: (s) => s.company_name || s.owner_name_contact || "" },
-                { header: "Source / Origin", accessor: (s) => s.source || "" },
-                { header: "Products", accessor: (s) => s.supplier_products?.map((p) => p.product_name).join(", ") || "" },
-                { header: "Contact Number", accessor: (s) => s.contact || "" },
-                { header: "Email", accessor: (s) => s.email || "" },
-                { header: "Website", accessor: (s) => s.website || "" },
-                { header: "Office Address", accessor: (s) => s.address || "" },
-                { header: "Internal Notes", accessor: (s) => s.remark || "" },
-              ]}
+              columns={supplierExportColumns}
             />
             <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
           </div>
         }
       />
 
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-900 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <span>{selected.size} supplier(s) selected</span>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-primary-600 hover:text-primary-800 underline ml-2"
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <ExportDropdown
+              data={data?.results || []}
+              selectedIds={selected}
+              filename="suppliers_export"
+              title="Suppliers Directory"
+              columns={supplierExportColumns}
+            />
+            {canDelete && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={bulkDelete}
+                loading={bulkDeleting}
+                className="h-8"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Delete Selected ({selected.size})
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <Card className="overflow-hidden">
         <div className="w-full overflow-x-auto">
           <table className="w-full min-w-[1100px] text-[12.5px]">
             <thead>
               <tr className="border-b border-border text-left">
+                {cols.has("select") && (
+                  <th className="w-10 px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                    />
+                  </th>
+                )}
                 {cols.has("sr") && <th className={`${TH_CELL} w-10 min-w-[40px] text-center px-1`}>SR</th>}
+                {cols.has("rating") && (
+                  <th className={`${TH_CELL} w-16 min-w-[65px] text-center px-1`}>
+                    <div className="inline-flex items-center justify-center gap-1">
+                      <span>Rating</span>
+                      {getColFilter("rating") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("rating")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
                 {cols.has("supplier_name") && (
                   <th className={`${TH_CELL} min-w-[160px]`}>
                     <div className="inline-flex items-center gap-1">
@@ -384,6 +551,8 @@ export default function SuppliersPage() {
                     </th>
                   );
                 })}
+                {cols.has("created_at") && <th className={`${TH_CELL} min-w-[120px]`}>Created Date</th>}
+                {cols.has("updated_at") && <th className={`${TH_CELL} min-w-[120px]`}>Updated Date</th>}
                 {cols.has("actions") && <th className={`${TH_CELL} w-16 min-w-[60px] text-right px-2`}></th>}
               </tr>
             </thead>
@@ -396,7 +565,34 @@ export default function SuppliersPage() {
 
                 return (
                   <tr key={s.id} className={TR}>
+                    {cols.has("select") && (
+                      <td className="w-10 px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(s.id)}
+                          onChange={() => toggleSelectOne(s.id)}
+                          className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                        />
+                      </td>
+                    )}
                     {cols.has("sr") && <td className={`${TD_CELL} text-center font-medium text-ink-muted px-1`}>{srNo}</td>}
+                    {cols.has("rating") && (
+                      <td className={`${TD_CELL} text-center px-1`}>
+                        <span
+                          className={clsx(
+                            "inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-black shadow-xs",
+                            (s.rating || "B") === "A"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : (s.rating || "B") === "B"
+                              ? "bg-sky-100 text-sky-800 border border-sky-300"
+                              : "bg-amber-100 text-amber-800 border border-amber-300"
+                          )}
+                          title={`${SUPPLIER_RATING_TONE[s.rating || "B"]?.label || `Grade ${s.rating}`} — ${SUPPLIER_RATING_TONE[s.rating || "B"]?.description || ""}`}
+                        >
+                          {s.rating || "B"}
+                        </span>
+                      </td>
+                    )}
                     {cols.has("supplier_name") && (
                       <td className={TD_CELL}>
                         <Link
@@ -518,6 +714,8 @@ export default function SuppliersPage() {
                         </td>
                       ) : null
                     )}
+                    {cols.has("created_at") && <td className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.created_at)}</td>}
+                    {cols.has("updated_at") && <td className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.updated_at)}</td>}
                     {cols.has("actions") && (
                       <td className={`${TD_CELL} text-right px-2`}>
                         <div className="flex justify-end items-center gap-1">
@@ -592,6 +790,7 @@ export function SupplierForm({
   const { can } = useAuth();
   const [form, setForm] = useState({
     supplier_name: supplier?.supplier_name ?? "",
+    rating: (supplier?.rating as "A" | "B" | "C") ?? "B",
     company_name: supplier?.company_name ?? supplier?.owner_name_contact ?? "",
     contact: supplier?.contact ?? "",
     source: supplier?.source ?? "",
@@ -741,6 +940,44 @@ export function SupplierForm({
         <Field label="Supplier Name" required>
           <Input value={form.supplier_name} onChange={(e) => set("supplier_name", e.target.value)} required autoFocus />
         </Field>
+
+        <Field label="Supplier Rating (ABC Classification)" hint="Grade this supplier to easily recognize top-tier vendors">
+          <div className="grid grid-cols-3 gap-2">
+            {(["A", "B", "C"] as const).map((r) => {
+              const isSelected = form.rating === r;
+              const config = SUPPLIER_RATING_TONE[r];
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => set("rating", r)}
+                  className={clsx(
+                    "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer",
+                    isSelected
+                      ? r === "A"
+                        ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-bold shadow-xs"
+                        : r === "B"
+                        ? "bg-sky-50 border-sky-500 ring-2 ring-sky-500/20 text-sky-950 font-bold shadow-xs"
+                        : "bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-950 font-bold shadow-xs"
+                      : "bg-white border-border text-ink-muted hover:bg-surface-hover hover:text-ink"
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black mb-1",
+                      r === "A" ? "bg-emerald-600 text-white" : r === "B" ? "bg-sky-600 text-white" : "bg-amber-600 text-white"
+                    )}
+                  >
+                    {r}
+                  </span>
+                  <span className="text-[12px] font-bold">{config.label}</span>
+                  <span className="text-[10px] text-ink-muted mt-0.5">{config.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
         <Field label="Company Name">
           <Input value={form.company_name} onChange={(e) => set("company_name", e.target.value)} placeholder="e.g. Acme Corp" />
         </Field>

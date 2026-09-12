@@ -294,11 +294,6 @@ export default function QuotationPrintPage() {
                       <th className="border-r border-black w-14 px-2 py-2 text-center">
                         SR. NO.
                       </th>
-                      {hasAnyItemImage && (
-                        <th className="border-r border-black w-16 px-2 py-2 text-center">
-                          IMAGE
-                        </th>
-                      )}
                       <th className="border-r border-black px-3 py-2 text-left">
                         DESCRIPTION
                       </th>
@@ -310,9 +305,14 @@ export default function QuotationPrintPage() {
                       <th className="border-r border-black w-20 px-2 py-2 text-center">
                         {quotation.col_qty_label?.toUpperCase() || "QTY."}
                       </th>
-                      <th className="w-36 px-3 py-2 text-center">
+                      <th className={`${hasAnyItemImage ? "border-r border-black" : ""} w-36 px-3 py-2 text-center`}>
                         {quotation.col_rate_label?.toUpperCase() || "RATE (PER PIECE)"}
                       </th>
+                      {hasAnyItemImage && (
+                        <th className="w-28 px-2 py-2 text-center">
+                          REFERENCE
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -321,8 +321,22 @@ export default function QuotationPrintPage() {
                         <td className="border-r border-black px-2 py-2.5 text-center font-medium">
                           {idx + 1}
                         </td>
+                        <td className="border-r border-black px-3 py-2.5 text-left font-medium">
+                          {it.description}
+                        </td>
+                        {columns.map((col) => (
+                          <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">
+                            {it.extra_data?.[col.key] ?? "—"}
+                          </td>
+                        ))}
+                        <td className="border-r border-black px-2 py-2.5 text-center font-medium">
+                          {it.qty}
+                        </td>
+                        <td className={`${hasAnyItemImage ? "border-r border-black" : ""} px-3 py-2.5 text-center font-medium`}>
+                          {it.rate}
+                        </td>
                         {hasAnyItemImage && (
-                          <td className="border-r border-black px-1.5 py-1.5 text-center align-middle">
+                          <td className="px-2 py-2 text-center align-middle">
                             {it.image ? (
                               <button
                                 type="button"
@@ -339,38 +353,24 @@ export default function QuotationPrintPage() {
                                   setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
                                   setLightboxOpen(true);
                                 }}
-                                className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-300 bg-neutral-50 p-0.5 hover:border-black transition-all"
+                                className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-400 bg-white p-1 hover:border-black transition-all shadow-xs"
                                 title="Click to view full image"
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={mediaUrl(it.image) || it.image}
-                                  alt={it.description || "Item image"}
-                                  className="h-10 w-10 object-cover rounded"
+                                  alt={it.description || "Reference image"}
+                                  className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded mx-auto"
                                 />
                                 <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
-                                  <ZoomIn className="h-3.5 w-3.5" />
+                                  <ZoomIn className="h-4 w-4" />
                                 </span>
                               </button>
                             ) : (
-                              <span className="text-neutral-400 text-xs">—</span>
+                              <span className="text-black font-semibold text-sm">—</span>
                             )}
                           </td>
                         )}
-                        <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                          {it.description}
-                        </td>
-                        {columns.map((col) => (
-                          <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">
-                            {it.extra_data?.[col.key] ?? "—"}
-                          </td>
-                        ))}
-                        <td className="border-r border-black px-2 py-2.5 text-center font-medium">
-                          {it.qty}
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-medium">
-                          {it.rate}
-                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Search, Trash2, Image as ImageIcon } from "lucide-react";
+import { Copy, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Search, Trash2, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, ClientGroup, Company, Country, OrderImage, OrderSummary } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { Client, ClientGroup, Company, Country, OrderDetail, OrderImage, OrderSummary } from "@/lib/types";
+import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
@@ -25,18 +25,67 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { ExportColumn } from "@/lib/export-utils";
+
+const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
+  { header: "Project No", accessor: (o: any) => o.order_no, category: "Basic Info" },
+  { header: "Project Name / Title", accessor: (o: any) => o.project_title || o.project_name || "", category: "Basic Info" },
+  { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info" },
+  { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor" },
+  { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor" },
+  { header: "Supplier / Vendor", accessor: (o: any) => o.supplier_name || "", category: "Client & Vendor" },
+  { header: "Client Phone", accessor: (o: any) => o.client_phone || "", category: "Client & Vendor" },
+  { header: "Client Email", accessor: (o: any) => o.client_email || "", category: "Client & Vendor" },
+  { header: "Currency", accessor: (o: any) => o.currency_code || "INR", category: "Financials & Tax" },
+  { header: "Total (Without GST)", accessor: (o: any) => o.subtotal || o.grand_total, category: "Financials & Tax" },
+  { header: "GST %", accessor: (o: any) => o.tax_percent ?? "0", category: "Financials & Tax" },
+  { header: "GST Tax Amount", accessor: (o: any) => o.tax_amount || "0.00", category: "Financials & Tax" },
+  { header: "Total Bill (With GST)", accessor: (o: any) => o.grand_total, category: "Financials & Tax" },
+  { header: "Advance / Paid Amount", accessor: (o: any) => o.paid_amount || "0.00", category: "Financials & Tax" },
+  { header: "Balance Due", accessor: (o: any) => o.due_amount || "0.00", category: "Financials & Tax" },
+  { header: "Delivery Status", accessor: (o: any) => labelize(o.delivery_status), category: "Workflow & Status" },
+  { header: "Payment Status", accessor: (o: any) => labelize(o.payment_status), category: "Workflow & Status" },
+  { header: "Delivery Deadline / Time", accessor: (o: any) => o.delivery_time || "", category: "Workflow & Status" },
+  {
+    header: "Line Items Summary",
+    accessor: (o: any) =>
+      o.items?.map((it: any, idx: number) => `${idx + 1}. ${it.product_name || "Item"}${it.description ? ` (${it.description})` : ""} - Qty: ${it.qty} @ ${it.rate}`).join(" | ") ||
+      o.items_preview ||
+      "",
+    category: "Line Items & Proofs",
+  },
+  {
+    header: "Proof / Artwork Images URLs",
+    accessor: (o: any) =>
+      o.images?.map((img: any) => mediaUrl(img.image)).filter(Boolean).join(", ") || "",
+    category: "Line Items & Proofs",
+  },
+  { header: "Remarks / Notes", accessor: (o: any) => o.remarks || "", category: "Workflow & Status" },
+  { header: "Created Date", accessor: (o: any) => o.created_at ? formatDate(o.created_at) : "", category: "System Dates" },
+];
 
 const ORDERS_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Checkbox", required: true },
   { key: "order_no", label: "Project No", required: true },
+  { key: "project_title", label: "Project Name / Title", defaultVisible: false },
   { key: "images", label: "Images" },
   { key: "date", label: "Date" },
   { key: "client_name", label: "Client" },
+  { key: "company_name", label: "Company", defaultVisible: false },
+  { key: "supplier_name", label: "Supplier / Vendor", defaultVisible: false },
+  { key: "delivery_time", label: "Delivery Deadline / Time", defaultVisible: false },
+  { key: "description", label: "Remarks / Notes", defaultVisible: false },
+  { key: "currency_code", label: "Currency", defaultVisible: false },
+  { key: "subtotal", label: "Total (Without GST)", defaultVisible: false },
+  { key: "tax_percent", label: "GST %", defaultVisible: false },
+  { key: "tax_amount", label: "GST Tax Amount", defaultVisible: false },
   { key: "grand_total", label: "Total Amount" },
   { key: "paid_amount", label: "Paid Amount" },
   { key: "due_amount", label: "Balance Due" },
   { key: "delivery_status", label: "Delivery Status" },
   { key: "payment_status", label: "Payment Status" },
+  { key: "created_at", label: "Created Date", defaultVisible: false },
+  { key: "updated_at", label: "Updated Date", defaultVisible: false },
   { key: "actions", label: "Actions", required: true },
 ];
 
@@ -46,8 +95,11 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [cols, setCols] = useState<Set<string>>(new Set(ORDERS_COLUMNS.map((c) => c.key)));
+  const [cols, setCols] = useState<Set<string>>(
+    new Set(["select", "order_no", "images", "date", "client_name", "grand_total", "paid_amount", "due_amount", "delivery_status", "payment_status", "actions"])
+  );
   const [deleting, setDeleting] = useState<OrderSummary | null>(null);
+  const [copyingId, setCopyingId] = useState<number | null>(null);
   const [notifyingOrder, setNotifyingOrder] = useState<OrderSummary | null>(null);
   const [activeLightboxImages, setActiveLightboxImages] = useState<OrderImage[] | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -59,6 +111,22 @@ export default function OrdersPage() {
 
   const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+
+  async function handleCopyOrder(orderId: number) {
+    setCopyingId(orderId);
+    try {
+      const copy = await apiFetch<OrderDetail>(`/api/orders/${orderId}/copy/`, {
+        method: "POST",
+        body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
+      });
+      toast.success(`Copied to ${copy.order_no}.`);
+      reload();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't duplicate this project.");
+    } finally {
+      setCopyingId(null);
+    }
+  }
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -182,7 +250,16 @@ export default function OrdersPage() {
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <ExportDropdown
+              data={data?.results || []}
+              selectedIds={selected}
+              filename="projects_export"
+              title="Projects Report"
+              columns={PROJECTS_EXPORT_COLUMNS}
+              buttonText="Export Selected"
+              variant="outline"
+            />
             <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -216,22 +293,10 @@ export default function OrdersPage() {
             <div className="flex items-center gap-2">
               <ExportDropdown
                 data={data?.results || []}
+                selectedIds={selected}
                 filename="projects_export"
                 title="Projects Report"
-                columns={[
-                  { header: "Project No", accessor: (o) => o.order_no },
-                  { header: "Project Name", accessor: (o) => o.project_title || "" },
-                  { header: "Date", accessor: (o) => o.date },
-                  { header: "Client", accessor: (o) => o.company_name ? `${o.client_name} (${o.company_name})` : o.client_name },
-                  { header: "Company", accessor: (o) => o.company_name || "" },
-                  { header: "Supplier", accessor: (o) => o.supplier_name || "" },
-                  { header: "Currency", accessor: (o) => o.currency_code || "INR" },
-                  { header: "Total Amount", accessor: (o) => o.grand_total },
-                  { header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00" },
-                  { header: "Balance Due", accessor: (o) => o.due_amount || "0.00" },
-                  { header: "Delivery Status", accessor: (o) => o.delivery_status },
-                  { header: "Payment Status", accessor: (o) => o.payment_status },
-                ]}
+                columns={PROJECTS_EXPORT_COLUMNS}
               />
 
               <ColumnSelector columns={ORDERS_COLUMNS} visibleColumns={cols} onChange={setCols} />
@@ -344,6 +409,7 @@ export default function OrdersPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("project_title") && <th className={TH}>Project Name / Title</th>}
                 {cols.has("images") && <th className={TH}>Images</th>}
                 {cols.has("date") && (
                   <th className={TH}>
@@ -379,6 +445,14 @@ export default function OrdersPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("company_name") && <th className={TH}>Company</th>}
+                {cols.has("supplier_name") && <th className={TH}>Supplier / Vendor</th>}
+                {cols.has("delivery_time") && <th className={TH}>Delivery Deadline</th>}
+                {cols.has("description") && <th className={TH}>Remarks / Notes</th>}
+                {cols.has("currency_code") && <th className={TH}>Currency</th>}
+                {cols.has("subtotal") && <th className={`${TH} text-right`}>Total (Without GST)</th>}
+                {cols.has("tax_percent") && <th className={`${TH} text-right`}>GST %</th>}
+                {cols.has("tax_amount") && <th className={`${TH} text-right`}>GST Amount</th>}
                 {cols.has("grand_total") && (
                   <th className={`${TH} text-right`}>
                     <div className="inline-flex items-center justify-end">
@@ -432,6 +506,8 @@ export default function OrdersPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("created_at") && <th className={TH}>Created Date</th>}
+                {cols.has("updated_at") && <th className={TH}>Updated Date</th>}
                 {cols.has("actions") && <th className={`${TH} text-right`}>Actions</th>}
               </tr>
             </thead>
@@ -459,36 +535,44 @@ export default function OrdersPage() {
                       <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
                         {o.order_no}
                       </Link>
-                      {o.project_title && (
+                      {!cols.has("project_title") && o.project_title && (
                         <div className="text-[12px] font-medium text-ink-muted truncate max-w-[180px]" title={o.project_title}>
                           {o.project_title}
                         </div>
                       )}
                     </td>
                   )}
+                  {cols.has("project_title") && (
+                    <td className={`${TD} font-medium text-ink max-w-[200px] truncate`} title={o.project_title || ""}>
+                      {o.project_title || "—"}
+                    </td>
+                  )}
                   {cols.has("images") && (
                     <td className={TD}>
                       {o.images && o.images.length > 0 ? (
-                        <div
+                        <button
+                          type="button"
                           onClick={() => setActiveLightboxImages(o.images || [])}
-                          className="flex items-center -space-x-2 overflow-hidden hover:opacity-80 transition-opacity cursor-pointer w-fit"
-                          title={`View ${o.images.length} image${o.images.length === 1 ? "" : "s"}`}
+                          className="group relative flex items-center justify-center rounded-lg border border-border/90 bg-white p-1 shadow-xs transition-all hover:border-primary-500 hover:shadow-md cursor-pointer focus:outline-hidden"
+                          title={`Click to view ${o.images.length} image${o.images.length === 1 ? "" : "s"} in high-res gallery`}
                         >
-                          {o.images.slice(0, 3).map((img, idx) => (
-                            // eslint-disable-next-line @next/next/no-img-element
+                          <div className="relative h-18 w-20 sm:h-20 sm:w-24 overflow-hidden rounded-md bg-surface-sunken/60 flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              key={img.id || idx}
-                              src={img.image}
-                              alt="thumb"
-                              className="inline-block h-8 w-8 rounded-md border-2 border-white bg-surface-sunken object-cover shadow-xs"
+                              src={o.images[0].image}
+                              alt={o.images[0].caption || "Proof preview"}
+                              className="h-full w-full object-contain p-0.5 transition-transform duration-200 group-hover:scale-105"
                             />
-                          ))}
-                          {o.images.length > 3 && (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-md border-2 border-white bg-slate-700 text-[10px] font-bold text-white shadow-xs">
-                              +{o.images.length - 3}
+                            <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10 flex items-center justify-center">
+                              <ImageIcon className="h-5 w-5 text-white opacity-0 drop-shadow-md transition-opacity group-hover:opacity-100" />
+                            </div>
+                          </div>
+                          {o.images.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full bg-slate-900/90 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-white shadow-xs ring-1.5 ring-white">
+                              +{o.images.length - 1}
                             </span>
                           )}
-                        </div>
+                        </button>
                       ) : (
                         <span className="text-ink-faint text-xs">—</span>
                       )}
@@ -499,7 +583,7 @@ export default function OrdersPage() {
                     <td className={TD}>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-semibold text-ink">{o.client_name}</span>
-                        {o.company_name && (
+                        {!cols.has("company_name") && o.company_name && (
                           <span className="text-[12px] font-medium text-ink-muted">
                             ({o.company_name})
                           </span>
@@ -507,6 +591,14 @@ export default function OrdersPage() {
                       </div>
                     </td>
                   )}
+                  {cols.has("company_name") && <td className={`${TD} text-ink-muted`}>{o.company_name || "—"}</td>}
+                  {cols.has("supplier_name") && <td className={`${TD} text-ink-muted`}>{o.supplier_name || "—"}</td>}
+                  {cols.has("delivery_time") && <td className={`${TD} text-ink-muted max-w-[160px] truncate`} title={o.delivery_time || ""}>{o.delivery_time || "—"}</td>}
+                  {cols.has("description") && <td className={`${TD} text-ink-muted max-w-[180px] truncate`} title={o.description || ""}>{o.description || "—"}</td>}
+                  {cols.has("currency_code") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{o.currency_code || "INR"}</td>}
+                  {cols.has("subtotal") && <td className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.subtotal || o.grand_total, o.currency_code)}</td>}
+                  {cols.has("tax_percent") && <td className={`${TD} tnum text-right text-ink-muted`}>{o.tax_percent ?? "0"}%</td>}
+                  {cols.has("tax_amount") && <td className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.tax_amount || "0.00", o.currency_code)}</td>}
                   {cols.has("grand_total") && (
                     <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
                   )}
@@ -537,12 +629,23 @@ export default function OrdersPage() {
                       />
                     </td>
                   )}
+                  {cols.has("created_at") && <td className={`${TD} text-xs text-ink-muted`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>}
+                  {cols.has("updated_at") && <td className={`${TD} text-xs text-ink-muted`}>{o.updated_at ? formatDate(o.updated_at) : "—"}</td>}
                   {cols.has("actions") && (
                     <td className={`${TD} text-right`}>
                       <div className="flex justify-end gap-1">
                         <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingOrder(o)}>
                           <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
                         </RowActionButton>
+                        {canAdd && (
+                          <RowActionButton
+                            label="Duplicate / Copy Project"
+                            onClick={() => handleCopyOrder(o.id)}
+                            loading={copyingId === o.id}
+                          >
+                            <Copy className="h-3.5 w-3.5 text-slate-600" />
+                          </RowActionButton>
+                        )}
                         <Link href={`/orders/${o.id}/print`} target="_blank">
                           <RowActionButton label="Print Bill / PDF" onClick={() => {}}>
                             <Printer className="h-3.5 w-3.5 text-primary-600" />

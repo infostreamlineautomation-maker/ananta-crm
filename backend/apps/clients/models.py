@@ -7,6 +7,8 @@ class Company(AuditedModel, SoftDeleteModel):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="companies")
     company_name = models.CharField(max_length=200)
     contact_name = models.CharField(max_length=150, blank=True)
+    gstin = models.CharField(max_length=50, blank=True, verbose_name="GSTIN")
+    msin_number = models.CharField(max_length=50, blank=True, verbose_name="MSIN Number")
     vat_id = models.CharField(max_length=50, blank=True)
     reg_no = models.CharField(max_length=50, blank=True)
     contact_email = models.EmailField(blank=True)
@@ -27,6 +29,13 @@ class Company(AuditedModel, SoftDeleteModel):
     class Meta:
         ordering = ["company_name"]
         verbose_name_plural = "companies"
+
+    def save(self, *args, **kwargs):
+        if not self.gstin and self.vat_id:
+            self.gstin = self.vat_id
+        elif not self.vat_id and self.gstin:
+            self.vat_id = self.gstin
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.company_name

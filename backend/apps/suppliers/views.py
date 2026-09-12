@@ -27,7 +27,8 @@ class SupplierViewSet(SoftDeleteModuleViewSet):
     serializer_class = SupplierSerializer
     module_name = SUPPLIERS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
-    search_fields = ["supplier_name", "company_name", "contact", "email", "source", "product_details", "address", "remark"]
+    filterset_fields = ["rating"]
+    search_fields = ["supplier_name", "rating", "company_name", "contact", "email", "source", "product_details", "address", "remark"]
 
 
 class SupplierContactViewSet(ModuleViewSet):

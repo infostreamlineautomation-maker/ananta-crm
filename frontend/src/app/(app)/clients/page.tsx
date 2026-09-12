@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ClientGroup, ClientType, Company, Country, CustomFieldDefinition } from "@/lib/types";
+import { formatDate } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
 import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
@@ -35,13 +36,30 @@ const TYPE_TONE: Record<ClientType, string> = {
   C: "bg-surface-sunken text-ink-muted",
 };
 
+const CLIENTS_EXPORT_COLUMNS: ExportColumn<Client>[] = [
+  { header: "Client Name", accessor: (c) => c.client_name, category: "Basic Info" },
+  { header: "Client Type / Tier", accessor: (c) => `Tier ${c.client_type}`, category: "Basic Info" },
+  { header: "Company Name", accessor: (c) => c.company_name || "", category: "Basic Info" },
+  { header: "Phone Number", accessor: (c) => c.phone, category: "Contact Info" },
+  { header: "Email Address", accessor: (c) => c.email, category: "Contact Info" },
+  { header: "Address", accessor: (c) => c.address, category: "Contact Info" },
+  { header: "Country", accessor: (c) => c.country_name || "", category: "Contact Info" },
+  { header: "Currency Code", accessor: (c) => c.currency_code || "INR", category: "Financials" },
+  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
+];
+
 const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
+  { key: "select", label: "Checkbox", required: true },
   { key: "client_name", label: "Client Name", required: true },
   { key: "client_type", label: "Type" },
   { key: "company_name", label: "Company" },
   { key: "country_name", label: "Country" },
   { key: "phone", label: "Phone" },
   { key: "email", label: "Email" },
+  { key: "address", label: "Address" },
+  { key: "groups", label: "Groups" },
+  { key: "currency_code", label: "Currency" },
+  { key: "created_at", label: "Created Date" },
   { key: "actions", label: "Actions", required: true },
 ];
 
@@ -51,6 +69,8 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [cols, setCols] = useState<Set<string>>(new Set(CLIENTS_PAGE_COLUMNS.map((c) => c.key)));
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
@@ -155,6 +175,54 @@ export default function ClientsPage() {
 
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
+  const toggleSelectAll = () => {
+    if (!data?.results) return;
+    if (selected.size === data.results.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(data.results.map((c) => c.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  };
+
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selected.size} clients?`)) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map((id) => apiFetch(`/api/clients/${id}/`, { method: "DELETE" }))
+      );
+      toast.success(`Deleted ${selected.size} clients.`);
+      setSelected(new Set());
+      reload();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't delete some clients.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const fullExportColumns = useMemo(() => {
+    const base = [...CLIENTS_EXPORT_COLUMNS];
+    if (customFields && customFields.length > 0) {
+      customFields.forEach((f) => {
+        base.push({
+          header: f.label,
+          accessor: (c: Client) => String(c.extra_data?.[f.field_key] ?? ""),
+          category: "Custom Attributes",
+        });
+      });
+    }
+    return base;
+  }, [customFields]);
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -168,48 +236,62 @@ export default function ClientsPage() {
         }
       />
 
-      <FilterBar
-        search={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
-        searchPlaceholder="Search clients by name, email, phone..."
-        filters={filterColumns}
-        activeFilters={activeFilters}
-        onFilterChange={(k, v) => {
-          setFilter(k, v);
-          setPage(1);
-        }}
-        onReset={() => {
-          resetFilters();
-          setSearch("");
-          setPage(1);
-        }}
-        actions={
+      {selected.size > 0 ? (
+        <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
+          <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
               data={data?.results || []}
+              selectedIds={selected}
               filename="clients_export"
               title="Clients Directory"
-              columns={[
-                { header: "Client Name", accessor: (c) => c.client_name },
-                { header: "Type", accessor: (c) => c.client_type },
-                { header: "Company", accessor: (c) => c.company_name || "" },
-                { header: "Country", accessor: (c) => c.country_name || "" },
-                { header: "Phone", accessor: (c) => c.phone },
-                { header: "Email", accessor: (c) => c.email },
-                { header: "Address", accessor: (c) => c.address },
-                ...(customFields || []).map((f) => ({
-                  header: f.label,
-                  accessor: (c: Client) => String(c.extra_data?.[f.field_key] ?? ""),
-                })),
-              ]}
+              columns={fullExportColumns}
+              buttonText="Export Selected"
+              variant="outline"
             />
-            <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+            {canDelete && (
+              <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
+                Delete Selected
+              </Button>
+            )}
           </div>
-        }
-      />
+        </div>
+      ) : (
+        <FilterBar
+          search={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          searchPlaceholder="Search clients by name, email, phone..."
+          filters={filterColumns}
+          activeFilters={activeFilters}
+          onFilterChange={(k, v) => {
+            setFilter(k, v);
+            setPage(1);
+          }}
+          onReset={() => {
+            resetFilters();
+            setSearch("");
+            setPage(1);
+          }}
+          actions={
+            <div className="flex items-center gap-2">
+              <ExportDropdown
+                data={data?.results || []}
+                selectedIds={selected}
+                filename="clients_export"
+                title="Clients Directory"
+                columns={fullExportColumns}
+              />
+              <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+            </div>
+          }
+        />
+      )}
 
       {/* Client Group Filter Tabs */}
       <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 text-xs -mt-1">
@@ -287,6 +369,16 @@ export default function ClientsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
+                {cols.has("select") && (
+                  <th className="w-10 px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                    />
+                  </th>
+                )}
                 {cols.has("client_name") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
@@ -321,6 +413,7 @@ export default function ClientsPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("designation") && <th className={TH}>Designation</th>}
                 {cols.has("company_name") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
@@ -389,6 +482,10 @@ export default function ClientsPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("address") && <th className={TH}>Address</th>}
+                {cols.has("groups") && <th className={TH}>Groups</th>}
+                {cols.has("currency_code") && <th className={TH}>Currency</th>}
+                {cols.has("created_at") && <th className={TH}>Created Date</th>}
                 {customFields?.map((f) => {
                   const colKey = `extra_${f.field_key}`;
                   const filterKey = `custom__${f.field_key}`;
@@ -419,6 +516,16 @@ export default function ClientsPage() {
               <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No clients yet." />
               {data?.results.map((c) => (
                 <tr key={c.id} className={TR}>
+                  {cols.has("select") && (
+                    <td className="w-10 px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleSelectOne(c.id)}
+                        className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                      />
+                    </td>
+                  )}
                   {cols.has("client_name") && (
                     <td className={`${TD} font-semibold`}>
                       <Link href={`/clients/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
@@ -447,6 +554,30 @@ export default function ClientsPage() {
                   {cols.has("country_name") && <td className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>}
                   {cols.has("phone") && <td className={`${TD} text-ink-muted`}>{c.phone || "—"}</td>}
                   {cols.has("email") && <td className={`${TD} text-ink-muted`}>{c.email || "—"}</td>}
+                  {cols.has("address") && <td className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>}
+                  {cols.has("groups") && (
+                    <td className={TD}>
+                      {(() => {
+                        const matchedGroups = clientGroups.filter((g) => c.group_ids?.includes(g.id));
+                        if (matchedGroups.length === 0) return <span className="text-ink-muted">—</span>;
+                        return (
+                          <div className="flex flex-wrap gap-1 max-w-[180px]">
+                            {matchedGroups.map((grp) => (
+                              <span
+                                key={grp.id}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-ink border border-border bg-surface-sunken"
+                              >
+                                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: grp.color || "#881337" }} />
+                                {grp.name}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </td>
+                  )}
+                  {cols.has("currency_code") && <td className={`${TD} text-ink-muted font-mono font-medium`}>{c.currency_code || "INR"}</td>}
+                  {cols.has("created_at") && <td className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>}
                   {customFields?.map((f) =>
                     cols.has(`extra_${f.field_key}`) ? (
                       <td key={f.id} className={`${TD} text-ink-muted`}>

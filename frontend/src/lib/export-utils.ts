@@ -7,8 +7,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export interface ExportColumn<T> {
+  key?: string;
   header: string;
   accessor: (row: T) => string | number | boolean | null | undefined;
+  category?: string;
+  defaultSelected?: boolean;
 }
 
 export type ExportFormat = "excel" | "csv" | "pdf";

@@ -16,11 +16,28 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
+import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { formatDate } from "@/lib/format";
+
+const USERS_PAGE_COLUMNS: ColumnDef[] = [
+  { key: "avatar", label: "Avatar", defaultVisible: true },
+  { key: "username", label: "Username", required: true, defaultVisible: true },
+  { key: "full_name", label: "Full Name", defaultVisible: true },
+  { key: "email", label: "Email", defaultVisible: true },
+  { key: "phone", label: "Phone", defaultVisible: false },
+  { key: "role", label: "Role", defaultVisible: true },
+  { key: "status", label: "Status", defaultVisible: true },
+  { key: "date_joined", label: "Joined Date", defaultVisible: false },
+  { key: "actions", label: "Actions", required: true, defaultVisible: true },
+];
 
 export default function UsersPage() {
   const { can, user: currentUser } = useAuth();
   const toast = useToast();
   const [page, setPage] = useState(1);
+  const [cols, setCols] = useState<Set<string>>(
+    new Set(["avatar", "username", "full_name", "email", "role", "status", "actions"])
+  );
   const { data, loading, reload } = usePaginatedList<AppUser>(`/api/auth/users/?page=${page}`);
   const { items: roles } = useList<Role>("/api/auth/roles/?page_size=100");
 
@@ -37,11 +54,14 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus className="h-4 w-4" /> Add User
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            <ColumnSelector columns={USERS_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
+            {canAdd && (
+              <Button variant="primary" onClick={() => setEditing("new")}>
+                <Plus className="h-4 w-4" /> Add User
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -50,58 +70,70 @@ export default function UsersPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className={TH}></th>
-                <th className={TH}>Username</th>
-                <th className={TH}>Full Name</th>
-                <th className={TH}>Email</th>
-                <th className={TH}>Role</th>
-                <th className={TH}>Status</th>
-                <th className={TH}></th>
+                {cols.has("avatar") && <th className={TH}></th>}
+                {cols.has("username") && <th className={TH}>Username</th>}
+                {cols.has("full_name") && <th className={TH}>Full Name</th>}
+                {cols.has("email") && <th className={TH}>Email</th>}
+                {cols.has("phone") && <th className={TH}>Phone</th>}
+                {cols.has("role") && <th className={TH}>Role</th>}
+                {cols.has("status") && <th className={TH}>Status</th>}
+                {cols.has("date_joined") && <th className={TH}>Joined Date</th>}
+                {cols.has("actions") && <th className={TH}></th>}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={7} emptyLabel="No users yet." />
+              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No users yet." />
               {data?.results.map((u) => {
                 const initials = (u.first_name?.[0] || u.username[0] || "?").toUpperCase() + (u.last_name?.[0] || "").toUpperCase();
                 const isSelf = u.id === currentUser?.id;
                 return (
                   <tr key={u.id} className={TR}>
-                    <td className={TD}>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-600">{initials}</div>
-                    </td>
-                    <td className={`${TD} font-semibold`}>{u.username}</td>
-                    <td className={`${TD} text-ink-muted`}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}</td>
-                    <td className={`${TD} text-ink-muted`}>{u.email || "—"}</td>
-                    <td className={TD}>
-                      <span className={clsx("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", u.is_superuser ? "bg-primary-50 text-primary-600" : "bg-surface-sunken text-ink-muted")}>
-                        {u.role_name || "No role"}
-                      </span>
-                    </td>
-                    <td className={TD}>
-                      <span className={clsx("inline-flex items-center gap-1.5 text-xs font-semibold", u.is_active ? "text-success-700" : "text-ink-faint")}>
-                        <span className={clsx("h-1.5 w-1.5 rounded-full", u.is_active ? "bg-success-500" : "bg-ink-faint")} />
-                        {u.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className={`${TD} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        {canEdit && (
-                          <>
-                            <RowActionButton label="Edit" onClick={() => setEditing(u)}>
-                              <Pencil className="h-3.5 w-3.5" />
+                    {cols.has("avatar") && (
+                      <td className={TD}>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-600">{initials}</div>
+                      </td>
+                    )}
+                    {cols.has("username") && <td className={`${TD} font-semibold`}>{u.username}</td>}
+                    {cols.has("full_name") && <td className={`${TD} text-ink-muted`}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}</td>}
+                    {cols.has("email") && <td className={`${TD} text-ink-muted`}>{u.email || "—"}</td>}
+                    {cols.has("phone") && <td className={`${TD} text-ink-muted`}>{u.phone || "—"}</td>}
+                    {cols.has("role") && (
+                      <td className={TD}>
+                        <span className={clsx("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", u.is_superuser ? "bg-primary-50 text-primary-600" : "bg-surface-sunken text-ink-muted")}>
+                          {u.role_name || "No role"}
+                        </span>
+                      </td>
+                    )}
+                    {cols.has("status") && (
+                      <td className={TD}>
+                        <span className={clsx("inline-flex items-center gap-1.5 text-xs font-semibold", u.is_active ? "text-success-700" : "text-ink-faint")}>
+                          <span className={clsx("h-1.5 w-1.5 rounded-full", u.is_active ? "bg-success-500" : "bg-ink-faint")} />
+                          {u.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    )}
+                    {cols.has("date_joined") && <td className={`${TD} text-xs text-ink-muted`}>{u.date_joined ? formatDate(u.date_joined) : "—"}</td>}
+                    {cols.has("actions") && (
+                      <td className={`${TD} text-right`}>
+                        <div className="flex justify-end gap-1">
+                          {canEdit && (
+                            <>
+                              <RowActionButton label="Edit" onClick={() => setEditing(u)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </RowActionButton>
+                              <RowActionButton label="Reset Password" onClick={() => setResetting(u)}>
+                                <KeyRound className="h-3.5 w-3.5" />
+                              </RowActionButton>
+                            </>
+                          )}
+                          {canDelete && !isSelf && (
+                            <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(u)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </RowActionButton>
-                            <RowActionButton label="Reset Password" onClick={() => setResetting(u)}>
-                              <KeyRound className="h-3.5 w-3.5" />
-                            </RowActionButton>
-                          </>
-                        )}
-                        {canDelete && !isSelf && (
-                          <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(u)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                      </div>
-                    </td>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

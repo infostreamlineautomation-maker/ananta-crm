@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Image as ImageIcon, Info, RefreshCw, Trash2, Upload, X, ZoomIn } from "lucide-react";
+import { Copy, Image as ImageIcon, Info, RefreshCw, Trash2, Upload, X, ZoomIn } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import { Client, Company, Country, CustomFieldDefinition, ProjectSummary, QuotationColumn, QuotationDetail, QuotationItemDetail, QuotationStatus } from "@/lib/types";
@@ -276,6 +276,24 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
 
   const { can } = useAuth();
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  async function handleCopy() {
+    if (!quotation) return;
+    setCopying(true);
+    try {
+      const copy = await apiFetch<QuotationDetail>(`/api/quotations/${quotation.id}/copy/`, {
+        method: "POST",
+        body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
+      });
+      toast.success(`Copied to ${copy.quotation_no}.`);
+      router.push(`/quotations/${copy.id}`);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't duplicate this quotation.");
+    } finally {
+      setCopying(false);
+    }
+  }
 
   async function handleCreateOrder() {
     if (!quotation) return;
@@ -308,6 +326,11 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
               className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
             >
               Convert to Order
+            </Button>
+          )}
+          {quotation && (
+            <Button type="button" variant="secondary" onClick={handleCopy} loading={copying}>
+              <Copy className="h-4 w-4" /> Duplicate
             </Button>
           )}
           {quotation && (
@@ -406,7 +429,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
             <thead>
               <tr className="border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                 <th className="px-5 py-2.5 text-left">Description</th>
-                <th className="w-24 px-3 py-2.5 text-center">Image</th>
+                <th className="w-28 px-3 py-2.5 text-center">Reference</th>
                 {columns.map((col) => (
                   <th key={col.key} className="px-3 py-2.5 text-left">
                     <div className="flex items-center gap-1">
@@ -454,7 +477,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
                       <Input value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="Item description / specs" />
                     </td>
 
-                    {/* Image Column */}
+                    {/* Reference Image Column */}
                     <td className="px-3 py-2.5 text-center align-middle">
                       {displayImg ? (
                         <div className="flex items-center justify-center gap-1.5">
@@ -551,9 +574,6 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
         </Field>
         <Field label="Notes">
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </Field>
-        <Field label="Footer Content">
-          <Textarea value={footerContent} onChange={(e) => setFooterContent(e.target.value)} rows={2} />
         </Field>
       </Card>
 

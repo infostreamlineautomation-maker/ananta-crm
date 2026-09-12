@@ -28,7 +28,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import { Client, CommunicationLog, Country, CustomFieldDefinition, OrderSummary, ProjectSummary, QuotationSummary } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -673,15 +673,18 @@ export default function ClientDetailPage() {
                     filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_orders`}
                     title={`${client?.client_name || "Client"} - Orders Report`}
                     columns={[
-                      { header: "Order No", accessor: (o) => o.order_no },
-                      { header: "Date", accessor: (o) => o.date },
-                      { header: "Project", accessor: (o) => o.project_name || "" },
-                      { header: "Supplier", accessor: (o) => o.supplier_name || "" },
-                      { header: "Total Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.grand_total}` },
-                      { header: "Paid Amount", accessor: (o) => `${o.currency_code || "INR"} ${o.paid_amount || "0.00"}` },
-                      { header: "Balance Due", accessor: (o) => `${o.currency_code || "INR"} ${o.due_amount || "0.00"}` },
-                      { header: "Delivery Status", accessor: (o) => o.delivery_status },
-                      { header: "Payment Status", accessor: (o) => o.payment_status },
+                      { key: "order_no", header: "Order No", accessor: (o) => o.order_no, category: "Basic Information", defaultSelected: true },
+                      { key: "date", header: "Order Date", accessor: (o) => o.date, category: "Basic Information", defaultSelected: true },
+                      { key: "project_name", header: "Project / Job Name", accessor: (o) => o.project_name || o.project_title || "", category: "Basic Information", defaultSelected: true },
+                      { key: "supplier_name", header: "Vendor / Supplier", accessor: (o) => o.supplier_name || "", category: "Basic Information", defaultSelected: true },
+                      { key: "delivery_time", header: "Delivery Instructions", accessor: (o) => o.delivery_time || "", category: "Workflow & Status" },
+                      { key: "currency_code", header: "Currency", accessor: (o) => o.currency_code || "INR", category: "Financials" },
+                      { key: "grand_total", header: "Grand Total", accessor: (o) => o.grand_total, category: "Financials", defaultSelected: true },
+                      { key: "paid_amount", header: "Paid Amount", accessor: (o) => o.paid_amount || "0.00", category: "Financials", defaultSelected: true },
+                      { key: "due_amount", header: "Balance Due", accessor: (o) => o.due_amount || "0.00", category: "Financials", defaultSelected: true },
+                      { key: "delivery_status", header: "Delivery Status", accessor: (o) => o.delivery_status, category: "Workflow & Status", defaultSelected: true },
+                      { key: "payment_status", header: "Payment Status", accessor: (o) => o.payment_status, category: "Workflow & Status", defaultSelected: true },
+                      { key: "proofs", header: "Proof Images (URLs)", accessor: (o) => o.images?.map((img) => mediaUrl(img.image)).join(", ") || "", category: "Proofs & Attachments" },
                     ]}
                   />
                   <ColumnSelector
@@ -853,11 +856,12 @@ export default function ClientDetailPage() {
                     filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_quotations`}
                     title={`${client?.client_name || "Client"} - Quotations Report`}
                     columns={[
-                      { header: "Quotation No", accessor: (q) => q.quotation_no },
-                      { header: "Date", accessor: (q) => q.quotation_date },
-                      { header: "Subject", accessor: (q) => q.subject || "" },
-                      { header: "Status", accessor: (q) => q.status },
-                      { header: "Subtotal", accessor: (q) => `${q.currency_code || "INR"} ${q.subtotal}` },
+                      { key: "quotation_no", header: "Quotation No", accessor: (q) => q.quotation_no, category: "Basic Information", defaultSelected: true },
+                      { key: "date", header: "Quotation Date", accessor: (q) => q.quotation_date, category: "Basic Information", defaultSelected: true },
+                      { key: "subject", header: "Subject / Heading", accessor: (q) => q.subject || "", category: "Basic Information", defaultSelected: true },
+                      { key: "status", header: "Quotation Status", accessor: (q) => q.status, category: "Basic Information", defaultSelected: true },
+                      { key: "currency", header: "Currency", accessor: (q) => q.currency_code || "INR", category: "Financials" },
+                      { key: "subtotal", header: "Subtotal / Total", accessor: (q) => q.subtotal, category: "Financials", defaultSelected: true },
                     ]}
                   />
                   <ColumnSelector
@@ -1002,12 +1006,12 @@ export default function ClientDetailPage() {
                     filename={`${client?.client_name?.replace(/\s+/g, "_") || "client"}_projects`}
                     title={`${client?.client_name || "Client"} - Projects Report`}
                     columns={[
-                      { header: "Project Name", accessor: (p) => p.name },
-                      { header: "Description", accessor: (p) => p.description || "" },
-                      { header: "Status", accessor: (p) => p.status },
-                      { header: "Orders Count", accessor: (p) => p.orders_count },
-                      { header: "Quotations Count", accessor: (p) => p.quotations_count },
-                      { header: "Total Order Value", accessor: (p) => p.total_order_value },
+                      { key: "name", header: "Project Name", accessor: (p) => p.name, category: "Basic Information", defaultSelected: true },
+                      { key: "status", header: "Status", accessor: (p) => p.status, category: "Basic Information", defaultSelected: true },
+                      { key: "description", header: "Description / Scope", accessor: (p) => p.description || "", category: "Basic Information", defaultSelected: true },
+                      { key: "orders_count", header: "Orders Count", accessor: (p) => p.orders_count, category: "Metrics", defaultSelected: true },
+                      { key: "quotations_count", header: "Quotations Count", accessor: (p) => p.quotations_count, category: "Metrics", defaultSelected: true },
+                      { key: "total_order_value", header: "Total Order Value", accessor: (p) => p.total_order_value, category: "Metrics", defaultSelected: true },
                     ]}
                   />
                   <ColumnSelector

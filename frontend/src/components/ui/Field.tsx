@@ -12,7 +12,7 @@ export function Field({
   children,
   className,
 }: {
-  label: string;
+  label: React.ReactNode;
   required?: boolean;
   hint?: string;
   error?: string;

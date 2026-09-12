@@ -70,7 +70,7 @@ class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
         fields = [
-            "id", "supplier_name", "company_name", "owner_name_contact", "contact", "source",
+            "id", "supplier_name", "rating", "company_name", "owner_name_contact", "contact", "source",
             "product_details", "address", "email", "website", "remark", "extra_data", "is_deleted",
             "contacts", "supplier_products", "files", "product_ids", "created_at", "updated_at",
         ]

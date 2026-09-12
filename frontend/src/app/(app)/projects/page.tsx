@@ -9,6 +9,7 @@ import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ProjectSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
+import { ExportColumn } from "@/lib/export-utils";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +22,17 @@ import { TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+
+const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
+  { key: "name", header: "Project Name", accessor: (p) => p.name, category: "Basic Information", defaultSelected: true },
+  { key: "client_name", header: "Client Name", accessor: (p) => p.client_name, category: "Basic Information", defaultSelected: true },
+  { key: "status", header: "Project Status", accessor: (p) => labelize(p.status), category: "Basic Information", defaultSelected: true },
+  { key: "description", header: "Description / Scope", accessor: (p) => p.description || "", category: "Basic Information", defaultSelected: true },
+  { key: "orders_count", header: "Total Orders Count", accessor: (p) => p.orders_count, category: "Project Metrics", defaultSelected: true },
+  { key: "quotations_count", header: "Total Quotations Count", accessor: (p) => p.quotations_count, category: "Project Metrics", defaultSelected: true },
+  { key: "costings_count", header: "Total Costings Count", accessor: (p) => p.costings_count, category: "Project Metrics" },
+  { key: "total_order_value", header: "Total Order Value", accessor: (p) => formatCurrency(p.total_order_value), category: "Project Metrics", defaultSelected: true },
+];
 
 export default function ProjectsPage() {
   const { can } = useAuth();
@@ -114,15 +126,7 @@ export default function ProjectsPage() {
             data={data?.results || []}
             filename="projects_export"
             title="Projects Report"
-            columns={[
-              { header: "Project Name", accessor: (p) => p.name },
-              { header: "Client", accessor: (p) => p.client_name },
-              { header: "Status", accessor: (p) => p.status },
-              { header: "Orders Count", accessor: (p) => p.orders_count },
-              { header: "Quotations Count", accessor: (p) => p.quotations_count },
-              { header: "Total Order Value", accessor: (p) => p.total_order_value },
-              { header: "Description", accessor: (p) => p.description },
-            ]}
+            columns={PROJECTS_EXPORT_COLUMNS}
           />
         }
       />

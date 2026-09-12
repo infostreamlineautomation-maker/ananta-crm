@@ -101,11 +101,50 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["module", "object_id"]
 
 
+from django_filters import rest_framework as filters
+
+
+MODULE_ALIASES = {
+    "quotation": "quotation_item",
+    "quotations": "quotation_item",
+    "quote": "quotation_item",
+    "order": "order_item",
+    "orders": "order_item",
+    "costing": "costing_item",
+    "costings": "costing_item",
+    "client": "client",
+    "clients": "client",
+    "company": "company",
+    "companies": "company",
+    "supplier": "supplier",
+    "suppliers": "supplier",
+    "product": "product",
+    "products": "product",
+    "project": "project",
+    "projects": "project",
+}
+
+
+class CustomFieldFilterSet(filters.FilterSet):
+    module = filters.CharFilter(method="filter_module")
+
+    class Meta:
+        model = CustomFieldDefinition
+        fields = ["module", "is_required", "show_in_table", "show_in_print"]
+
+    def filter_module(self, queryset, name, value):
+        if not value:
+            return queryset
+        val_lower = str(value).lower().strip()
+        canonical = MODULE_ALIASES.get(val_lower, val_lower)
+        return queryset.filter(module__in=[value, val_lower, canonical])
+
+
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     serializer_class = CustomFieldDefinitionSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["module", "is_required", "show_in_table", "show_in_print"]
+    filterset_class = CustomFieldFilterSet
     pagination_class = None
 
     def get_queryset(self):
@@ -120,4 +159,5 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
+
 

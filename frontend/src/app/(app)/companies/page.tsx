@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Company, Country } from "@/lib/types";
-import { mediaUrl } from "@/lib/format";
+import { formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
 import { useToast } from "@/components/ui/Toast";
@@ -24,13 +24,47 @@ import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
+const COMPANIES_EXPORT_COLUMNS: ExportColumn<Company>[] = [
+  { header: "Company Name", accessor: (c) => c.company_name, category: "Basic Info" },
+  { header: "Contact Person", accessor: (c) => c.contact_name, category: "Basic Info" },
+  { header: "GSTIN", accessor: (c) => c.gstin || c.vat_id || "", category: "Registration & Tax" },
+  { header: "MSIN Number", accessor: (c) => c.msin_number || "", category: "Registration & Tax" },
+  { header: "Registration No", accessor: (c) => c.reg_no || "", category: "Registration & Tax" },
+  { header: "Contact Email", accessor: (c) => c.contact_email, category: "Contact Info" },
+  { header: "Contact Phone", accessor: (c) => c.contact_phone, category: "Contact Info" },
+  { header: "Company Phone", accessor: (c) => c.company_phone, category: "Contact Info" },
+  { header: "Country", accessor: (c) => c.country_name || "", category: "Address & Location" },
+  { header: "State", accessor: (c) => c.state, category: "Address & Location" },
+  { header: "City", accessor: (c) => c.city, category: "Address & Location" },
+  { header: "Zip Code", accessor: (c) => c.zip_code, category: "Address & Location" },
+  { header: "Address", accessor: (c) => c.address, category: "Address & Location" },
+  { header: "Logo Image URL", accessor: (c) => (c.logo ? mediaUrl(c.logo) : ""), category: "Media & Web" },
+  { header: "Facebook", accessor: (c) => c.facebook, category: "Media & Web" },
+  { header: "Twitter / X", accessor: (c) => c.twitter, category: "Media & Web" },
+  { header: "LinkedIn", accessor: (c) => c.linkedin, category: "Media & Web" },
+  { header: "Remarks / Notes", accessor: (c) => c.remarks, category: "Remarks & Custom" },
+  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
+];
+
 const COMPANIES_PAGE_COLUMNS: ColumnDef[] = [
+  { key: "select", label: "Checkbox", required: true },
   { key: "logo", label: "Logo" },
   { key: "company_name", label: "Company Name", required: true },
+  { key: "contact_name", label: "Contact Person" },
+  { key: "gstin", label: "GSTIN" },
+  { key: "msin_number", label: "MSIN Number" },
+  { key: "reg_no", label: "Reg No" },
   { key: "country_name", label: "Country" },
+  { key: "state", label: "State" },
   { key: "city", label: "City" },
+  { key: "zip_code", label: "Zip Code" },
+  { key: "address", label: "Address" },
   { key: "contact_email", label: "Contact Email" },
-  { key: "contact_phone", label: "Phone" },
+  { key: "contact_phone", label: "Contact Phone" },
+  { key: "company_phone", label: "Company Phone" },
+  { key: "social", label: "Social Media" },
+  { key: "remarks", label: "Remarks" },
+  { key: "created_at", label: "Created Date" },
   { key: "actions", label: "Actions", required: true },
 ];
 
@@ -40,6 +74,8 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [cols, setCols] = useState<Set<string>>(new Set(COMPANIES_PAGE_COLUMNS.map((c) => c.key)));
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
 
@@ -48,6 +84,16 @@ export default function CompaniesPage() {
       {
         key: "company_name",
         label: "Company Name",
+        type: "text",
+      },
+      {
+        key: "gstin",
+        label: "GSTIN",
+        type: "text",
+      },
+      {
+        key: "msin_number",
+        label: "MSIN Number",
         type: "text",
       },
       {
@@ -121,6 +167,40 @@ export default function CompaniesPage() {
 
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
+  const toggleSelectAll = () => {
+    if (!data?.results) return;
+    if (selected.size === data.results.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(data.results.map((c) => c.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  };
+
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selected.size} companies?`)) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map((id) => apiFetch(`/api/companies/${id}/`, { method: "DELETE" }))
+      );
+      toast.success(`Deleted ${selected.size} companies.`);
+      setSelected(new Set());
+      reload();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't delete some companies.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -134,53 +214,78 @@ export default function CompaniesPage() {
         }
       />
 
-      <FilterBar
-        search={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
-        searchPlaceholder="Search companies by name, email, phone..."
-        filters={filterColumns}
-        activeFilters={activeFilters}
-        onFilterChange={(k, v) => {
-          setFilter(k, v);
-          setPage(1);
-        }}
-        onReset={() => {
-          resetFilters();
-          setSearch("");
-          setPage(1);
-        }}
-        actions={
+      {selected.size > 0 ? (
+        <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
+          <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
               data={data?.results || []}
+              selectedIds={selected}
               filename="companies_export"
               title="Companies Directory"
-              columns={[
-                { header: "Company Name", accessor: (c) => c.company_name },
-                { header: "Contact Name", accessor: (c) => c.contact_name },
-                { header: "VAT / Tax ID", accessor: (c) => c.vat_id },
-                { header: "Reg No", accessor: (c) => c.reg_no },
-                { header: "Country", accessor: (c) => c.country_name || "" },
-                { header: "City", accessor: (c) => c.city },
-                { header: "Contact Email", accessor: (c) => c.contact_email },
-                { header: "Contact Phone", accessor: (c) => c.contact_phone },
-                { header: "Company Phone", accessor: (c) => c.company_phone },
-                { header: "Address", accessor: (c) => c.address },
-              ]}
+              columns={COMPANIES_EXPORT_COLUMNS}
+              buttonText="Export Selected"
+              variant="outline"
             />
-            <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+            {canDelete && (
+              <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
+                Delete Selected
+              </Button>
+            )}
           </div>
-        }
-      />
+        </div>
+      ) : (
+        <FilterBar
+          search={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          searchPlaceholder="Search companies by name, email, phone..."
+          filters={filterColumns}
+          activeFilters={activeFilters}
+          onFilterChange={(k, v) => {
+            setFilter(k, v);
+            setPage(1);
+          }}
+          onReset={() => {
+            resetFilters();
+            setSearch("");
+            setPage(1);
+          }}
+          actions={
+            <div className="flex items-center gap-2">
+              <ExportDropdown
+                data={data?.results || []}
+                selectedIds={selected}
+                filename="companies_export"
+                title="Companies Directory"
+                columns={COMPANIES_EXPORT_COLUMNS}
+              />
+              <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+            </div>
+          }
+        />
+      )}
 
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
+                {cols.has("select") && (
+                  <th className="w-10 px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                    />
+                  </th>
+                )}
                 {cols.has("logo") && <th className={TH}></th>}
                 {cols.has("company_name") && (
                   <th className={TH}>
@@ -199,6 +304,42 @@ export default function CompaniesPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("contact_name") && <th className={TH}>Contact Person</th>}
+                {cols.has("gstin") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>GSTIN</span>
+                      {getColFilter("gstin") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("gstin")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("msin_number") && (
+                  <th className={TH}>
+                    <div className="inline-flex items-center">
+                      <span>MSIN Number</span>
+                      {getColFilter("msin_number") && (
+                        <ColumnHeaderFilter
+                          column={getColFilter("msin_number")!}
+                          activeFilters={activeFilters}
+                          onFilterChange={(k, v) => {
+                            setFilter(k, v);
+                            setPage(1);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </th>
+                )}
+                {cols.has("reg_no") && <th className={TH}>Reg No</th>}
                 {cols.has("country_name") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
@@ -216,6 +357,7 @@ export default function CompaniesPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("state") && <th className={TH}>State</th>}
                 {cols.has("city") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
@@ -233,6 +375,8 @@ export default function CompaniesPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("zip_code") && <th className={TH}>Zip Code</th>}
+                {cols.has("address") && <th className={TH}>Address</th>}
                 {cols.has("contact_email") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
@@ -253,7 +397,7 @@ export default function CompaniesPage() {
                 {cols.has("contact_phone") && (
                   <th className={TH}>
                     <div className="inline-flex items-center">
-                      <span>Phone</span>
+                      <span>Contact Phone</span>
                       {getColFilter("contact_phone") && (
                         <ColumnHeaderFilter
                           column={getColFilter("contact_phone")!}
@@ -267,6 +411,10 @@ export default function CompaniesPage() {
                     </div>
                   </th>
                 )}
+                {cols.has("company_phone") && <th className={TH}>Company Phone</th>}
+                {cols.has("social") && <th className={TH}>Social Media</th>}
+                {cols.has("remarks") && <th className={TH}>Remarks</th>}
+                {cols.has("created_at") && <th className={TH}>Created Date</th>}
                 {customFields?.map((f) => {
                   const colKey = `extra_${f.field_key}`;
                   const filterKey = `custom__${f.field_key}`;
@@ -297,6 +445,16 @@ export default function CompaniesPage() {
               <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No companies yet." />
               {data?.results.map((c) => (
                 <tr key={c.id} className={TR}>
+                  {cols.has("select") && (
+                    <td className="w-10 px-3 py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleSelectOne(c.id)}
+                        className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                      />
+                    </td>
+                  )}
                   {cols.has("logo") && (
                     <td className={TD}>
                       {mediaUrl(c.logo) ? (
@@ -316,10 +474,33 @@ export default function CompaniesPage() {
                       </Link>
                     </td>
                   )}
+                  {cols.has("contact_name") && <td className={`${TD} text-ink`}>{c.contact_name || "—"}</td>}
+                  {cols.has("gstin") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.gstin || c.vat_id || "—"}</td>}
+                  {cols.has("msin_number") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.msin_number || "—"}</td>}
+                  {cols.has("reg_no") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.reg_no || "—"}</td>}
                   {cols.has("country_name") && <td className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>}
+                  {cols.has("state") && <td className={`${TD} text-ink-muted`}>{c.state || "—"}</td>}
                   {cols.has("city") && <td className={`${TD} text-ink-muted`}>{c.city || "—"}</td>}
+                  {cols.has("zip_code") && <td className={`${TD} text-ink-muted`}>{c.zip_code || "—"}</td>}
+                  {cols.has("address") && <td className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>}
                   {cols.has("contact_email") && <td className={`${TD} text-ink-muted`}>{c.contact_email || "—"}</td>}
                   {cols.has("contact_phone") && <td className={`${TD} text-ink-muted`}>{c.contact_phone || "—"}</td>}
+                  {cols.has("company_phone") && <td className={`${TD} text-ink-muted`}>{c.company_phone || "—"}</td>}
+                  {cols.has("social") && (
+                    <td className={TD}>
+                      {c.facebook || c.twitter || c.linkedin ? (
+                        <div className="flex items-center gap-1.5 text-xs text-primary-600">
+                          {c.facebook && <a href={c.facebook} target="_blank" rel="noopener noreferrer" className="hover:underline">FB</a>}
+                          {c.twitter && <a href={c.twitter} target="_blank" rel="noopener noreferrer" className="hover:underline">X</a>}
+                          {c.linkedin && <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">LN</a>}
+                        </div>
+                      ) : (
+                        <span className="text-ink-muted">—</span>
+                      )}
+                    </td>
+                  )}
+                  {cols.has("remarks") && <td className={`${TD} text-ink-muted max-w-[180px] truncate`} title={c.remarks}>{c.remarks || "—"}</td>}
+                  {cols.has("created_at") && <td className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>}
                   {customFields?.map((f) =>
                     cols.has(`extra_${f.field_key}`) ? (
                       <td key={f.id} className={`${TD} text-ink-muted`}>

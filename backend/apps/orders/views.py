@@ -298,16 +298,23 @@ class OrderViewSet(ModuleViewSet):
         input_serializer = OrderCopySerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
 
+        copied_title = f"{source.project_title} (Copy)".strip() if source.project_title else "(Copy)"
+
         new_order = Order.objects.create(
             organization=source.organization,
             order_no=next_number(source.organization, getattr(source.organization, "order_prefix", "AG/")),
             date=input_serializer.validated_data["date"],
             client=source.client,
+            project_title=copied_title,
             project=source.project,
             supplier=source.supplier,
+            delivery_time=source.delivery_time,
             description=source.description,
             columns_config=source.columns_config,
             tax_percent=source.tax_percent,
+            currency_code=source.currency_code,
+            exchange_rate=source.exchange_rate,
+            base_currency_code=source.base_currency_code,
             is_visible_to_staff=True,
             copied_from=source,
             created_by=request.user,
@@ -319,8 +326,15 @@ class OrderViewSet(ModuleViewSet):
                 description=item.description,
                 qty=item.qty,
                 rate=item.rate,
+                image=item.image,
                 extra_data=item.extra_data,
                 sort_order=i,
+            )
+        for img in source.images.all():
+            OrderImage.objects.create(
+                order=new_order,
+                image=img.image,
+                caption=img.caption,
             )
         new_order.recalc_totals()
 

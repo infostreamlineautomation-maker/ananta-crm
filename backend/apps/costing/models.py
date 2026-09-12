@@ -18,6 +18,8 @@ class Costing(AuditedModel, SoftDeleteModel):
     supplier = models.ForeignKey("suppliers.Supplier", on_delete=models.PROTECT, related_name="costings")
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, related_name="costings")
     client = models.ForeignKey("clients.Client", on_delete=models.PROTECT, related_name="costings")
+    file = models.FileField(upload_to="costings/files/", null=True, blank=True)
+    file_name = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     columns_config = models.JSONField(
         default=list,
@@ -62,4 +64,18 @@ class CostingItem(models.Model):
     @property
     def profit(self):
         return (self.client_rate - self.supplier_rate) * self.quantity
+
+
+class CostingFile(models.Model):
+    costing = models.ForeignKey(Costing, on_delete=models.CASCADE, related_name="files")
+    file = models.FileField(upload_to="costings/files/")
+    file_name = models.CharField(max_length=255, blank=True)
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"File #{self.pk} for Costing #{self.costing_id} - {self.file_name}"
 
