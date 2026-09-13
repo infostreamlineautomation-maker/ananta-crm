@@ -97,6 +97,7 @@ export interface Role {
   name: string;
   description: string;
   is_system: boolean;
+  user_count?: number;
   permissions: RolePermissionRow[];
 }
 
@@ -131,6 +132,8 @@ export interface Organization {
   name: string;
   slug: string;
   logo: string | null;
+  report_logo?: string | null;
+  quotation_background_image?: string | null;
   primary_color: string;
   default_currency_code?: string;
   tagline?: string;
@@ -161,6 +164,7 @@ export interface ExchangeRate {
 export interface AppSettings {
   app_name: string;
   app_logo: string | null;
+  report_logo?: string | null;
   name?: string;
   logo?: string | null;
   primary_color?: string;
@@ -307,6 +311,7 @@ export interface CostingFile {
   file?: string | null;
   file_name?: string | null;
   file_size?: number | null;
+  category?: "catalogue" | "rate_list" | string;
   uploaded_at?: string;
   file_url?: string | null;
 }
@@ -422,16 +427,26 @@ export interface CostingOverview {
 }
 
 export interface TopProductMetric {
+  id?: number | null;
   name: string;
   qty: number;
+  orders_count?: number;
   revenue: number;
+  avg_price?: number;
   share_pct: number;
 }
 
 export interface TopClientMetric {
+  id?: number | null;
   name: string;
+  company_name?: string;
+  email?: string;
+  phone?: string;
   revenue: number;
+  paid_revenue?: number;
+  pending_revenue?: number;
   order_count: number;
+  avg_order_value?: number;
   share_pct: number;
 }
 

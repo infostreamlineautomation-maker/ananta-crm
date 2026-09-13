@@ -23,27 +23,35 @@ import { CompanyForm } from "./CompanyForm";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { useTableGrid } from "@/lib/useTableGrid";
+import { ResizableTh } from "@/components/ui/ResizableTh";
 
 const COMPANIES_EXPORT_COLUMNS: ExportColumn<Company>[] = [
-  { header: "Company Name", accessor: (c) => c.company_name, category: "Basic Info" },
-  { header: "Contact Person", accessor: (c) => c.contact_name, category: "Basic Info" },
-  { header: "GSTIN", accessor: (c) => c.gstin || c.vat_id || "", category: "Registration & Tax" },
-  { header: "MSIN Number", accessor: (c) => c.msin_number || "", category: "Registration & Tax" },
-  { header: "Registration No", accessor: (c) => c.reg_no || "", category: "Registration & Tax" },
-  { header: "Contact Email", accessor: (c) => c.contact_email, category: "Contact Info" },
-  { header: "Contact Phone", accessor: (c) => c.contact_phone, category: "Contact Info" },
-  { header: "Company Phone", accessor: (c) => c.company_phone, category: "Contact Info" },
-  { header: "Country", accessor: (c) => c.country_name || "", category: "Address & Location" },
-  { header: "State", accessor: (c) => c.state, category: "Address & Location" },
-  { header: "City", accessor: (c) => c.city, category: "Address & Location" },
-  { header: "Zip Code", accessor: (c) => c.zip_code, category: "Address & Location" },
-  { header: "Address", accessor: (c) => c.address, category: "Address & Location" },
-  { header: "Logo Image URL", accessor: (c) => (c.logo ? mediaUrl(c.logo) : ""), category: "Media & Web" },
-  { header: "Facebook", accessor: (c) => c.facebook, category: "Media & Web" },
-  { header: "Twitter / X", accessor: (c) => c.twitter, category: "Media & Web" },
-  { header: "LinkedIn", accessor: (c) => c.linkedin, category: "Media & Web" },
-  { header: "Remarks / Notes", accessor: (c) => c.remarks, category: "Remarks & Custom" },
-  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
+  { header: "Company Name", accessor: (c) => c.company_name, category: "Basic Info", defaultSelected: true },
+  { header: "Contact Person", accessor: (c) => c.contact_name, category: "Basic Info", defaultSelected: true },
+  { header: "GSTIN", accessor: (c) => c.gstin || c.vat_id || "", category: "Registration & Tax", defaultSelected: true },
+  { header: "MSIN Number", accessor: (c) => c.msin_number || "", category: "Registration & Tax", defaultSelected: false },
+  { header: "Registration No", accessor: (c) => c.reg_no || "", category: "Registration & Tax", defaultSelected: false },
+  { header: "Contact Email", accessor: (c) => c.contact_email, category: "Contact Info", defaultSelected: true },
+  { header: "Contact Phone", accessor: (c) => c.contact_phone, category: "Contact Info", defaultSelected: true },
+  { header: "Company Phone", accessor: (c) => c.company_phone, category: "Contact Info", defaultSelected: false },
+  { header: "Country", accessor: (c) => c.country_name || "", category: "Address & Location", defaultSelected: true },
+  { header: "State", accessor: (c) => c.state, category: "Address & Location", defaultSelected: true },
+  { header: "City", accessor: (c) => c.city, category: "Address & Location", defaultSelected: true },
+  { header: "Zip Code", accessor: (c) => c.zip_code, category: "Address & Location", defaultSelected: false },
+  { header: "Address", accessor: (c) => c.address, category: "Address & Location", defaultSelected: false },
+  {
+    header: "Logo",
+    accessor: (c) => (c.logo ? "Uploaded" : "-"),
+    imageAccessor: (c) => (c.logo ? mediaUrl(c.logo) : null),
+    category: "Media & Web",
+    defaultSelected: true,
+  },
+  { header: "Facebook", accessor: (c) => c.facebook, category: "Media & Web", defaultSelected: false },
+  { header: "Twitter / X", accessor: (c) => c.twitter, category: "Media & Web", defaultSelected: false },
+  { header: "LinkedIn", accessor: (c) => c.linkedin, category: "Media & Web", defaultSelected: false },
+  { header: "Remarks / Notes", accessor: (c) => c.remarks, category: "Remarks & Custom", defaultSelected: false },
+  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates", defaultSelected: false },
 ];
 
 const COMPANIES_PAGE_COLUMNS: ColumnDef[] = [
@@ -73,9 +81,9 @@ export default function CompaniesPage() {
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [cols, setCols] = useState<Set<string>>(new Set(COMPANIES_PAGE_COLUMNS.map((c) => c.key)));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
 
@@ -148,6 +156,12 @@ export default function CompaniesPage() {
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
 
+  const grid = useTableGrid({
+    tableKey: "companies",
+    defaultColumns: allColumns,
+    defaultVisibleKeys: COMPANIES_PAGE_COLUMNS.map((c) => c.key),
+  });
+
   const path = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
@@ -183,9 +197,8 @@ export default function CompaniesPage() {
     setSelected(next);
   };
 
-  const bulkDelete = async () => {
+  const handleBulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} companies?`)) return;
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -193,6 +206,7 @@ export default function CompaniesPage() {
       );
       toast.success(`Deleted ${selected.size} companies.`);
       setSelected(new Set());
+      setBulkDeleteConfirmOpen(false);
       reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't delete some companies.");
@@ -201,19 +215,107 @@ export default function CompaniesPage() {
     }
   };
 
-  return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Companies"
-        action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus className="h-4 w-4" /> Add Company
-            </Button>
-          )
-        }
-      />
+  const renderCell = (colKey: string, c: Company) => {
+    if (colKey === "select") {
+      return (
+        <td key={colKey} className="w-10 px-3 py-2.5 text-center">
+          <input
+            type="checkbox"
+            checked={selected.has(c.id)}
+            onChange={() => toggleSelectOne(c.id)}
+            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+          />
+        </td>
+      );
+    }
+    if (colKey === "logo") {
+      return (
+        <td key={colKey} className={TD}>
+          {mediaUrl(c.logo) ? (
+            // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, dynamic remote URL
+            <img src={mediaUrl(c.logo)!} alt="" width={28} height={28} className="h-7 w-7 rounded-md border border-border object-cover" />
+          ) : (
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-sunken text-ink-faint">
+              <Building2 className="h-3.5 w-3.5" />
+            </div>
+          )}
+        </td>
+      );
+    }
+    if (colKey === "company_name") {
+      return (
+        <td key={colKey} className={`${TD} font-semibold`}>
+          <Link href={`/companies/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
+            {c.company_name}
+          </Link>
+        </td>
+      );
+    }
+    if (colKey === "contact_name") return <td key={colKey} className={`${TD} text-ink`}>{c.contact_name || "—"}</td>;
+    if (colKey === "gstin") return <td key={colKey} className={`${TD} font-mono text-xs text-ink-muted`}>{c.gstin || c.vat_id || "—"}</td>;
+    if (colKey === "msin_number") return <td key={colKey} className={`${TD} font-mono text-xs text-ink-muted`}>{c.msin_number || "—"}</td>;
+    if (colKey === "reg_no") return <td key={colKey} className={`${TD} font-mono text-xs text-ink-muted`}>{c.reg_no || "—"}</td>;
+    if (colKey === "country_name") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>;
+    if (colKey === "state") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.state || "—"}</td>;
+    if (colKey === "city") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.city || "—"}</td>;
+    if (colKey === "zip_code") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.zip_code || "—"}</td>;
+    if (colKey === "address") return <td key={colKey} className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>;
+    if (colKey === "contact_email") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.contact_email || "—"}</td>;
+    if (colKey === "contact_phone") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.contact_phone || "—"}</td>;
+    if (colKey === "company_phone") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.company_phone || "—"}</td>;
+    if (colKey === "social") {
+      return (
+        <td key={colKey} className={TD}>
+          {c.facebook || c.twitter || c.linkedin ? (
+            <div className="flex items-center gap-1.5 text-xs text-primary-600">
+              {c.facebook && <a href={c.facebook} target="_blank" rel="noopener noreferrer" className="hover:underline">FB</a>}
+              {c.twitter && <a href={c.twitter} target="_blank" rel="noopener noreferrer" className="hover:underline">X</a>}
+              {c.linkedin && <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">LN</a>}
+            </div>
+          ) : (
+            <span className="text-ink-muted">—</span>
+          )}
+        </td>
+      );
+    }
+    if (colKey === "remarks") return <td key={colKey} className={`${TD} text-ink-muted max-w-[180px] truncate`} title={c.remarks}>{c.remarks || "—"}</td>;
+    if (colKey === "created_at") return <td key={colKey} className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>;
+    if (colKey.startsWith("extra_")) {
+      const fieldKey = colKey.replace("extra_", "");
+      return (
+        <td key={colKey} className={`${TD} text-ink-muted`}>
+          {String(c.extra_data?.[fieldKey] ?? "—")}
+        </td>
+      );
+    }
+    if (colKey === "actions") {
+      return (
+        <td key={colKey} className={`${TD} text-right`}>
+          <div className="flex justify-end gap-1">
+            <Link href={`/companies/${c.id}`}>
+              <RowActionButton label="View" onClick={() => {}}>
+                <Eye className="h-3.5 w-3.5" />
+              </RowActionButton>
+            </Link>
+            {canEdit && (
+              <RowActionButton label="Edit" onClick={() => setEditing(c)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </RowActionButton>
+            )}
+            {canDelete && (
+              <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </RowActionButton>
+            )}
+          </div>
+        </td>
+      );
+    }
+    return <td key={colKey} className={TD}>—</td>;
+  };
 
+  return (
+    <div className="flex flex-col gap-4">
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -231,7 +333,7 @@ export default function CompaniesPage() {
               Clear
             </Button>
             {canDelete && (
-              <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
+              <Button size="sm" variant="primary" onClick={() => setBulkDeleteConfirmOpen(true)} loading={bulkDeleting}>
                 Delete Selected
               </Button>
             )}
@@ -265,7 +367,18 @@ export default function CompaniesPage() {
                 title="Companies Directory"
                 columns={COMPANIES_EXPORT_COLUMNS}
               />
-              <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+              <ColumnSelector
+                columns={grid.columns}
+                visibleColumns={grid.visibleColumns}
+                onChange={grid.setVisibleColumns}
+                onReorder={grid.reorderColumns}
+                onReset={grid.resetGrid}
+              />
+              {canAdd && (
+                <Button variant="primary" onClick={() => setEditing("new")}>
+                  <Plus className="h-4 w-4" /> Add Company
+                </Button>
+              )}
             </div>
           }
         />
@@ -276,259 +389,74 @@ export default function CompaniesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("logo") && <th className={TH}></th>}
-                {cols.has("company_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Company Name</span>
-                      {getColFilter("company_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("company_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("contact_name") && <th className={TH}>Contact Person</th>}
-                {cols.has("gstin") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>GSTIN</span>
-                      {getColFilter("gstin") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("gstin")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("msin_number") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>MSIN Number</span>
-                      {getColFilter("msin_number") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("msin_number")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("reg_no") && <th className={TH}>Reg No</th>}
-                {cols.has("country_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Country</span>
-                      {getColFilter("country") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("country")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("state") && <th className={TH}>State</th>}
-                {cols.has("city") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>City</span>
-                      {getColFilter("city") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("city")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("zip_code") && <th className={TH}>Zip Code</th>}
-                {cols.has("address") && <th className={TH}>Address</th>}
-                {cols.has("contact_email") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Contact Email</span>
-                      {getColFilter("contact_email") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("contact_email")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("contact_phone") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Contact Phone</span>
-                      {getColFilter("contact_phone") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("contact_phone")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("company_phone") && <th className={TH}>Company Phone</th>}
-                {cols.has("social") && <th className={TH}>Social Media</th>}
-                {cols.has("remarks") && <th className={TH}>Remarks</th>}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {customFields?.map((f) => {
-                  const colKey = `extra_${f.field_key}`;
-                  const filterKey = `custom__${f.field_key}`;
-                  if (!cols.has(colKey)) return null;
-                  const colFilter = getColFilter(filterKey);
-                  return (
-                    <th key={f.id} className={TH}>
-                      <div className="inline-flex items-center">
-                        <span>{f.label}</span>
-                        {colFilter && (
-                          <ColumnHeaderFilter
-                            column={colFilter}
-                            activeFilters={activeFilters}
-                            onFilterChange={(k, v) => {
-                              setFilter(k, v);
-                              setPage(1);
-                            }}
+                {grid.columns
+                  .filter((c) => grid.visibleColumns.has(c.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {cols.has("actions") && <th className={TH}></th>}
+                        </ResizableTh>
+                      );
+                    }
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh key="actions" columnKey="actions" grid={grid} align="right" isDraggable={false}>
+                          <span className="sr-only">Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+                    if (col.key === "logo") {
+                      return (
+                        <ResizableTh key="logo" columnKey="logo" grid={grid}>
+                          <span>Logo</span>
+                        </ResizableTh>
+                      );
+                    }
+                    const filterKey = col.key.startsWith("extra_")
+                      ? `custom__${col.key.replace("extra_", "")}`
+                      : col.key === "country_name"
+                      ? "country"
+                      : col.key;
+                    const colFilter = getColFilter(filterKey);
+
+                    return (
+                      <ResizableTh key={col.key} columnKey={col.key} grid={grid}>
+                        <div className="inline-flex items-center">
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No companies yet." />
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size}
+                emptyLabel="No companies yet."
+              />
               {data?.results.map((c) => (
                 <tr key={c.id} className={TR}>
-                  {cols.has("select") && (
-                    <td className="w-10 px-3 py-2.5 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleSelectOne(c.id)}
-                        className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                      />
-                    </td>
-                  )}
-                  {cols.has("logo") && (
-                    <td className={TD}>
-                      {mediaUrl(c.logo) ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, dynamic remote URL
-                        <img src={mediaUrl(c.logo)!} alt="" width={28} height={28} className="h-7 w-7 rounded-md border border-border object-cover" />
-                      ) : (
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-sunken text-ink-faint">
-                          <Building2 className="h-3.5 w-3.5" />
-                        </div>
-                      )}
-                    </td>
-                  )}
-                  {cols.has("company_name") && (
-                    <td className={`${TD} font-semibold`}>
-                      <Link href={`/companies/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
-                        {c.company_name}
-                      </Link>
-                    </td>
-                  )}
-                  {cols.has("contact_name") && <td className={`${TD} text-ink`}>{c.contact_name || "—"}</td>}
-                  {cols.has("gstin") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.gstin || c.vat_id || "—"}</td>}
-                  {cols.has("msin_number") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.msin_number || "—"}</td>}
-                  {cols.has("reg_no") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{c.reg_no || "—"}</td>}
-                  {cols.has("country_name") && <td className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>}
-                  {cols.has("state") && <td className={`${TD} text-ink-muted`}>{c.state || "—"}</td>}
-                  {cols.has("city") && <td className={`${TD} text-ink-muted`}>{c.city || "—"}</td>}
-                  {cols.has("zip_code") && <td className={`${TD} text-ink-muted`}>{c.zip_code || "—"}</td>}
-                  {cols.has("address") && <td className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>}
-                  {cols.has("contact_email") && <td className={`${TD} text-ink-muted`}>{c.contact_email || "—"}</td>}
-                  {cols.has("contact_phone") && <td className={`${TD} text-ink-muted`}>{c.contact_phone || "—"}</td>}
-                  {cols.has("company_phone") && <td className={`${TD} text-ink-muted`}>{c.company_phone || "—"}</td>}
-                  {cols.has("social") && (
-                    <td className={TD}>
-                      {c.facebook || c.twitter || c.linkedin ? (
-                        <div className="flex items-center gap-1.5 text-xs text-primary-600">
-                          {c.facebook && <a href={c.facebook} target="_blank" rel="noopener noreferrer" className="hover:underline">FB</a>}
-                          {c.twitter && <a href={c.twitter} target="_blank" rel="noopener noreferrer" className="hover:underline">X</a>}
-                          {c.linkedin && <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">LN</a>}
-                        </div>
-                      ) : (
-                        <span className="text-ink-muted">—</span>
-                      )}
-                    </td>
-                  )}
-                  {cols.has("remarks") && <td className={`${TD} text-ink-muted max-w-[180px] truncate`} title={c.remarks}>{c.remarks || "—"}</td>}
-                  {cols.has("created_at") && <td className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>}
-                  {customFields?.map((f) =>
-                    cols.has(`extra_${f.field_key}`) ? (
-                      <td key={f.id} className={`${TD} text-ink-muted`}>
-                        {String(c.extra_data?.[f.field_key] ?? "—")}
-                      </td>
-                    ) : null
-                  )}
-                  {cols.has("actions") && (
-                    <td className={`${TD} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        <Link href={`/companies/${c.id}`}>
-                          <RowActionButton label="View" onClick={() => {}}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        </Link>
-                        {canEdit && (
-                          <RowActionButton label="Edit" onClick={() => setEditing(c)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                        {canDelete && (
-                          <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => renderCell(col.key, c))}
                 </tr>
               ))}
             </tbody>
@@ -568,6 +496,17 @@ export default function CompaniesPage() {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this company.");
             }
           }}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setBulkDeleteConfirmOpen(false)}
+          title="Delete Selected Companies"
+          description={`Are you sure you want to delete ${selected.size} selected companies? This action can be undone later from the archive.`}
+          confirmLabel="Delete All Selected"
+          onConfirm={handleBulkDelete}
         />
       )}
     </div>

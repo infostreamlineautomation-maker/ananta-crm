@@ -1,3 +1,4 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from . import views
@@ -8,5 +9,7 @@ router.register("exchange-rates", views.ExchangeRateViewSet, basename="exchange-
 router.register("activity-log", views.ActivityLogViewSet, basename="activity-log")
 router.register("custom-fields", views.CustomFieldDefinitionViewSet, basename="custom-field")
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("quick-search/", views.QuickSearchView.as_view(), name="quick-search"),
+] + router.urls
 

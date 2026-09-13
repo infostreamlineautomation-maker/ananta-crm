@@ -37,3 +37,23 @@ export function getBrandLogo(nameOrOrg?: string | null, customLogoPath?: string 
   return "/ananta_logo.png";
 }
 
+export function getReportLogo(
+  nameOrOrg?: string | null,
+  customReportLogoPath?: string | null,
+  customBrandLogoPath?: string | null,
+): string {
+  if (customReportLogoPath) {
+    const url = mediaUrl(customReportLogoPath);
+    if (url) return url;
+  }
+  if (customBrandLogoPath) {
+    const url = mediaUrl(customBrandLogoPath);
+    if (url) return url;
+  }
+  const str = (nameOrOrg || "").toLowerCase();
+  if (str.includes("meewa")) {
+    return "/meewa_logo.png";
+  }
+  return "/ananta_logo.png";
+}
+

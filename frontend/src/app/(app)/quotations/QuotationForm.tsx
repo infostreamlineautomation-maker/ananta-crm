@@ -287,7 +287,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
       });
       toast.success(`Copied to ${copy.quotation_no}.`);
-      router.push(`/quotations/${copy.id}`);
+      router.push("/quotations");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't duplicate this quotation.");
     } finally {
@@ -304,7 +304,7 @@ export function QuotationForm({ quotation, initialProjectId }: { quotation?: Quo
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), tax_percent: 0 }),
       });
       toast.success(`Order ${order.order_no} created and quotation marked as Accepted (Won).`);
-      router.push(`/orders/${order.id}`);
+      router.push("/orders");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't create an order from this quotation.");
     } finally {

@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Check, FileText, Pencil, Plus, Trash2, X, Download } from "lucide-react";
+import {
+  BookOpen,
+  Copy,
+  Check,
+  FileSpreadsheet,
+  FileText,
+  Package,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+  Download,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
@@ -19,6 +31,8 @@ import { TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { ResizableTh } from "@/components/ui/ResizableTh";
+import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -26,6 +40,8 @@ import { ExportColumn } from "@/lib/export-utils";
 import { formatDate, mediaUrl } from "@/lib/format";
 import { ProductModal } from "@/components/products/ProductModal";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { AttachmentDropdown, AttachmentItem } from "@/components/ui/AttachmentDropdown";
+import { ItemsDropdown } from "@/components/ui/ItemsDropdown";
 import clsx from "clsx";
 
 export const SUPPLIER_RATING_TONE: Record<string, { badge: string; label: string; description: string }> = {
@@ -73,8 +89,8 @@ export default function SuppliersPage() {
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [cols, setCols] = useState<Set<string>>(new Set(SUPPLIERS_PAGE_COLUMNS.map((c) => c.key)));
   const [copiedContact, setCopiedContact] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
@@ -155,9 +171,15 @@ export default function SuppliersPage() {
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
 
+  const grid = useTableGrid({
+    tableKey: "suppliers",
+    defaultColumns: allColumns,
+    defaultVisibleKeys: SUPPLIERS_PAGE_COLUMNS.map((c) => c.key),
+  });
+
   useEffect(() => {
     if (customFields && customFields.length > 0) {
-      setCols((prev) => {
+      grid.setVisibleColumns((prev) => {
         const next = new Set(prev);
         customFields.forEach((f: CustomFieldDefinition) => {
           if (f.show_in_table) next.add(`extra_${f.field_key}`);
@@ -206,7 +228,6 @@ export default function SuppliersPage() {
 
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} selected supplier(s)?`)) return;
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -219,6 +240,7 @@ export default function SuppliersPage() {
       toast.error(err?.message || "Failed to delete selected suppliers");
     } finally {
       setBulkDeleting(false);
+      setConfirmBulkDelete(false);
     }
   };
 
@@ -274,18 +296,7 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Suppliers"
-        action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus className="h-4 w-4" /> Add Supplier
-            </Button>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       <FilterBar
         search={search}
         onSearchChange={(val) => {
@@ -313,7 +324,18 @@ export default function SuppliersPage() {
               title="Suppliers Directory"
               columns={supplierExportColumns}
             />
-            <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+            <ColumnSelector
+              columns={grid.columns}
+              visibleColumns={grid.visibleColumns}
+              onChange={grid.setVisibleColumns}
+              onReorder={grid.reorderColumns}
+              onReset={grid.resetGrid}
+            />
+            {canAdd && (
+              <Button variant="primary" onClick={() => setEditing("new")}>
+                <Plus className="h-4 w-4" /> Add Supplier
+              </Button>
+            )}
           </div>
         }
       />
@@ -341,7 +363,7 @@ export default function SuppliersPage() {
               <Button
                 variant="danger"
                 size="sm"
-                onClick={bulkDelete}
+                onClick={() => setConfirmBulkDelete(true)}
                 loading={bulkDeleting}
                 className="h-8"
               >
@@ -358,380 +380,325 @@ export default function SuppliersPage() {
           <table className="w-full min-w-[1100px] text-[12.5px]">
             <thead>
               <tr className="border-b border-border text-left">
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("sr") && <th className={`${TH_CELL} w-10 min-w-[40px] text-center px-1`}>SR</th>}
-                {cols.has("rating") && (
-                  <th className={`${TH_CELL} w-16 min-w-[65px] text-center px-1`}>
-                    <div className="inline-flex items-center justify-center gap-1">
-                      <span>Rating</span>
-                      {getColFilter("rating") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("rating")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("supplier_name") && (
-                  <th className={`${TH_CELL} min-w-[160px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Supplier Name</span>
-                      {getColFilter("supplier_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("supplier_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("source") && (
-                  <th className={`${TH_CELL} min-w-[85px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Source</span>
-                      {getColFilter("source") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("source")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("products") && (
-                  <th className={`${TH_CELL} min-w-[95px]`}>
-                    <span>Products</span>
-                  </th>
-                )}
-                {cols.has("company_name") && (
-                  <th className={`${TH_CELL} min-w-[130px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Company</span>
-                      {getColFilter("company_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("company_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("contact") && (
-                  <th className={`${TH_CELL} min-w-[145px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Contact</span>
-                      {getColFilter("contact") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("contact")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("email") && (
-                  <th className={`${TH_CELL} min-w-[160px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Email</span>
-                      {getColFilter("email") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("email")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("website") && (
-                  <th className={`${TH_CELL} min-w-[110px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Website</span>
-                      {getColFilter("website") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("website")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("address") && (
-                  <th className={`${TH_CELL} min-w-[150px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Address</span>
-                      {getColFilter("address") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("address")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("remark") && (
-                  <th className={`${TH_CELL} min-w-[110px]`}>
-                    <div className="inline-flex items-center gap-1">
-                      <span>Notes</span>
-                      {getColFilter("remark") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("remark")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("docs") && <th className={`${TH_CELL} w-14 min-w-[50px] text-center px-1`}>Docs</th>}
-                {customFields?.map((f: CustomFieldDefinition) => {
-                  const colKey = `extra_${f.field_key}`;
-                  const filterKey = `custom__${f.field_key}`;
-                  if (!cols.has(colKey)) return null;
-                  const colFilter = getColFilter(filterKey);
-                  return (
-                    <th key={f.id} className={`${TH_CELL} min-w-[120px]`}>
-                      <div className="inline-flex items-center gap-1">
-                        <span>{f.label}</span>
-                        {colFilter && (
-                          <ColumnHeaderFilter
-                            column={colFilter}
-                            activeFilters={activeFilters}
-                            onFilterChange={(k, v) => {
-                              setFilter(k, v);
-                              setPage(1);
-                            }}
+                {grid.columns
+                  .filter((col) => grid.visibleColumns.has(col.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh
+                          key="select"
+                          columnKey="select"
+                          grid={grid}
+                          isDraggable={false}
+                          isResizable={false}
+                          className="w-10 px-3 py-2.5 text-center"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {cols.has("created_at") && <th className={`${TH_CELL} min-w-[120px]`}>Created Date</th>}
-                {cols.has("updated_at") && <th className={`${TH_CELL} min-w-[120px]`}>Updated Date</th>}
-                {cols.has("actions") && <th className={`${TH_CELL} w-16 min-w-[60px] text-right px-2`}></th>}
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh
+                          key="actions"
+                          columnKey="actions"
+                          grid={grid}
+                          align="right"
+                          isDraggable={false}
+                          className={`${TH_CELL} w-16 min-w-[60px] text-right px-2`}
+                        >
+                          <span>Action</span>
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "sr") {
+                      return (
+                        <ResizableTh
+                          key="sr"
+                          columnKey="sr"
+                          grid={grid}
+                          align="center"
+                          className={`${TH_CELL} w-10 min-w-[40px] text-center px-1`}
+                        >
+                          <span>SR</span>
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "rating") {
+                      const colFilter = getColFilter("rating");
+                      return (
+                        <ResizableTh
+                          key="rating"
+                          columnKey="rating"
+                          grid={grid}
+                          align="center"
+                          className={`${TH_CELL} w-16 min-w-[65px] text-center px-1`}
+                        >
+                          <div className="inline-flex items-center justify-center gap-1">
+                            <span>Rating</span>
+                            {colFilter && (
+                              <ColumnHeaderFilter
+                                column={colFilter}
+                                activeFilters={activeFilters}
+                                onFilterChange={(k, v) => {
+                                  setFilter(k, v);
+                                  setPage(1);
+                                }}
+                              />
+                            )}
+                          </div>
+                        </ResizableTh>
+                      );
+                    }
+
+                    const filterKey = col.key.startsWith("extra_")
+                      ? `custom__${col.key.replace("extra_", "")}`
+                      : col.key;
+                    const colFilter = getColFilter(filterKey);
+
+                    return (
+                      <ResizableTh
+                        key={col.key}
+                        columnKey={col.key}
+                        grid={grid}
+                        className={TH_CELL}
+                      >
+                        <div className="inline-flex items-center gap-1">
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No suppliers yet." />
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size}
+                emptyLabel="No suppliers yet."
+              />
               {data?.results.map((s, idx) => {
                 const srNo = (page - 1) * 20 + idx + 1;
                 const totalDocs = s.files?.length || 0;
                 const productsCount = s.supplier_products?.length || 0;
 
+                const attachmentItems: AttachmentItem[] = (s.files || []).map((f) => {
+                  const filePath = f.file || "";
+                  const fileName = filePath.split("/").pop() || "Document";
+                  return {
+                    id: f.id,
+                    file: f.file,
+                    file_url: f.file,
+                    file_name: fileName,
+                    file_size: f.file_size,
+                    category: f.file_type === "rate_card" ? "rate_list" : "catalogue",
+                  };
+                });
+
                 return (
                   <tr key={s.id} className={TR}>
-                    {cols.has("select") && (
-                      <td className="w-10 px-3 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(s.id)}
-                          onChange={() => toggleSelectOne(s.id)}
-                          className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                        />
-                      </td>
-                    )}
-                    {cols.has("sr") && <td className={`${TD_CELL} text-center font-medium text-ink-muted px-1`}>{srNo}</td>}
-                    {cols.has("rating") && (
-                      <td className={`${TD_CELL} text-center px-1`}>
-                        <span
-                          className={clsx(
-                            "inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-black shadow-xs",
-                            (s.rating || "B") === "A"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              : (s.rating || "B") === "B"
-                              ? "bg-sky-100 text-sky-800 border border-sky-300"
-                              : "bg-amber-100 text-amber-800 border border-amber-300"
-                          )}
-                          title={`${SUPPLIER_RATING_TONE[s.rating || "B"]?.label || `Grade ${s.rating}`} — ${SUPPLIER_RATING_TONE[s.rating || "B"]?.description || ""}`}
-                        >
-                          {s.rating || "B"}
-                        </span>
-                      </td>
-                    )}
-                    {cols.has("supplier_name") && (
-                      <td className={TD_CELL}>
-                        <Link
-                          href={`/suppliers/${s.id}`}
-                          className="font-bold text-primary-600 hover:text-primary-700 hover:underline uppercase text-[12px] tracking-wide whitespace-nowrap block"
-                          title={s.supplier_name}
-                        >
-                          {s.supplier_name}
-                        </Link>
-                      </td>
-                    )}
-                    {cols.has("source") && (
-                      <td className={TD_CELL}>
-                        {s.source ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-sunken text-ink border border-border whitespace-nowrap">
-                            {s.source}
-                          </span>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                    )}
-                    {cols.has("products") && (
-                      <td className={TD_CELL}>
-                        {productsCount > 0 ? (
-                          <Link
-                            href={`/suppliers/${s.id}?tab=products`}
-                            className="inline-flex items-center px-2.5 py-1 text-[11.5px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded whitespace-nowrap transition"
-                          >
-                            View ({productsCount})
-                          </Link>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                    )}
-                    {cols.has("company_name") && (
-                      <td className={`${TD_CELL} text-ink font-medium whitespace-nowrap`}>
-                        {s.company_name || s.owner_name_contact || "—"}
-                      </td>
-                    )}
-                    {cols.has("contact") && (
-                      <td className={TD_CELL}>
-                        {s.contact ? (
-                          <div className="inline-flex items-center gap-1.5 font-mono text-[12px] text-ink whitespace-nowrap">
-                            <span>{s.contact}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => copyToClipboard(s.contact, e)}
-                              className="text-ink-muted hover:text-primary-600 transition p-0.5 rounded"
-                              title="Copy contact number"
-                            >
-                              {copiedContact === s.contact ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                    )}
-                    {cols.has("email") && (
-                      <td className={`${TD_CELL} whitespace-nowrap`}>
-                        {s.email ? (
-                          <a href={`mailto:${s.email}`} className="text-primary-600 hover:underline" title={s.email}>
-                            {s.email}
-                          </a>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                    )}
-                    {cols.has("website") && (
-                      <td className={`${TD_CELL} whitespace-nowrap`}>
-                        {s.website ? (
-                          <a
-                            href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 hover:underline"
-                            title={s.website}
-                          >
-                            {s.website.replace(/^https?:\/\//, "")}
-                          </a>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                    )}
-                    {cols.has("address") && (
-                      <td className={`${TD_CELL} text-ink-muted max-w-[200px] truncate`} title={s.address || ""}>
-                        {s.address || "—"}
-                      </td>
-                    )}
-                    {cols.has("remark") && (
-                      <td className={`${TD_CELL} text-ink-muted max-w-[160px] truncate`} title={s.remark || ""}>
-                        {s.remark || "N/A"}
-                      </td>
-                    )}
-                    {cols.has("docs") && (
-                      <td className={`${TD_CELL} text-center px-1`}>
-                        <Link
-                          href={`/suppliers/${s.id}?tab=files`}
-                          className="inline-flex items-center justify-center gap-1 text-[12px] font-medium text-ink-muted hover:text-primary-600 transition"
-                          title={`${totalDocs} document(s)`}
-                        >
-                          <FileText className="h-3.5 w-3.5 text-primary-500" />
-                          <span>{totalDocs}</span>
-                        </Link>
-                      </td>
-                    )}
-                    {customFields?.map((f: CustomFieldDefinition) =>
-                      cols.has(`extra_${f.field_key}`) ? (
-                        <td key={f.id} className={`${TD_CELL} text-ink-muted truncate`}>
-                          {String(s.extra_data?.[f.field_key] ?? "—")}
-                        </td>
-                      ) : null
-                    )}
-                    {cols.has("created_at") && <td className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.created_at)}</td>}
-                    {cols.has("updated_at") && <td className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.updated_at)}</td>}
-                    {cols.has("actions") && (
-                      <td className={`${TD_CELL} text-right px-2`}>
-                        <div className="flex justify-end items-center gap-1">
-                          {canEdit && (
-                            <RowActionButton label="Edit" onClick={() => setEditing(s)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </RowActionButton>
-                          )}
-                          {canDelete && (
-                            <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(s)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </RowActionButton>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    {grid.columns
+                      .filter((col) => grid.visibleColumns.has(col.key))
+                      .map((col) => {
+                        if (col.key.startsWith("extra_")) {
+                          const fieldKey = col.key.replace("extra_", "");
+                          return (
+                            <td key={col.key} className={`${TD_CELL} text-ink-muted truncate`}>
+                              {String(s.extra_data?.[fieldKey] ?? "—")}
+                            </td>
+                          );
+                        }
+
+                        switch (col.key) {
+                          case "select":
+                            return (
+                              <td key="select" className="w-10 px-3 py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(s.id)}
+                                  onChange={() => toggleSelectOne(s.id)}
+                                  className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                                />
+                              </td>
+                            );
+                          case "sr":
+                            return <td key="sr" className={`${TD_CELL} text-center font-medium text-ink-muted px-1`}>{srNo}</td>;
+                          case "rating":
+                            return (
+                              <td key="rating" className={`${TD_CELL} text-center px-1`}>
+                                <span
+                                  className={clsx(
+                                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-black shadow-xs",
+                                    (s.rating || "B") === "A"
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                      : (s.rating || "B") === "B"
+                                      ? "bg-sky-100 text-sky-800 border border-sky-300"
+                                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                                  )}
+                                  title={`${SUPPLIER_RATING_TONE[s.rating || "B"]?.label || `Grade ${s.rating}`} — ${SUPPLIER_RATING_TONE[s.rating || "B"]?.description || ""}`}
+                                >
+                                  {s.rating || "B"}
+                                </span>
+                              </td>
+                            );
+                          case "supplier_name":
+                            return (
+                              <td key="supplier_name" className={TD_CELL}>
+                                <Link
+                                  href={`/suppliers/${s.id}`}
+                                  className="font-bold text-primary-600 hover:text-primary-700 hover:underline uppercase text-[12px] tracking-wide whitespace-nowrap block"
+                                  title={s.supplier_name}
+                                >
+                                  {s.supplier_name}
+                                </Link>
+                              </td>
+                            );
+                          case "source":
+                            return (
+                              <td key="source" className={TD_CELL}>
+                                {s.source ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-sunken text-ink border border-border whitespace-nowrap">
+                                    {s.source}
+                                  </span>
+                                ) : (
+                                  <span className="text-ink-faint">—</span>
+                                )}
+                              </td>
+                            );
+                          case "products":
+                            return (
+                              <td key="products" className={TD_CELL}>
+                                {(() => {
+                                  const productItems: string[] = s.product_details
+                                    ? s.product_details.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean)
+                                    : (s.supplier_products || []).map((sp) => sp.product_name).filter(Boolean);
+
+                                  return <ItemsDropdown items={productItems} title="Products" maxDisplayWidth="max-w-[120px]" />;
+                                })()}
+                              </td>
+                            );
+                          case "company_name":
+                            return (
+                              <td key="company_name" className={`${TD_CELL} text-ink font-medium whitespace-nowrap`}>
+                                {s.company_name || s.owner_name_contact || "—"}
+                              </td>
+                            );
+                          case "contact":
+                            return (
+                              <td key="contact" className={TD_CELL}>
+                                {s.contact ? (
+                                  <div className="inline-flex items-center gap-1.5 font-mono text-[12px] text-ink whitespace-nowrap">
+                                    <span>{s.contact}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => copyToClipboard(s.contact, e)}
+                                      className="text-ink-muted hover:text-primary-600 transition p-0.5 rounded"
+                                      title="Copy contact number"
+                                    >
+                                      {copiedContact === s.contact ? (
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-ink-faint">—</span>
+                                )}
+                              </td>
+                            );
+                          case "email":
+                            return (
+                              <td key="email" className={`${TD_CELL} whitespace-nowrap`}>
+                                {s.email ? (
+                                  <a href={`mailto:${s.email}`} className="text-primary-600 hover:underline" title={s.email}>
+                                    {s.email}
+                                  </a>
+                                ) : (
+                                  <span className="text-ink-faint">—</span>
+                                )}
+                              </td>
+                            );
+                          case "website":
+                            return (
+                              <td key="website" className={`${TD_CELL} whitespace-nowrap`}>
+                                {s.website ? (
+                                  <a
+                                    href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary-600 hover:underline"
+                                    title={s.website}
+                                  >
+                                    {s.website.replace(/^https?:\/\//, "")}
+                                  </a>
+                                ) : (
+                                  <span className="text-ink-faint">—</span>
+                                )}
+                              </td>
+                            );
+                          case "address":
+                            return (
+                              <td key="address" className={`${TD_CELL} text-ink-muted max-w-[200px] truncate`} title={s.address || ""}>
+                                {s.address || "—"}
+                              </td>
+                            );
+                          case "remark":
+                            return (
+                              <td key="remark" className={`${TD_CELL} text-ink-muted max-w-[160px] truncate`} title={s.remark || ""}>
+                                {s.remark || "N/A"}
+                              </td>
+                            );
+                          case "docs":
+                            return (
+                              <td key="docs" className={`${TD_CELL} px-2`}>
+                                <AttachmentDropdown files={attachmentItems} maxDisplayWidth="max-w-[120px]" />
+                              </td>
+                            );
+                          case "created_at":
+                            return <td key="created_at" className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.created_at)}</td>;
+                          case "updated_at":
+                            return <td key="updated_at" className={`${TD_CELL} text-ink-muted text-xs whitespace-nowrap`}>{formatDate(s.updated_at)}</td>;
+                          case "actions":
+                            return (
+                              <td key="actions" className={`${TD_CELL} text-right px-2`}>
+                                <div className="flex justify-end items-center gap-1">
+                                  {canEdit && (
+                                    <RowActionButton label="Edit" onClick={() => setEditing(s)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </RowActionButton>
+                                  )}
+                                  {canDelete && (
+                                    <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(s)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </RowActionButton>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          default:
+                            return null;
+                        }
+                      })}
                   </tr>
                 );
               })}
@@ -740,6 +707,18 @@ export default function SuppliersPage() {
         </div>
         {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
       </Card>
+
+      {confirmBulkDelete && (
+        <ConfirmDialog
+          open={confirmBulkDelete}
+          onClose={() => setConfirmBulkDelete(false)}
+          onConfirm={bulkDelete}
+          title="Delete Suppliers"
+          description={`Are you sure you want to delete ${selected.size} selected supplier(s)? This action cannot be undone.`}
+          confirmLabel="Delete Suppliers"
+          loading={bulkDeleting}
+        />
+      )}
 
       <SlideOver open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Add Supplier" : "Edit Supplier"}>
         {editing !== null && (
@@ -787,7 +766,6 @@ export function SupplierForm({
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const { can } = useAuth();
   const [form, setForm] = useState({
     supplier_name: supplier?.supplier_name ?? "",
     rating: (supplier?.rating as "A" | "B" | "C") ?? "B",
@@ -799,29 +777,30 @@ export function SupplierForm({
     address: supplier?.address ?? "",
     remark: supplier?.remark ?? "",
   });
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>(
-    supplier?.supplier_products?.map((sp) => sp.product) || []
-  );
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [pickingProduct, setPickingProduct] = useState<number | "">("");
-  const [createProductOpen, setCreateProductOpen] = useState(false);
+
+  const initialProducts = useMemo(() => {
+    if (supplier?.product_details) {
+      const list = supplier.product_details.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      if (list.length > 0) return list;
+    }
+    if (supplier?.supplier_products && supplier.supplier_products.length > 0) {
+      const list = supplier.supplier_products.map((sp) => sp.product_name).filter(Boolean);
+      if (list.length > 0) return list;
+    }
+    return [""];
+  }, [supplier]);
+
+  const [products, setProducts] = useState<string[]>(initialProducts);
+
   const [extraData, setExtraData] = useState<Record<string, any>>(supplier?.extra_data || {});
   const [customFields, setCustomFields] = useState<any[]>([]);
-  const [quotationFiles, setQuotationFiles] = useState<File[]>([]);
-  const [rateCardFiles, setRateCardFiles] = useState<File[]>([]);
+  const [deletedFileIds, setDeletedFileIds] = useState<Set<number>>(new Set());
+  const [catalogueFiles, setCatalogueFiles] = useState<File[]>([]);
+  const [rateListFiles, setRateListFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canAddProduct = can("catalog", "add");
-
-  function loadProducts() {
-    apiFetch<Paginated<Product>>("/api/products/?page_size=200")
-      .then((res) => setAllProducts(res.results || []))
-      .catch(() => {});
-  }
-
   useEffect(() => {
-    loadProducts();
     apiFetch<Paginated<any>>("/api/custom-fields/?module=supplier")
       .then((res) => setCustomFields(res.results || []))
       .catch(() => {});
@@ -831,52 +810,44 @@ export function SupplierForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleSelectProduct(productId: number | string) {
-    const id = Number(productId);
-    if (id && !selectedProductIds.includes(id)) {
-      setSelectedProductIds((prev) => [...prev, id]);
+  async function handleDeleteExistingFile(fileId: number) {
+    try {
+      await apiFetch(`/api/supplier-files/${fileId}/`, { method: "DELETE" });
+      setDeletedFileIds((prev) => new Set(prev).add(fileId));
+      toast.success("File removed.");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't delete this file.");
     }
-    setPickingProduct("");
   }
 
-  function handleRemoveProduct(productId: number) {
-    setSelectedProductIds((prev) => prev.filter((id) => id !== productId));
-  }
-
-  function handleProductCreated(newProduct: Product) {
-    setAllProducts((prev) => [...prev, newProduct]);
-    setSelectedProductIds((prev) => [...prev, newProduct.id]);
-    toast.success(`"${newProduct.product_name}" added and linked to supplier.`);
-  }
-
-  function handleAddQuotationFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAddCatalogueFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setQuotationFiles((prev) => [...prev, ...newFiles]);
+      setCatalogueFiles((prev) => [...prev, ...newFiles]);
       e.target.value = "";
     }
   }
 
-  function handleAddRateCardFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAddRateListFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setRateCardFiles((prev) => [...prev, ...newFiles]);
+      setRateListFiles((prev) => [...prev, ...newFiles]);
       e.target.value = "";
     }
   }
-
-  const unselectedProducts = allProducts.filter((p) => !selectedProductIds.includes(p.id));
-  const productOptions = unselectedProducts.map((p) => ({ value: p.id, label: p.product_name }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
+      const allProductNames = products.map((s) => s.trim()).filter(Boolean);
+      const productDetailsStr = allProductNames.join(", ");
+
       const payload = {
         ...form,
         owner_name_contact: form.company_name, // keep backward compat
-        product_ids: selectedProductIds,
+        product_details: productDetailsStr,
         extra_data: extraData,
       };
 
@@ -895,29 +866,29 @@ export function SupplierForm({
         toast.success("Supplier added.");
       }
 
-      // Upload newly added quotation files in bulk
-      if (quotationFiles.length > 0) {
+      // Upload newly added catalogue files in bulk
+      if (catalogueFiles.length > 0) {
         try {
           const qBody = new FormData();
           qBody.append("supplier", String(savedSupplier.id));
           qBody.append("file_type", "quotation");
-          quotationFiles.forEach((f) => qBody.append("files", f));
+          catalogueFiles.forEach((f) => qBody.append("files", f));
           await apiFetch("/api/supplier-files/bulk_upload/", { method: "POST", body: qBody });
         } catch {
-          toast.error("Supplier saved, but some quotation files failed to upload.");
+          toast.error("Supplier saved, but some catalogue files failed to upload.");
         }
       }
 
-      // Upload newly added rate card files in bulk
-      if (rateCardFiles.length > 0) {
+      // Upload newly added rate list files in bulk
+      if (rateListFiles.length > 0) {
         try {
           const rBody = new FormData();
           rBody.append("supplier", String(savedSupplier.id));
           rBody.append("file_type", "rate_card");
-          rateCardFiles.forEach((f) => rBody.append("files", f));
+          rateListFiles.forEach((f) => rBody.append("files", f));
           await apiFetch("/api/supplier-files/bulk_upload/", { method: "POST", body: rBody });
         } catch {
-          toast.error("Supplier saved, but some rate card files failed to upload.");
+          toast.error("Supplier saved, but some rate list files failed to upload.");
         }
       }
 
@@ -929,10 +900,12 @@ export function SupplierForm({
     }
   }
 
-  const existingQuotations = supplier?.files?.filter(
-    (f) => f.file_type === "quotation" || f.file_type === "brochure"
-  ) || [];
-  const existingRateCards = supplier?.files?.filter((f) => f.file_type === "rate_card") || [];
+  const existingCatalogues = (supplier?.files || []).filter(
+    (f) => !deletedFileIds.has(f.id) && (f.file_type === "quotation" || f.file_type === "brochure")
+  );
+  const existingRateLists = (supplier?.files || []).filter(
+    (f) => !deletedFileIds.has(f.id) && f.file_type === "rate_card"
+  );
 
   return (
     <>
@@ -988,63 +961,69 @@ export function SupplierForm({
           <Input value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="e.g. IndiaMART, referral" />
         </Field>
 
-        <Field label="Link Catalog Products" hint="Connect products from your catalog with this supplier">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <Combobox
-                  value={pickingProduct || null}
-                  onChange={handleSelectProduct}
-                  options={productOptions}
-                  placeholder="Select products to link..."
-                />
-              </div>
-              {canAddProduct && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setCreateProductOpen(true)}
-                  className="whitespace-nowrap"
-                >
-                  <Plus className="h-3.5 w-3.5" /> New Product
-                </Button>
-              )}
+        {/* Product Names Data Entry */}
+        <div className="rounded-xl border border-border bg-surface-sunken/30 p-3.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[13px] font-bold text-ink flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-primary-500" /> Products
+              </span>
+              <p className="text-[11px] text-ink-muted">Enter product names, materials or items supplied by this vendor</p>
             </div>
-
-            {selectedProductIds.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2 bg-surface-sunken rounded-lg border border-border">
-                {selectedProductIds.map((id) => {
-                  const prod = allProducts.find((p) => p.id === id);
-                  return (
-                    <span
-                      key={id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-surface text-ink border border-border shadow-xs"
-                    >
-                      <span>{prod?.product_name || `Product #${id}`}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProduct(id)}
-                        className="text-ink-muted hover:text-rose-600 transition p-0.5 rounded cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
           </div>
-        </Field>
 
-        {/* Quotation Files (Multiple Upload) */}
+          <div className="flex flex-col gap-2">
+            {products.map((p, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    value={p}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProducts((prev) => prev.map((item, i) => (i === idx ? val : item)));
+                    }}
+                    placeholder={
+                      idx === 0
+                        ? "e.g. Offset Printing / Paper 300 GSM"
+                        : idx === 1
+                        ? "e.g. Vinyl Banners / Lamination Sheets"
+                        : `Product / Item ${idx + 1}`
+                    }
+                  />
+                </div>
+                {products.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setProducts((prev) => prev.filter((_, i) => i !== idx))}
+                    className="p-1.5 text-ink-muted hover:text-rose-600 rounded transition cursor-pointer"
+                    title="Remove item"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setProducts((prev) => [...prev, ""])}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Another Product
+            </button>
+          </div>
+        </div>
+
+        {/* Catalogue Files (Multiple Upload) */}
         <div className="rounded-xl border border-border bg-surface-sunken/40 p-3.5 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-[13px] font-bold text-ink flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-primary-500" /> Quotations
+                <BookOpen className="h-3.5 w-3.5 text-primary-500" /> Catalogue
               </span>
-              <p className="text-[11px] text-ink-muted">Upload supplier price quotations or proposals (multiple files allowed)</p>
+              <p className="text-[11px] text-ink-muted">Upload supplier product catalogues, brochures, or sample sheets</p>
             </div>
             <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-surface-hover transition">
               <Plus className="h-3 w-3" /> Add Files
@@ -1053,17 +1032,17 @@ export function SupplierForm({
                 multiple
                 accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
                 className="hidden"
-                onChange={handleAddQuotationFiles}
+                onChange={handleAddCatalogueFiles}
               />
             </label>
           </div>
 
           {/* New files selected */}
-          {quotationFiles.length > 0 && (
+          {catalogueFiles.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-primary-700">Selected for upload ({quotationFiles.length}):</span>
+              <span className="text-[11px] font-semibold text-primary-700">Selected for upload ({catalogueFiles.length}):</span>
               <div className="flex flex-wrap gap-1.5">
-                {quotationFiles.map((file, idx) => (
+                {catalogueFiles.map((file, idx) => (
                   <span
                     key={idx}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-primary-50 text-primary-900 border border-primary-200"
@@ -1072,7 +1051,7 @@ export function SupplierForm({
                     <span className="text-[10px] text-primary-600">({(file.size / 1024).toFixed(0)} KB)</span>
                     <button
                       type="button"
-                      onClick={() => setQuotationFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      onClick={() => setCatalogueFiles((prev) => prev.filter((_, i) => i !== idx))}
                       className="text-primary-700 hover:text-rose-600 transition cursor-pointer"
                     >
                       <X className="h-3 w-3" />
@@ -1084,34 +1063,47 @@ export function SupplierForm({
           )}
 
           {/* Existing uploaded files if editing */}
-          {existingQuotations.length > 0 && (
+          {existingCatalogues.length > 0 && (
             <div className="pt-1.5 border-t border-border/70 flex flex-col gap-1">
-              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingQuotations.length}):</span>
+              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingCatalogues.length}):</span>
               <div className="flex flex-wrap gap-1.5">
-                {existingQuotations.map((f) => (
-                  <a
+                {existingCatalogues.map((f) => (
+                  <span
                     key={f.id}
-                    href={f.file}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-white text-ink-muted hover:text-primary-600 border border-border"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-white text-ink hover:border-primary-300 border border-border shadow-2xs group"
                   >
-                    <span className="truncate max-w-[150px]">{f.file.split("/").pop()}</span>
-                  </a>
+                    <a
+                      href={f.file}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate max-w-[150px] hover:text-primary-600 hover:underline"
+                      title={`View / Download: ${f.file.split("/").pop()}`}
+                    >
+                      {f.file.split("/").pop()}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteExistingFile(f.id)}
+                      className="text-ink-muted hover:text-rose-600 transition p-0.5 rounded cursor-pointer"
+                      title="Delete this file"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </span>
                 ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Rate Card Files (Multiple Upload) */}
+        {/* Rate List Files (Multiple Upload) */}
         <div className="rounded-xl border border-border bg-surface-sunken/40 p-3.5 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-[13px] font-bold text-ink flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-emerald-600" /> Rate Cards
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Rate List
               </span>
-              <p className="text-[11px] text-ink-muted">Upload rate sheets, price lists, or cost cards (multiple files allowed)</p>
+              <p className="text-[11px] text-ink-muted">Upload rate sheets, price lists, or cost cards</p>
             </div>
             <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-surface-hover transition">
               <Plus className="h-3 w-3" /> Add Files
@@ -1120,17 +1112,17 @@ export function SupplierForm({
                 multiple
                 accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
                 className="hidden"
-                onChange={handleAddRateCardFiles}
+                onChange={handleAddRateListFiles}
               />
             </label>
           </div>
 
           {/* New files selected */}
-          {rateCardFiles.length > 0 && (
+          {rateListFiles.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-emerald-800">Selected for upload ({rateCardFiles.length}):</span>
+              <span className="text-[11px] font-semibold text-emerald-800">Selected for upload ({rateListFiles.length}):</span>
               <div className="flex flex-wrap gap-1.5">
-                {rateCardFiles.map((file, idx) => (
+                {rateListFiles.map((file, idx) => (
                   <span
                     key={idx}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200"
@@ -1139,7 +1131,7 @@ export function SupplierForm({
                     <span className="text-[10px] text-emerald-700">({(file.size / 1024).toFixed(0)} KB)</span>
                     <button
                       type="button"
-                      onClick={() => setRateCardFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      onClick={() => setRateListFiles((prev) => prev.filter((_, i) => i !== idx))}
                       className="text-emerald-800 hover:text-rose-600 transition cursor-pointer"
                     >
                       <X className="h-3 w-3" />
@@ -1151,20 +1143,33 @@ export function SupplierForm({
           )}
 
           {/* Existing uploaded files if editing */}
-          {existingRateCards.length > 0 && (
+          {existingRateLists.length > 0 && (
             <div className="pt-1.5 border-t border-border/70 flex flex-col gap-1">
-              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingRateCards.length}):</span>
+              <span className="text-[11px] font-semibold text-ink-faint">Previously attached ({existingRateLists.length}):</span>
               <div className="flex flex-wrap gap-1.5">
-                {existingRateCards.map((f) => (
-                  <a
+                {existingRateLists.map((f) => (
+                  <span
                     key={f.id}
-                    href={f.file}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-white text-ink-muted hover:text-emerald-700 border border-border"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-white text-ink hover:border-emerald-300 border border-border shadow-2xs group"
                   >
-                    <span className="truncate max-w-[150px]">{f.file.split("/").pop()}</span>
-                  </a>
+                    <a
+                      href={f.file}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate max-w-[150px] hover:text-emerald-700 hover:underline"
+                      title={`View / Download: ${f.file.split("/").pop()}`}
+                    >
+                      {f.file.split("/").pop()}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteExistingFile(f.id)}
+                      className="text-ink-muted hover:text-rose-600 transition p-0.5 rounded cursor-pointer"
+                      title="Delete this file"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </span>
                 ))}
               </div>
             </div>
@@ -1203,12 +1208,6 @@ export function SupplierForm({
           </Button>
         </div>
       </form>
-
-      <ProductModal
-        open={createProductOpen}
-        onClose={() => setCreateProductOpen(false)}
-        onSaved={handleProductCreated}
-      />
     </>
   );
 }

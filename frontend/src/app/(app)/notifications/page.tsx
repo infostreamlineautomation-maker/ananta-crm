@@ -7,7 +7,6 @@ import { ChevronRight, X } from "lucide-react";
 import clsx from "clsx";
 import { apiFetch, Paginated } from "@/lib/api";
 import { NotificationEntry } from "@/lib/types";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 
 const EVENT_TONE: Record<string, string> = {
@@ -89,25 +88,22 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Notifications"
-        action={
-          <div className="flex rounded-md border border-border bg-white p-0.5">
-            {(["all", "unread"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={clsx(
-                  "rounded px-3 py-1.5 text-[13px] font-semibold capitalize transition-colors",
-                  filter === f ? "bg-primary-500 text-white" : "text-ink-muted hover:text-ink",
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        }
-      />
+      <div className="flex items-center justify-end">
+        <div className="flex rounded-md border border-border bg-white p-0.5 shadow-sm">
+          {(["all", "unread"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={clsx(
+                "rounded px-3 py-1.5 text-[13px] font-semibold capitalize transition-colors",
+                filter === f ? "bg-primary-500 text-white shadow-sm" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {!loading && visible.length === 0 && <Card className="px-5 py-16 text-center text-sm text-ink-faint">You&apos;re all caught up.</Card>}
 

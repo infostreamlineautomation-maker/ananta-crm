@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BookOpen,
   Calculator,
   Download,
   FileSpreadsheet,
   FileText,
+  FolderArchive,
   Image as ImageIcon,
   Paperclip,
   Plus,
+  Receipt,
   Trash2,
   UploadCloud,
   X,
@@ -99,20 +102,26 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
 
   const [files, setFiles] = useState<CostingFile[]>(() => {
     if (costing?.files && costing.files.length > 0) {
-      return costing.files;
+      return costing.files.map((f) => ({
+        ...f,
+        category: f.category || "catalogue",
+      }));
     }
     if (costing?.file) {
       return [
         {
           file: costing.file,
           file_name: costing.file_name || costing.file.split("/").pop() || "Attached File",
+          category: "catalogue",
         },
       ];
     }
     return [];
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const catalogueInputRef = useRef<HTMLInputElement>(null);
+  const rateListInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingCatalogue, setIsDraggingCatalogue] = useState(false);
+  const [isDraggingRateList, setIsDraggingRateList] = useState(false);
   const [previewLightbox, setPreviewLightbox] = useState<string | null>(null);
 
   const [description, setDescription] = useState(costing?.description ?? "");
@@ -171,7 +180,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
     });
   }
 
-  const handleFilesUpload = (uploadedFiles: FileList | File[] | null) => {
+  const handleFilesUpload = (uploadedFiles: FileList | File[] | null, category: "catalogue" | "rate_list") => {
     if (!uploadedFiles || uploadedFiles.length === 0) return;
     const fileArray = Array.from(uploadedFiles);
 
@@ -190,6 +199,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             file: String(evt.target?.result || ""),
             file_name: fileObj.name,
             file_size: fileObj.size,
+            category,
           });
         };
         reader.readAsDataURL(fileObj);
@@ -198,16 +208,20 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
 
     Promise.all(readers).then((newFiles) => {
       setFiles((prev) => [...prev, ...newFiles]);
-      toast.success(`Attached ${newFiles.length} file${newFiles.length > 1 ? "s" : ""}.`);
+      toast.success(
+        `Attached ${newFiles.length} ${category === "catalogue" ? "catalogue" : "rate list"} file${newFiles.length > 1 ? "s" : ""}.`
+      );
     });
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    if (category === "catalogue" && catalogueInputRef.current) {
+      catalogueInputRef.current.value = "";
+    } else if (category === "rate_list" && rateListInputRef.current) {
+      rateListInputRef.current.value = "";
     }
   };
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeFile = (fileToRemove: CostingFile) => {
+    setFiles((prev) => prev.filter((f) => f !== fileToRemove));
   };
 
   const isImageFile = (name?: string | null) => {
@@ -234,6 +248,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
           file: f.file,
           file_name: f.file_name,
           file_size: f.file_size,
+          category: f.category || "catalogue",
         })),
         file: files.length > 0 ? files[0].file : null,
         file_name: files.length > 0 ? files[0].file_name : null,
@@ -262,6 +277,9 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
       setSaving(false);
     }
   }
+
+  const catalogueFiles = useMemo(() => files.filter((f) => f.category !== "rate_list"), [files]);
+  const rateListFiles = useMemo(() => files.filter((f) => f.category === "rate_list"), [files]);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -342,10 +360,10 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
               <Input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                placeholder="1"
+                placeholder="1.00"
                 required
               />
             </Field>
@@ -362,62 +380,61 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             </Field>
           </div>
 
-          {/* Custom Fields (e.g. Wastage %, Setup Fee, Machine Charge) */}
+          {/* Dynamic Extra Custom Fields */}
           {columns.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-1 border-t border-border/40">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 border-t border-border/60 pt-3">
               {columns.map((col) => (
-                <Field
-                  key={col.key}
-                  label={
-                    <div className="flex items-center justify-between gap-1">
-                      <input
-                        value={col.label}
+                <div key={col.key} className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Field label={col.label}>
+                      <Input
+                        type="text"
+                        value={extraData[col.key] || ""}
                         onChange={(e) =>
-                          setColumns((prev) =>
-                            prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
-                          )
+                          setExtraData((prev) => ({
+                            ...prev,
+                            [col.key]: e.target.value,
+                          }))
                         }
-                        className="w-32 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-xs font-semibold text-ink-faint focus:border-primary-400 focus:outline-hidden"
+                        placeholder={`Enter ${col.label.toLowerCase()}...`}
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeColumn(col.key)}
-                        className="text-ink-faint hover:text-rose-600 transition-colors cursor-pointer"
-                        title="Remove field"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  }
-                >
-                  <Input
-                    value={extraData[col.key] ?? ""}
-                    onChange={(e) => setExtraData((prev) => ({ ...prev, [col.key]: e.target.value }))}
-                    placeholder={`Enter ${col.label.toLowerCase()}...`}
-                  />
-                </Field>
+                    </Field>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeColumn(col.key)}
+                    className="mb-1 rounded p-1.5 text-ink-faint hover:bg-rose-50 hover:text-rose-600 cursor-pointer transition-colors"
+                    title="Remove custom field"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
 
-          {/* Live inline calculation summary */}
-          <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4 border-t border-border/60">
-            <div className="rounded-lg bg-surface p-3 border border-border shadow-2xs">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-ink-faint">Supplier Total Cost</p>
-              <p className="tnum mt-0.5 text-base font-bold text-ink">{formatCurrency(totals.supplierCost)}</p>
+          {/* Real-time Calculation Breakdown Bar */}
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/80 bg-surface p-3.5 sm:grid-cols-4">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Supplier Total Cost</span>
+              <p className="tnum text-base font-extrabold text-ink mt-0.5">{formatCurrency(totals.supplierCost)}</p>
             </div>
-            <div className="rounded-lg bg-surface p-3 border border-border shadow-2xs">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-ink-faint">Client Total Revenue</p>
-              <p className="tnum mt-0.5 text-base font-bold text-ink">{formatCurrency(totals.clientRevenue)}</p>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Client Total Revenue</span>
+              <p className="tnum text-base font-extrabold text-ink mt-0.5">{formatCurrency(totals.clientRevenue)}</p>
             </div>
-            <div className="rounded-lg bg-surface p-3 border border-border shadow-2xs">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-ink-faint">Net Profit</p>
-              <p className={`tnum mt-0.5 text-base font-bold ${totals.profit >= 0 ? "text-success-700" : "text-primary-600"}`}>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Net Profit</span>
+              <p
+                className={`tnum text-base font-extrabold mt-0.5 ${
+                  totals.profit >= 0 ? "text-success-700" : "text-primary-600"
+                }`}
+              >
                 {formatCurrency(totals.profit)}
               </p>
             </div>
-            <div className="rounded-lg bg-surface p-3 border border-border shadow-2xs flex flex-col justify-between">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-ink-faint">Profit Margin (%)</p>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Profit Margin (%)</span>
               <span
                 className={`mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11.5px] font-bold ${
                   totals.profitPercent >= 20 ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
@@ -429,131 +446,267 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
           </div>
         </div>
 
-        {/* Multiple File Attachments */}
-        <div>
-          <Field
-            label={`Attached Files / Documents (${files.length})`}
-            hint="Attach multiple quotations, vendor estimates, spreadsheets, drawings, or proofs (PDF, Excel, Images, Word docs, etc.)"
-          >
-            <div className="flex flex-col gap-3">
-              {files.length > 0 && (
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {files.map((f, idx) => {
-                    const fPath = f.file || f.file_url || "";
-                    const fUrl = fPath ? (fPath.startsWith("data:") ? fPath : mediaUrl(fPath) || fPath) : "";
-                    const fName = f.file_name || (fPath ? fPath.split("/").pop() : `File #${idx + 1}`);
-                    const isImg = isImageFile(fName || fUrl);
+        {/* Dual Attachment Sections: Catalogue and Rate List */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* Section 1: Catalogue / Samples */}
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-sunken/20 p-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary-600" />
+                <h3 className="text-sm font-bold text-ink">Catalogue / Samples</h3>
+                <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700 border border-primary-100">
+                  {catalogueFiles.length}
+                </span>
+              </div>
+              <span className="text-[11px] text-ink-muted">Brochures, samples, mockups</span>
+            </div>
 
-                    return (
-                      <div
-                        key={f.id ? `f-${f.id}` : `f-new-${idx}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-sunken/40 px-3.5 py-2.5 transition-colors hover:bg-surface-sunken/70"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface border border-border shadow-2xs">
-                            {getFileIcon(fName || fUrl)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-[13px] font-semibold text-ink" title={fName || undefined}>
-                              {fName}
-                            </p>
-                            <p className="text-[11px] text-ink-muted flex items-center gap-1.5">
-                              {f.file_size ? <span>{formatFileSize(f.file_size)}</span> : null}
-                              {f.file_size && isImg ? <span>·</span> : null}
-                              {isImg ? <span>Image</span> : null}
-                            </p>
-                          </div>
+            {/* List of catalogue files */}
+            {catalogueFiles.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {catalogueFiles.map((f, idx) => {
+                  const fPath = f.file || f.file_url || "";
+                  const fUrl = fPath ? (fPath.startsWith("data:") ? fPath : mediaUrl(fPath) || fPath) : "";
+                  const fName = f.file_name || (fPath ? fPath.split("/").pop() : `Catalogue File #${idx + 1}`);
+                  const isImg = isImageFile(fName || fUrl);
+
+                  return (
+                    <div
+                      key={f.id ? `f-cat-${f.id}` : `f-cat-new-${idx}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 transition-colors hover:border-primary-300"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken border border-border shadow-2xs">
+                          {getFileIcon(fName || fUrl)}
                         </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isImg && fUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewLightbox(fUrl)}
-                              className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors"
-                              title="Preview image"
-                            >
-                              <ZoomIn className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          {fUrl && (
-                            <a
-                              href={fUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={fName || "attachment"}
-                              className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-primary-600 hover:text-primary-700 hover:bg-surface-hover shadow-2xs transition-colors"
-                              title="Download / Open file"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removeFile(idx)}
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                            title="Remove file"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-ink" title={fName || undefined}>
+                            {fName}
+                          </p>
+                          <p className="text-[10.5px] text-ink-muted flex items-center gap-1.5">
+                            {f.file_size ? <span>{formatFileSize(f.file_size)}</span> : null}
+                            {f.file_size && isImg ? <span>·</span> : null}
+                            {isImg ? <span>Image</span> : null}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              {/* Hidden file input with ref */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.svg,.doc,.docx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  handleFilesUpload(e.target.files);
-                }}
-              />
-
-              {/* Dropzone / Upload box */}
-              <div
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    fileInputRef.current?.click();
-                  }
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  handleFilesUpload(e.dataTransfer.files);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed ${
-                  isDragging
-                    ? "border-primary-500 bg-primary-50/50"
-                    : "border-border-strong hover:border-primary-400 bg-surface-sunken/20 hover:bg-primary-50/30"
-                } p-4 text-center transition-all group`}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-50 text-primary-600 group-hover:scale-105 transition-transform mb-1.5">
-                  <UploadCloud className="h-4.5 w-4.5" />
-                </div>
-                <p className="text-xs font-semibold text-ink">
-                  {files.length > 0 ? "+ Add more files (click or drag & drop)" : "Click or drag & drop to attach files"}
-                </p>
-                <p className="text-[11px] text-ink-muted mt-0.5">
-                  Select multiple files at once using <kbd className="font-sans px-1 py-0.5 rounded bg-surface border border-border text-[10px]">Ctrl</kbd> / <kbd className="font-sans px-1 py-0.5 rounded bg-surface border border-border text-[10px]">Shift</kbd> or drag &amp; drop (PDF, Excel, Images, Word docs up to 30MB each)
-                </p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isImg && fUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLightbox(fUrl)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors cursor-pointer"
+                            title="Preview image"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {fUrl && (
+                          <a
+                            href={fUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={fName || "catalogue-file"}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-primary-600 hover:text-primary-700 hover:bg-surface-hover shadow-2xs transition-colors"
+                            title="Download / Open file"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(f)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                          title="Remove file"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+
+            {/* Hidden file input for catalogue */}
+            <input
+              ref={catalogueInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.svg,.doc,.docx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                handleFilesUpload(e.target.files, "catalogue");
+              }}
+            />
+
+            {/* Dropzone for catalogue */}
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  catalogueInputRef.current?.click();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingCatalogue(true);
+              }}
+              onDragLeave={() => setIsDraggingCatalogue(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingCatalogue(false);
+                handleFilesUpload(e.dataTransfer.files, "catalogue");
+              }}
+              onClick={() => catalogueInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed ${
+                isDraggingCatalogue
+                  ? "border-primary-500 bg-primary-50/50"
+                  : "border-border-strong hover:border-primary-400 bg-surface/60 hover:bg-primary-50/30"
+              } p-4 text-center transition-all group`}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600 group-hover:scale-105 transition-transform mb-1">
+                <UploadCloud className="h-4 w-4" />
+              </div>
+              <p className="text-xs font-semibold text-ink">
+                {catalogueFiles.length > 0 ? "+ Add more Catalogue files" : "Click or drag & drop Catalogue files"}
+              </p>
+              <p className="text-[10.5px] text-ink-muted mt-0.5">PDF, Excel, Images, Word docs up to 30MB</p>
             </div>
-          </Field>
+          </div>
+
+          {/* Section 2: Rate List / Price Sheet */}
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-sunken/20 p-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                <h3 className="text-sm font-bold text-ink">Rate List / Price Sheet</h3>
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-100">
+                  {rateListFiles.length}
+                </span>
+              </div>
+              <span className="text-[11px] text-ink-muted">Supplier quotes, price lists, sheets</span>
+            </div>
+
+            {/* List of rate list files */}
+            {rateListFiles.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {rateListFiles.map((f, idx) => {
+                  const fPath = f.file || f.file_url || "";
+                  const fUrl = fPath ? (fPath.startsWith("data:") ? fPath : mediaUrl(fPath) || fPath) : "";
+                  const fName = f.file_name || (fPath ? fPath.split("/").pop() : `Rate List File #${idx + 1}`);
+                  const isImg = isImageFile(fName || fUrl);
+
+                  return (
+                    <div
+                      key={f.id ? `f-rate-${f.id}` : `f-rate-new-${idx}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 transition-colors hover:border-emerald-300"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken border border-border shadow-2xs">
+                          {getFileIcon(fName || fUrl)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-ink" title={fName || undefined}>
+                            {fName}
+                          </p>
+                          <p className="text-[10.5px] text-ink-muted flex items-center gap-1.5">
+                            {f.file_size ? <span>{formatFileSize(f.file_size)}</span> : null}
+                            {f.file_size && isImg ? <span>·</span> : null}
+                            {isImg ? <span>Image</span> : null}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isImg && fUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLightbox(fUrl)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors cursor-pointer"
+                            title="Preview image"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {fUrl && (
+                          <a
+                            href={fUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={fName || "ratelist-file"}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-emerald-600 hover:text-emerald-700 hover:bg-surface-hover shadow-2xs transition-colors"
+                            title="Download / Open file"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(f)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                          title="Remove file"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Hidden file input for rate list */}
+            <input
+              ref={rateListInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.svg,.doc,.docx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                handleFilesUpload(e.target.files, "rate_list");
+              }}
+            />
+
+            {/* Dropzone for rate list */}
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  rateListInputRef.current?.click();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingRateList(true);
+              }}
+              onDragLeave={() => setIsDraggingRateList(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingRateList(false);
+                handleFilesUpload(e.dataTransfer.files, "rate_list");
+              }}
+              onClick={() => rateListInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed ${
+                isDraggingRateList
+                  ? "border-emerald-500 bg-emerald-50/50"
+                  : "border-border-strong hover:border-emerald-400 bg-surface/60 hover:bg-emerald-50/30"
+              } p-4 text-center transition-all group`}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform mb-1">
+                <UploadCloud className="h-4 w-4" />
+              </div>
+              <p className="text-xs font-semibold text-ink">
+                {rateListFiles.length > 0 ? "+ Add more Rate List files" : "Click or drag & drop Rate List files"}
+              </p>
+              <p className="text-[10.5px] text-ink-muted mt-0.5">Excel, Sheets, PDFs, Price lists up to 30MB</p>
+            </div>
+          </div>
         </div>
 
         {/* Description / Remarks */}

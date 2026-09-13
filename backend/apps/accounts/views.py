@@ -105,6 +105,13 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [ModulePermission]
     module_name = USERS
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        role_id = self.request.query_params.get("role")
+        if role_id:
+            qs = qs.filter(role_id=role_id)
+        return qs
+
     def get_serializer_class(self):
         return UserCreateSerializer if self.request.method == "POST" else UserSerializer
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, Edit2, Loader2, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Edit2, Loader2, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { apiFetch, ApiError } from "@/lib/api";
 import { CustomFieldDefinition, CustomFieldModule, CustomFieldType } from "@/lib/types";
@@ -9,42 +9,43 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const MODULES: { key: CustomFieldModule; label: string; description: string }[] = [
   {
     key: "order_item",
-    label: "Orders (Line Items)",
-    description: "Default extra columns on Order line items (e.g. GSM, Paper Type, Lamination, HSN Code).",
+    label: "Orders / Projects",
+    description: "Configure all table columns, pricing, dates, delivery/payment status and production line item attributes for Projects/Orders.",
   },
   {
     key: "quotation_item",
-    label: "Quotations (Line Items)",
-    description: "Default extra columns on Quotation line items (e.g. Size, Finishing, Delivery Days).",
+    label: "Quotations",
+    description: "Configure all quotation table columns, recipient details, subject, financials and quotation line items.",
   },
   {
     key: "costing_item",
-    label: "Costing Sheets (Line Items)",
-    description: "Extra columns for Costing calculations (e.g. Wastage %, Machine Charge, Setup Fee).",
+    label: "Costing Sheets",
+    description: "Configure all costing table columns, quantities, rates, supplier costs, profit margins and line item calculations.",
   },
   {
     key: "product",
     label: "Products / Catalog",
-    description: "Custom attributes on catalog products (e.g. Brand, Material, Standard Unit).",
+    description: "Configure all product catalog columns, UOM, HSN code, pricing, MOQ and item specifications.",
   },
   {
     key: "client",
     label: "Clients",
-    description: "Custom client metadata (e.g. GSTIN, PAN No, Credit Limit, Territory).",
+    description: "Configure all client table columns, credit limits, payment terms, contact details and CRM attributes.",
   },
   {
     key: "company",
     label: "Companies",
-    description: "Custom company information (e.g. Registration Authority, Branch Code).",
+    description: "Configure all company information columns, registration numbers, banking details and branding.",
   },
   {
     key: "supplier",
     label: "Suppliers",
-    description: "Custom supplier metadata (e.g. Bank Account No, IFSC Code, Payment Terms).",
+    description: "Configure all supplier table columns, banking coordinates, tax registration and material categories.",
   },
 ];
 
@@ -61,7 +62,13 @@ export function CustomFieldsManager() {
   const [selectedModule, setSelectedModule] = useState<CustomFieldModule>("order_item");
   const [fields, setFields] = useState<CustomFieldDefinition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilterTab, setActiveFilterTab] = useState<"all" | "table" | "print" | "required">("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [deletingField, setDeletingField] = useState<CustomFieldDefinition | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
   const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
 
   const [label, setLabel] = useState("");
@@ -88,8 +95,46 @@ export function CustomFieldsManager() {
 
   useEffect(() => {
     loadFields(selectedModule);
+    setSearchQuery("");
+    setActiveFilterTab("all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModule]);
+
+  const executeResetDefaults = async () => {
+    setResetting(true);
+    try {
+      const res = await apiFetch<{ message: string; fields: CustomFieldDefinition[] }>(
+        "/api/custom-fields/reset-defaults/",
+        {
+          method: "POST",
+          body: JSON.stringify({ module: selectedModule, replace: false }),
+        }
+      );
+      setFields(res.fields || []);
+      toast.success(res.message || "Standard default columns loaded successfully.");
+      setResetDialogOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to load default columns.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleQuickToggle = async (f: CustomFieldDefinition, key: "show_in_table" | "show_in_print" | "is_required") => {
+    const updatedVal = !f[key];
+    setFields((prev) => prev.map((item) => (item.id === f.id ? { ...item, [key]: updatedVal } : item)));
+    try {
+      await apiFetch<CustomFieldDefinition>(`/api/custom-fields/${f.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ [key]: updatedVal }),
+      });
+      toast.success(`Updated ${f.label}`);
+    } catch {
+      // Rollback
+      setFields((prev) => prev.map((item) => (item.id === f.id ? { ...item, [key]: !updatedVal } : item)));
+      toast.error("Failed to update column setting.");
+    }
+  };
 
   const openCreateModal = () => {
     setEditingField(null);
@@ -164,14 +209,14 @@ export function CustomFieldsManager() {
           body: JSON.stringify(payload),
         });
         setFields((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-        toast.success("Custom column updated.");
+        toast.success("Column updated successfully.");
       } else {
         const created = await apiFetch<CustomFieldDefinition>("/api/custom-fields/", {
           method: "POST",
           body: JSON.stringify(payload),
         });
         setFields((prev) => [...prev, created]);
-        toast.success("Custom column created.");
+        toast.success("Column created successfully.");
       }
       setModalOpen(false);
     } catch (err) {
@@ -181,25 +226,43 @@ export function CustomFieldsManager() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to remove this custom column?")) return;
+  const executeDelete = async () => {
+    if (!deletingField) return;
+    setDeletingLoading(true);
     try {
-      await apiFetch(`/api/custom-fields/${id}/`, { method: "DELETE" });
-      setFields((prev) => prev.filter((f) => f.id !== id));
-      toast.success("Custom column deleted.");
+      await apiFetch(`/api/custom-fields/${deletingField.id}/`, { method: "DELETE" });
+      setFields((prev) => prev.filter((f) => f.id !== deletingField.id));
+      toast.success(`Removed column "${deletingField.label}".`);
+      setDeletingField(null);
     } catch {
-      toast.error("Failed to delete custom column.");
+      toast.error("Failed to delete column.");
+    } finally {
+      setDeletingLoading(false);
     }
   };
 
   const currentModuleObj = MODULES.find((m) => m.key === selectedModule);
+
+  const filteredFields = useMemo(() => {
+    return fields.filter((f) => {
+      if (activeFilterTab === "table" && !f.show_in_table) return false;
+      if (activeFilterTab === "print" && !f.show_in_print) return false;
+      if (activeFilterTab === "required" && !f.is_required) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        return f.label.toLowerCase().includes(q) || f.field_key.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [fields, activeFilterTab, searchQuery]);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="text-base font-bold text-ink">Dynamic Custom Columns & Attributes</h3>
         <p className="text-xs text-ink-muted mt-0.5">
-          Configure dynamic columns for data entry tables and custom attributes for CRM records. Added columns automatically reflect in forms, list views, and print invoices.
+          Configure all table columns, fields, and custom attributes for each CRM module. Customize display names, default visibility in list tables, and print/PDF documents.
         </p>
       </div>
 
@@ -211,9 +274,9 @@ export function CustomFieldsManager() {
             type="button"
             onClick={() => setSelectedModule(m.key)}
             className={clsx(
-              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
+              "px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer",
               selectedModule === m.key
-                ? "bg-primary-600 text-white shadow-xs"
+                ? "bg-primary-600 text-white shadow-xs font-bold"
                 : "bg-surface-sunken text-ink-muted hover:text-ink hover:bg-surface-hover",
             )}
           >
@@ -222,85 +285,235 @@ export function CustomFieldsManager() {
         ))}
       </div>
 
-      {/* Selected Module Card Header & List */}
+      {/* Selected Module Card Header & Controls */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-primary-50/50 p-4 rounded-xl border border-primary-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-primary-50/60 p-4 rounded-xl border border-primary-100">
           <div>
-            <h4 className="text-sm font-bold text-ink">{currentModuleObj?.label}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-ink">{currentModuleObj?.label}</h4>
+              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-0.5 text-[11px] font-bold text-primary-800">
+                {fields.length} Available Column{fields.length === 1 ? "" : "s"}
+              </span>
+            </div>
             <p className="text-xs text-ink-muted mt-0.5">{currentModuleObj?.description}</p>
           </div>
-          <Button type="button" variant="primary" size="sm" onClick={openCreateModal} className="gap-1.5 shadow-xs whitespace-nowrap">
-            <Plus className="h-4 w-4" /> Add Custom Column
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              loading={resetting}
+              className="gap-1.5 whitespace-nowrap bg-white hover:bg-surface-hover shadow-2xs"
+              title="Reload standard columns for this tab"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Restore Defaults
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={openCreateModal}
+              className="gap-1.5 shadow-xs whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4" /> Add Custom Column
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter Bar & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-1 bg-surface-sunken p-1 rounded-lg border border-border">
+            <button
+              type="button"
+              onClick={() => setActiveFilterTab("all")}
+              className={clsx(
+                "px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                activeFilterTab === "all" ? "bg-white text-ink shadow-2xs font-bold" : "text-ink-muted hover:text-ink"
+              )}
+            >
+              All Columns ({fields.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilterTab("table")}
+              className={clsx(
+                "px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                activeFilterTab === "table" ? "bg-white text-ink shadow-2xs font-bold" : "text-ink-muted hover:text-ink"
+              )}
+            >
+              Table Columns ({fields.filter((f) => f.show_in_table).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilterTab("print")}
+              className={clsx(
+                "px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                activeFilterTab === "print" ? "bg-white text-ink shadow-2xs font-bold" : "text-ink-muted hover:text-ink"
+              )}
+            >
+              Print / PDF ({fields.filter((f) => f.show_in_print).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilterTab("required")}
+              className={clsx(
+                "px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                activeFilterTab === "required" ? "bg-white text-ink shadow-2xs font-bold" : "text-ink-muted hover:text-ink"
+              )}
+            >
+              Required ({fields.filter((f) => f.is_required).length})
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-faint" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search columns..."
+              className="pl-8 text-xs h-8"
+            />
+          </div>
         </div>
 
         {loading ? (
-          <div className="flex h-36 items-center justify-center">
+          <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
           </div>
-        ) : fields.length === 0 ? (
-          <Card className="p-8 text-center flex flex-col items-center justify-center gap-2">
-            <p className="text-xs font-semibold text-ink-muted">No custom columns configured for {currentModuleObj?.label}.</p>
-            <Button type="button" variant="secondary" size="sm" onClick={openCreateModal}>
-              + Add First Column
-            </Button>
+        ) : filteredFields.length === 0 ? (
+          <Card className="p-8 text-center flex flex-col items-center justify-center gap-3">
+            <p className="text-xs font-semibold text-ink-muted">
+              {searchQuery ? "No columns match your search query." : `No columns found for ${currentModuleObj?.label}.`}
+            </p>
+            {!searchQuery && (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="primary" size="sm" onClick={() => setResetDialogOpen(true)} loading={resetting}>
+                  <Sparkles className="h-3.5 w-3.5" /> Load Standard Default Columns
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={openCreateModal}>
+                  + Add Custom Column
+                </Button>
+              </div>
+            )}
           </Card>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-2xs">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-border bg-surface-sunken/50 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+                <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                   <th className="px-4 py-3">Column Label</th>
                   <th className="px-4 py-3">Database Key</th>
-                  <th className="px-4 py-3">Data Type</th>
-                  <th className="px-4 py-3">Show in Print</th>
-                  <th className="px-4 py-3">Required</th>
+                  <th className="px-4 py-3">Data Type & Choices</th>
+                  <th className="px-4 py-3">Default Value</th>
+                  <th className="px-4 py-3 text-center">Table Visibility</th>
+                  <th className="px-4 py-3 text-center">Print / PDF</th>
+                  <th className="px-4 py-3 text-center">Required</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {fields.map((f) => (
+                {filteredFields.map((f) => (
                   <tr key={f.id} className="hover:bg-surface-hover/60 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-ink">{f.label}</td>
+                    <td className="px-4 py-3 font-semibold text-ink">
+                      <span>{f.label}</span>
+                    </td>
                     <td className="px-4 py-3">
-                      <code className="text-xs font-mono bg-surface-sunken px-1.5 py-0.5 rounded border border-border text-primary-700">
+                      <code className="text-[11.5px] font-mono bg-surface-sunken px-1.5 py-0.5 rounded border border-border text-primary-700">
                         {f.field_key}
                       </code>
                     </td>
-                    <td className="px-4 py-3 text-ink-muted capitalize">
-                      {FIELD_TYPES.find((t) => t.key === f.field_type)?.label || f.field_type}
-                    </td>
-                    <td className="px-4 py-3">
-                      {f.show_in_print ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                          <Check className="h-3 w-3" /> Yes
+                    <td className="px-4 py-3 text-ink-muted">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-ink">
+                          {FIELD_TYPES.find((t) => t.key === f.field_type)?.label || f.field_type}
                         </span>
+                        {f.field_type === "select" && f.options && f.options.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-w-[280px]">
+                            {f.options.slice(0, 4).map((opt) => (
+                              <span
+                                key={opt}
+                                className="inline-block rounded bg-surface-sunken px-1.5 py-0.5 text-[10px] text-ink-muted border border-border"
+                              >
+                                {opt}
+                              </span>
+                            ))}
+                            {f.options.length > 4 && (
+                              <span className="text-[10px] text-ink-faint">+{f.options.length - 4} more</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-ink-muted">
+                      {f.default_value ? (
+                        <span className="font-mono text-[11px] text-neutral-800">{f.default_value}</span>
                       ) : (
-                        <span className="text-[11px] text-ink-faint">No</span>
+                        <span className="text-ink-faint">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      {f.is_required ? (
-                        <span className="inline-flex rounded bg-rose-50 px-1.5 py-0.5 text-[10.5px] font-bold text-rose-700 border border-rose-200">
-                          Required
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-ink-faint">Optional</span>
-                      )}
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickToggle(f, "show_in_table")}
+                        className={clsx(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors cursor-pointer",
+                          f.show_in_table
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                            : "bg-surface-sunken text-ink-faint border border-border hover:bg-surface-hover hover:text-ink"
+                        )}
+                        title="Click to toggle table column visibility"
+                      >
+                        {f.show_in_table ? <Check className="h-3 w-3" /> : null}
+                        {f.show_in_table ? "Visible" : "Hidden"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickToggle(f, "show_in_print")}
+                        className={clsx(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors cursor-pointer",
+                          f.show_in_print
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                            : "bg-surface-sunken text-ink-faint border border-border hover:bg-surface-hover hover:text-ink"
+                        )}
+                        title="Click to toggle invoice print / PDF visibility"
+                      >
+                        {f.show_in_print ? <Check className="h-3 w-3" /> : null}
+                        {f.show_in_print ? "Printable" : "Hidden"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickToggle(f, "is_required")}
+                        className={clsx(
+                          "inline-flex items-center rounded-md px-2 py-0.5 text-[10.5px] font-bold transition-colors cursor-pointer",
+                          f.is_required
+                            ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                            : "bg-surface-sunken text-ink-faint border border-border hover:bg-surface-hover hover:text-ink"
+                        )}
+                        title="Click to toggle mandatory requirement"
+                      >
+                        {f.is_required ? "Required" : "Optional"}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => openEditModal(f)}
-                          className="p-1 rounded text-ink-muted hover:text-primary-600 hover:bg-primary-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-ink-muted hover:text-primary-600 hover:bg-primary-50 transition-colors cursor-pointer"
+                          title="Edit Column"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(f.id)}
-                          className="p-1 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          onClick={() => setDeletingField(f)}
+                          className="p-1.5 rounded-lg text-ink-muted hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete Column"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -427,6 +640,27 @@ export function CustomFieldsManager() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialogs */}
+      <ConfirmDialog
+        open={resetDialogOpen}
+        onClose={() => setResetDialogOpen(false)}
+        onConfirm={executeResetDefaults}
+        title="Restore Standard Columns"
+        description={`Reload all standard default columns for ${currentModuleObj?.label}? All standard fields will be initialized while retaining your existing attributes.`}
+        confirmLabel="Restore Defaults"
+        loading={resetting}
+      />
+
+      <ConfirmDialog
+        open={!!deletingField}
+        onClose={() => setDeletingField(null)}
+        onConfirm={executeDelete}
+        title="Delete Column"
+        description={`Are you sure you want to remove the column "${deletingField?.label}"?`}
+        confirmLabel="Delete Column"
+        loading={deletingLoading}
+      />
     </div>
   );
 }

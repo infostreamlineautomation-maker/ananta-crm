@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { ExportColumn, ExportFormat, exportData } from "@/lib/export-utils";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganization } from "@/lib/organization-context";
+import { getBrandLogo, getReportLogo, mediaUrl } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
 export interface ExportModalProps<T = any> {
@@ -34,6 +35,8 @@ export function ExportModal<T>({
 
   const activeCompanyName = customCompanyName || activeOrganization?.name || "Ananta Graphics";
   const primaryColor = activeOrganization?.primary_color || "#C31432";
+  const logoUrl = getReportLogo(activeCompanyName, activeOrganization?.report_logo, activeOrganization?.logo);
+  const watermarkLogoUrl = getBrandLogo(activeCompanyName, activeOrganization?.logo);
 
   const hasSelected = selectedData && selectedData.length > 0;
   const [scope, setScope] = useState<"selected" | "all">(hasSelected ? "selected" : "all");
@@ -159,9 +162,11 @@ export function ExportModal<T>({
 
     setExporting(true);
     try {
-      exportData(format, targetData, activeCols, filename, title, {
+      await exportData(format, targetData, activeCols, filename, title, {
         companyName: activeCompanyName,
         primaryColor,
+        logoUrl,
+        watermarkLogoUrl,
       });
       const formatLabels = { excel: "Excel (.xlsx)", csv: "CSV (.csv)", pdf: "PDF (.pdf)" };
       toast.success(`Exported ${targetData.length} records to ${formatLabels[format]} for ${activeCompanyName}.`);

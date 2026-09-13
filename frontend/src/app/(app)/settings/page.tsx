@@ -142,15 +142,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Settings"
-        action={
-          <Button variant="primary" onClick={handleSave} loading={saving}>
-            Save Settings
-          </Button>
-        }
-      />
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <Button variant="primary" onClick={handleSave} loading={saving}>
+          Save Settings
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[200px_minmax(0,1fr)]">
         <Card className="flex flex-col gap-1 p-3">
@@ -174,7 +171,12 @@ export default function SettingsPage() {
               <Field label="App Name">
                 <Input value={form.app_name ?? ""} onChange={(e) => set("app_name", e.target.value)} />
               </Field>
-              <FileField label="App Logo" current={settings?.app_logo} file={files.app_logo} onChange={(f) => setFiles((s) => ({ ...s, app_logo: f }))} />
+              <FileField
+                label="App / Brand Logo (Header & Sidebar)"
+                current={settings?.app_logo || settings?.logo}
+                file={files.app_logo}
+                onChange={(f) => setFiles((s) => ({ ...s, app_logo: f }))}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Default Currency Code" hint="3-letter code, e.g. INR.">
                   <Input value={form.default_currency_code ?? ""} onChange={(e) => set("default_currency_code", e.target.value.toUpperCase())} maxLength={3} />
@@ -191,6 +193,12 @@ export default function SettingsPage() {
               <Field label="Company Name">
                 <Input value={form.company_name ?? ""} onChange={(e) => set("company_name", e.target.value)} />
               </Field>
+              <FileField
+                label="PDF & Export Report Logo (Used in PDF Reports & Table Exports)"
+                current={settings?.report_logo}
+                file={files.report_logo}
+                onChange={(f) => setFiles((s) => ({ ...s, report_logo: f }))}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Company Email">
                   <Input type="email" value={form.company_email ?? ""} onChange={(e) => set("company_email", e.target.value)} />

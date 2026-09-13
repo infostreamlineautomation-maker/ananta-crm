@@ -6,7 +6,7 @@ from .models import Organization
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ["id", "name", "slug", "logo", "primary_color", "tagline"]
+        fields = ["id", "name", "slug", "logo", "report_logo", "primary_color", "tagline", "quotation_background_image"]
 
 
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
@@ -17,7 +17,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "slug", "logo", "primary_color", "tagline",
+            "id", "name", "slug", "logo", "report_logo", "primary_color", "tagline",
             "contact_email", "contact_phone", "address",
             "default_currency_code", "default_tax_percent",
             "order_prefix", "quotation_prefix", "quotation_intro", "quotation_terms",
@@ -61,6 +61,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
         ret["app_name"] = ret.get("name") or ""
         ret["company_name"] = ret.get("name") or ""
         ret["app_logo"] = ret.get("logo")
+        ret["report_logo"] = ret.get("report_logo")
         ret["company_email"] = ret.get("contact_email") or ""
         ret["company_phone"] = ret.get("contact_phone") or ""
         ret["company_address"] = ret.get("address") or ""

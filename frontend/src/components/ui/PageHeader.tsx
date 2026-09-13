@@ -1,7 +1,7 @@
-export function PageHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+export function PageHeader({ title, action }: { title?: string; action?: React.ReactNode }) {
+  if (!action) return null;
   return (
-    <div className="flex items-center justify-between gap-4">
-      <h1 className="text-2xl font-extrabold text-ink">{title}</h1>
+    <div className="flex items-center justify-end gap-3 -mb-1">
       {action}
     </div>
   );

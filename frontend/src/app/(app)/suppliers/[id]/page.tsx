@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -40,8 +41,8 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "contacts", label: "Contacts" },
   { key: "products", label: "Products" },
-  { key: "quotations", label: "Quotations" },
-  { key: "rate_cards", label: "Rate Cards" },
+  { key: "quotations", label: "Catalogue" },
+  { key: "rate_cards", label: "Rate List" },
   { key: "activity", label: "Activity Log" },
 ];
 
@@ -98,35 +99,42 @@ export default function SupplierDetailPage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <LoadingState size="lg" label="Loading Supplier Profile..." sublabel="Fetching purchase & product history" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
       </div>
     );
   }
 
   if (!supplier) {
-    return <p className="text-sm text-ink-faint">Supplier not found.</p>;
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
+        <p className="text-base font-semibold text-ink">Supplier not found.</p>
+        <Link href="/suppliers">
+          <Button variant="secondary" className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Suppliers
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   const canEdit = can("suppliers", "edit");
 
   return (
-    <div className="flex flex-col gap-5">
-      <button onClick={() => router.push("/suppliers")} className="flex w-fit items-center gap-1.5 text-[13px] font-semibold text-ink-muted hover:text-ink">
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to Suppliers
-      </button>
-
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-extrabold text-ink">{supplier.supplier_name}</h1>
+          <Link
+            href="/suppliers"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-primary-600 transition"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Suppliers
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-black uppercase tracking-wide text-ink">{supplier.supplier_name}</h1>
             <span
               className={clsx(
-                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black border shadow-xs",
-                (supplier.rating || "B") === "A"
-                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                  : (supplier.rating || "B") === "B"
-                  ? "bg-sky-100 text-sky-800 border-sky-300"
-                  : "bg-amber-100 text-amber-800 border-amber-300"
+                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border",
+                SUPPLIER_RATING_TONE[supplier.rating || "B"]?.badge || "bg-sky-100 text-sky-800 border-sky-300"
               )}
             >
               <span>{SUPPLIER_RATING_TONE[supplier.rating || "B"]?.label || `Grade ${supplier.rating}`}</span>
@@ -134,23 +142,6 @@ export default function SupplierDetailPage() {
                 · {SUPPLIER_RATING_TONE[supplier.rating || "B"]?.description || ""}
               </span>
             </span>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-muted">
-            {supplier.email && (
-              <span className="flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" /> {supplier.email}
-              </span>
-            )}
-            {supplier.contact && (
-              <span className="flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5" /> {supplier.contact}
-              </span>
-            )}
-            {supplier.website && (
-              <span className="flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5" /> {supplier.website}
-              </span>
-            )}
           </div>
         </div>
         {canEdit && (
@@ -169,8 +160,8 @@ export default function SupplierDetailPage() {
         <SupplierDocumentsTab
           supplier={supplier}
           fileType="quotation"
-          title="Supplier Quotations"
-          description="Upload and manage price quotations, proposals, and cost estimates provided by this supplier."
+          title="Supplier Catalogue"
+          description="Upload and manage product catalogues, brochures, sample books, and proposals provided by this supplier."
           onChange={loadSupplier}
         />
       )}
@@ -178,8 +169,8 @@ export default function SupplierDetailPage() {
         <SupplierDocumentsTab
           supplier={supplier}
           fileType="rate_card"
-          title="Rate Cards & Price Lists"
-          description="Upload and manage formal rate lists, job-work price sheets, and material cost cards."
+          title="Rate List & Price Sheets"
+          description="Upload and manage formal rate lists, price matrices, job-work price sheets, and material cost cards."
           onChange={loadSupplier}
         />
       )}

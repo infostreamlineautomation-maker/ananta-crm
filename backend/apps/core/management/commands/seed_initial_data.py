@@ -59,7 +59,7 @@ COUNTRIES = [
 
 # Legacy admin/staff behavior, ported into the new matrix: staff could view+add
 # orders (their own) but never delete; no access to Users/Settings/Reports/Costing.
-STAFF_FULL_ACCESS_MODULES = ["clients", "companies", "catalog", "projects", "orders", "quotations", "notifications"]
+STAFF_FULL_ACCESS_MODULES = ["clients", "companies", "catalog", "orders", "quotations", "notifications"]
 
 
 class Command(BaseCommand):

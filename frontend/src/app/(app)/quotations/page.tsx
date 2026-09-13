@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import clsx from "clsx";
 import {
   ChevronDown,
   ChevronRight,
@@ -36,40 +37,50 @@ import { StatusPill, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/Sta
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { ResizableTh } from "@/components/ui/ResizableTh";
+import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ExportColumn } from "@/lib/export-utils";
 
 const QUOTATIONS_EXPORT_COLUMNS: ExportColumn<any>[] = [
-  { header: "Quotation No", accessor: (q: any) => q.quotation_no, category: "Basic Info" },
-  { header: "Quotation Date", accessor: (q: any) => q.quotation_date, category: "Basic Info" },
-  { header: "Status", accessor: (q: any) => labelize(q.status), category: "Basic Info" },
-  { header: "Client Name", accessor: (q: any) => q.client_name || "", category: "Recipient Info" },
-  { header: "Company Name", accessor: (q: any) => q.company_name || "", category: "Recipient Info" },
-  { header: "Recipient Name (To)", accessor: (q: any) => q.to_name || q.client_name || "", category: "Recipient Info" },
-  { header: "Address", accessor: (q: any) => q.to_address || q.client_address || "", category: "Recipient Info" },
-  { header: "Subject", accessor: (q: any) => q.subject || "", category: "Quotation Content" },
-  { header: "Introductory Text", accessor: (q: any) => q.intro_text || "", category: "Quotation Content" },
-  { header: "Terms & Conditions / Notes", accessor: (q: any) => q.notes || "", category: "Quotation Content" },
-  { header: "Currency", accessor: (q: any) => q.currency_code || "INR", category: "Financials & Tax" },
-  { header: "Subtotal / Amount", accessor: (q: any) => q.subtotal, category: "Financials & Tax" },
-  { header: "Tax %", accessor: (q: any) => q.tax_percent ?? "0", category: "Financials & Tax" },
-  { header: "Tax Amount", accessor: (q: any) => q.tax_amount || "0.00", category: "Financials & Tax" },
-  { header: "Total Amount", accessor: (q: any) => q.total_amount || q.subtotal, category: "Financials & Tax" },
+  { header: "Quotation No", accessor: (q: any) => q.quotation_no, category: "Basic Info", defaultSelected: true },
+  { header: "Quotation Date", accessor: (q: any) => q.quotation_date, category: "Basic Info", defaultSelected: true },
+  { header: "Status", accessor: (q: any) => labelize(q.status), category: "Basic Info", defaultSelected: true },
+  { header: "Client Name", accessor: (q: any) => q.client_name || "", category: "Recipient Info", defaultSelected: true },
+  { header: "Company Name", accessor: (q: any) => q.company_name || "", category: "Recipient Info", defaultSelected: false },
+  { header: "Recipient Name (To)", accessor: (q: any) => q.to_name || q.client_name || "", category: "Recipient Info", defaultSelected: false },
+  { header: "Address", accessor: (q: any) => q.to_address || q.client_address || "", category: "Recipient Info", defaultSelected: false },
+  { header: "Subject", accessor: (q: any) => q.subject || "", category: "Quotation Content", defaultSelected: true },
+  { header: "Introductory Text", accessor: (q: any) => q.intro_text || "", category: "Quotation Content", defaultSelected: false },
+  { header: "Terms & Conditions / Notes", accessor: (q: any) => q.notes || "", category: "Quotation Content", defaultSelected: false },
+  { header: "Currency", accessor: (q: any) => q.currency_code || "INR", category: "Financials & Tax", defaultSelected: false },
+  { header: "Subtotal / Amount", accessor: (q: any) => q.subtotal, category: "Financials & Tax", defaultSelected: false },
+  { header: "Tax %", accessor: (q: any) => q.tax_percent ?? "0", category: "Financials & Tax", defaultSelected: false },
+  { header: "Tax Amount", accessor: (q: any) => q.tax_amount || "0.00", category: "Financials & Tax", defaultSelected: false },
+  { header: "Total Amount", accessor: (q: any) => q.total_amount || q.subtotal, category: "Financials & Tax", defaultSelected: true },
   {
     header: "Line Items Summary",
     accessor: (q: any) =>
       q.items?.map((it: any, idx: number) => `${idx + 1}. ${it.description} - Qty: ${it.qty} @ ${it.rate}`).join(" | ") || "",
     category: "Line Items & Images",
+    defaultSelected: false,
   },
   {
-    header: "Line Item Images URLs",
-    accessor: (q: any) =>
-      q.items?.map((it: any) => it.image ? mediaUrl(it.image) : null).filter(Boolean).join(", ") || "",
+    header: "Image Preview",
+    accessor: (q: any) => {
+      const count = q.items?.filter((it: any) => !!it.image)?.length || 0;
+      return count > 0 ? `${count} Image${count > 1 ? "s" : ""}` : "-";
+    },
+    imageAccessor: (q: any) => {
+      const firstItemWithImg = q.items?.find((it: any) => Boolean(it.image));
+      return firstItemWithImg?.image ? mediaUrl(firstItemWithImg.image) : null;
+    },
     category: "Line Items & Images",
+    defaultSelected: true,
   },
-  { header: "Created Date", accessor: (q: any) => q.created_at ? formatDate(q.created_at) : "", category: "System Dates" },
+  { header: "Created Date", accessor: (q: any) => q.created_at ? formatDate(q.created_at) : "", category: "System Dates", defaultSelected: false },
 ];
 
 const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
@@ -97,9 +108,20 @@ export default function QuotationsPage() {
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [cols, setCols] = useState<Set<string>>(
-    new Set(["select", "quotation_no", "date", "client_name", "subject", "status", "subtotal", "actions"])
-  );
+  const grid = useTableGrid({
+    tableKey: "quotations",
+    defaultColumns: QUOTATIONS_PAGE_COLUMNS,
+    defaultVisibleKeys: [
+      "select",
+      "quotation_no",
+      "date",
+      "client_name",
+      "subject",
+      "status",
+      "subtotal",
+      "actions",
+    ],
+  });
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState<QuotationSummary | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -256,20 +278,7 @@ export default function QuotationsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Quotations"
-        action={
-          canAdd && (
-            <Link href="/quotations/new">
-              <Button variant="primary">
-                <Plus className="h-4 w-4" /> New Quotation
-              </Button>
-            </Link>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -321,7 +330,20 @@ export default function QuotationsPage() {
                 title="Quotations Report"
                 columns={QUOTATIONS_EXPORT_COLUMNS}
               />
-              <ColumnSelector columns={QUOTATIONS_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
+              <ColumnSelector
+                columns={grid.columns}
+                visibleColumns={grid.visibleColumns}
+                onChange={grid.setVisibleColumns}
+                onReorder={grid.reorderColumns}
+                onReset={grid.resetGrid}
+              />
+              {canAdd && (
+                <Link href="/quotations/new">
+                  <Button variant="primary">
+                    <Plus className="h-4 w-4" /> New Quotation
+                  </Button>
+                </Link>
+              )}
             </div>
           }
         />
@@ -346,148 +368,79 @@ export default function QuotationsPage() {
                     )}
                   </button>
                 </th>
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("quotation_no") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Quotation No</span>
-                      {getColFilter("quotation_no") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("quotation_no")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("date") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Date</span>
-                      {getColFilter("date") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("date")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("client_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Client</span>
-                      {getColFilter("client_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("client_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("company_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Company</span>
-                      {getColFilter("company_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("company_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("to_name") && <th className={TH}>Recipient Name (To)</th>}
-                {cols.has("to_address") && <th className={TH}>Address</th>}
-                {cols.has("project_name") && <th className={TH}>Project Name</th>}
-                {cols.has("subject") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Subject</span>
-                      {getColFilter("subject") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("subject")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("intro_text") && <th className={TH}>Introductory Text</th>}
-                {cols.has("notes") && <th className={TH}>Terms & Conditions / Notes</th>}
-                {cols.has("currency_code") && <th className={TH}>Currency</th>}
-                {cols.has("status") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Status</span>
-                      {getColFilter("status") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("status")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("subtotal") && (
-                  <th className={`${TH} text-right`}>
-                    <div className="inline-flex items-center justify-end">
-                      <span>Total</span>
-                      {getColFilter("amount") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("amount")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {cols.has("updated_at") && <th className={TH}>Updated Date</th>}
-                {cols.has("actions") && <th className={`${TH} text-right`}>Actions</th>}
+                {grid.columns
+                  .filter((col) => grid.visibleColumns.has(col.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh
+                          key="select"
+                          columnKey="select"
+                          grid={grid}
+                          isDraggable={false}
+                          isResizable={false}
+                          align="center"
+                          className="w-10 px-3 text-center"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                          />
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh
+                          key="actions"
+                          columnKey="actions"
+                          grid={grid}
+                          align="right"
+                          isDraggable={false}
+                        >
+                          <span>Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+
+                    const isRight = ["subtotal"].includes(col.key);
+                    const colFilter = getColFilter(col.key === "subtotal" ? "amount" : col.key);
+
+                    return (
+                      <ResizableTh
+                        key={col.key}
+                        columnKey={col.key}
+                        grid={grid}
+                        align={isRight ? "right" : "left"}
+                      >
+                        <div className={clsx("inline-flex items-center", isRight && "justify-end")}>
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size + 1} emptyLabel="No quotations yet." />
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size + 1}
+                emptyLabel="No quotations yet."
+              />
               {data?.results.map((q) => {
                 const isExpanded = expandedIds.has(q.id);
                 const itemCount = q.items?.length || 0;
@@ -508,114 +461,139 @@ export default function QuotationsPage() {
                           )}
                         </button>
                       </td>
-                      {cols.has("select") && (
-                        <td className="w-10 px-3 py-2.5 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(q.id)}
-                            onChange={() => toggleSelectOne(q.id)}
-                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                          />
-                        </td>
-                      )}
-                      {cols.has("quotation_no") && (
-                        <td className={TD}>
-                          <div className="flex items-center gap-2">
-                            <Link href={`/quotations/${q.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
-                              {q.quotation_no}
-                            </Link>
-                            {itemCount > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => toggleExpand(q.id)}
-                                className="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-950/50 border border-primary-200 dark:border-primary-800/60 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700 dark:text-primary-300 hover:bg-primary-100 transition-colors cursor-pointer"
-                                title="Toggle inline items"
-                              >
-                                <Layers className="h-2.5 w-2.5" />
-                                {itemCount}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                      {cols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>}
-                      {cols.has("client_name") && (
-                        <td className={TD}>
-                          {q.client_name ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-ink">{q.client_name}</span>
-                              {!cols.has("company_name") && q.company_name && (
-                                <span className="text-[12px] font-medium text-ink-muted">
-                                  ({q.company_name})
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-ink-muted">—</span>
-                          )}
-                        </td>
-                      )}
-                      {cols.has("company_name") && <td className={`${TD} text-ink-muted`}>{q.company_name || "—"}</td>}
-                      {cols.has("to_name") && <td className={`${TD} text-ink-muted`}>{q.to_name || "—"}</td>}
-                      {cols.has("to_address") && <td className={`${TD} max-w-[200px] truncate text-ink-muted`} title={q.to_address || ""}>{q.to_address || "—"}</td>}
-                      {cols.has("project_name") && <td className={`${TD} text-ink-muted`}>{q.project_name || "—"}</td>}
-                      {cols.has("subject") && <td className={`${TD} max-w-[200px] truncate text-ink-muted`} title={q.subject || ""}>{q.subject || "—"}</td>}
-                      {cols.has("intro_text") && <td className={`${TD} max-w-[180px] truncate text-ink-muted`} title={q.intro_text || ""}>{q.intro_text || "—"}</td>}
-                      {cols.has("notes") && <td className={`${TD} max-w-[180px] truncate text-ink-muted`} title={q.notes || ""}>{q.notes || "—"}</td>}
-                      {cols.has("currency_code") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{q.currency_code || "INR"}</td>}
-                      {cols.has("status") && (
-                        <td className={TD}>
-                          <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
-                        </td>
-                      )}
-                      {cols.has("subtotal") && <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(q.subtotal, q.currency_code)}</td>}
-                      {cols.has("created_at") && <td className={`${TD} text-xs text-ink-muted`}>{q.created_at ? formatDate(q.created_at) : "—"}</td>}
-                      {cols.has("updated_at") && <td className={`${TD} text-xs text-ink-muted`}>{q.updated_at ? formatDate(q.updated_at) : "—"}</td>}
-                      {cols.has("actions") && (
-                        <td className={`${TD} text-right`}>
-                          <div className="flex justify-end gap-1">
-                            <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingQuotation(q)}>
-                              <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
-                            </RowActionButton>
-                            <Link href={`/quotations/${q.id}/print`} target="_blank">
-                              <RowActionButton label="Print / Save PDF" onClick={() => {}}>
-                                <Printer className="h-3.5 w-3.5 text-primary-600" />
-                              </RowActionButton>
-                            </Link>
-                            {canAdd && (
-                              <RowActionButton
-                                label="Duplicate / Copy Quotation"
-                                onClick={() => handleCopyQuotation(q.id)}
-                                disabled={copyingId === q.id}
-                              >
-                                {copyingId === q.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5 text-primary-600 hover:text-primary-700" />
-                                )}
-                              </RowActionButton>
-                            )}
-                            {canEdit && (
-                              <Link href={`/quotations/${q.id}`}>
-                                <RowActionButton label="Edit" onClick={() => {}}>
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </RowActionButton>
-                              </Link>
-                            )}
-                            {canDelete && (
-                              <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(q)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </RowActionButton>
-                            )}
-                          </div>
-                        </td>
-                      )}
+                      {grid.columns
+                        .filter((col) => grid.visibleColumns.has(col.key))
+                        .map((col) => {
+                          switch (col.key) {
+                            case "select":
+                              return (
+                                <td key="select" className="w-10 px-3 py-2.5 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected.has(q.id)}
+                                    onChange={() => toggleSelectOne(q.id)}
+                                    className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                                  />
+                                </td>
+                              );
+                            case "quotation_no":
+                              return (
+                                <td key="quotation_no" className={TD}>
+                                  <div className="flex items-center gap-2">
+                                    <Link href={`/quotations/${q.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
+                                      {q.quotation_no}
+                                    </Link>
+                                    {itemCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpand(q.id)}
+                                        className="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-950/50 border border-primary-200 dark:border-primary-800/60 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700 dark:text-primary-300 hover:bg-primary-100 transition-colors cursor-pointer"
+                                        title="Toggle inline items"
+                                      >
+                                        <Layers className="h-2.5 w-2.5" />
+                                        {itemCount}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            case "date":
+                              return <td key="date" className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>;
+                            case "client_name":
+                              return (
+                                <td key="client_name" className={TD}>
+                                  {q.client_name ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-semibold text-ink">{q.client_name}</span>
+                                      {!grid.visibleColumns.has("company_name") && q.company_name && (
+                                        <span className="text-[12px] font-medium text-ink-muted">
+                                          ({q.company_name})
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-ink-muted">—</span>
+                                  )}
+                                </td>
+                              );
+                            case "company_name":
+                              return <td key="company_name" className={`${TD} text-ink-muted`}>{q.company_name || "—"}</td>;
+                            case "to_name":
+                              return <td key="to_name" className={`${TD} text-ink-muted`}>{q.to_name || "—"}</td>;
+                            case "to_address":
+                              return <td key="to_address" className={`${TD} max-w-[200px] truncate text-ink-muted`} title={q.to_address || ""}>{q.to_address || "—"}</td>;
+                            case "project_name":
+                              return <td key="project_name" className={`${TD} text-ink-muted`}>{q.project_name || "—"}</td>;
+                            case "subject":
+                              return <td key="subject" className={`${TD} max-w-[200px] truncate text-ink-muted`} title={q.subject || ""}>{q.subject || "—"}</td>;
+                            case "intro_text":
+                              return <td key="intro_text" className={`${TD} max-w-[180px] truncate text-ink-muted`} title={q.intro_text || ""}>{q.intro_text || "—"}</td>;
+                            case "notes":
+                              return <td key="notes" className={`${TD} max-w-[180px] truncate text-ink-muted`} title={q.notes || ""}>{q.notes || "—"}</td>;
+                            case "currency_code":
+                              return <td key="currency_code" className={`${TD} font-mono text-xs text-ink-muted`}>{q.currency_code || "INR"}</td>;
+                            case "status":
+                              return (
+                                <td key="status" className={TD}>
+                                  <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
+                                </td>
+                              );
+                            case "subtotal":
+                              return <td key="subtotal" className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(q.subtotal, q.currency_code)}</td>;
+                            case "created_at":
+                              return <td key="created_at" className={`${TD} text-xs text-ink-muted`}>{q.created_at ? formatDate(q.created_at) : "—"}</td>;
+                            case "updated_at":
+                              return <td key="updated_at" className={`${TD} text-xs text-ink-muted`}>{q.updated_at ? formatDate(q.updated_at) : "—"}</td>;
+                            case "actions":
+                              return (
+                                <td key="actions" className={`${TD} text-right`}>
+                                  <div className="flex justify-end gap-1">
+                                    <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingQuotation(q)}>
+                                      <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                                    </RowActionButton>
+                                    <Link href={`/quotations/${q.id}/print`} target="_blank">
+                                      <RowActionButton label="Print / Save PDF" onClick={() => {}}>
+                                        <Printer className="h-3.5 w-3.5 text-primary-600" />
+                                      </RowActionButton>
+                                    </Link>
+                                    {canAdd && (
+                                      <RowActionButton
+                                        label="Duplicate / Copy Quotation"
+                                        onClick={() => handleCopyQuotation(q.id)}
+                                        disabled={copyingId === q.id}
+                                      >
+                                        {copyingId === q.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500" />
+                                        ) : (
+                                          <Copy className="h-3.5 w-3.5 text-primary-600 hover:text-primary-700" />
+                                        )}
+                                      </RowActionButton>
+                                    )}
+                                    {canEdit && (
+                                      <Link href={`/quotations/${q.id}`}>
+                                        <RowActionButton label="Edit" onClick={() => {}}>
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </RowActionButton>
+                                      </Link>
+                                    )}
+                                    {canDelete && (
+                                      <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(q)}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </RowActionButton>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            default:
+                              return null;
+                          }
+                        })}
                     </tr>
 
                     {/* Inline Info Expandable Dropdown Row */}
                     {isExpanded && (
                       <tr className="bg-surface-sunken/40">
-                        <td colSpan={cols.size + 1} className="p-0 border-b border-border/80">
+                        <td colSpan={grid.visibleColumns.size + 1} className="p-0 border-b border-border/80">
                           <div className="px-6 py-4 bg-gradient-to-b from-surface-sunken/30 to-surface border-l-4 border-l-primary-500 shadow-inner">
                             <div className="flex items-center justify-between pb-2 mb-3 border-b border-border/60">
                               <div className="flex items-center gap-2">

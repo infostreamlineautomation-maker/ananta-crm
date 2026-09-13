@@ -18,6 +18,7 @@ class Organization(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
     logo = models.ImageField(upload_to="organizations/logos/", null=True, blank=True)
+    report_logo = models.ImageField(upload_to="organizations/reports/", null=True, blank=True, help_text="Dedicated logo for PDF exports and printed reports")
     primary_color = models.CharField(max_length=7, default="#C31432", help_text="Hex, e.g. #C31432")
     tagline = models.CharField(max_length=200, blank=True)
 

@@ -54,7 +54,7 @@ class CostingFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CostingFile
-        fields = ["id", "file", "file_name", "file_size", "uploaded_at", "file_url"]
+        fields = ["id", "file", "file_name", "file_size", "category", "uploaded_at", "file_url"]
         read_only_fields = ["uploaded_at", "file_url"]
 
     def get_file_url(self, obj):
@@ -162,6 +162,7 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
             file_content = f_data.get("file")
             file_name = f_data.get("file_name", "") or raw_item.get("file_name", "")
             file_size = f_data.get("file_size") or raw_item.get("file_size")
+            category = f_data.get("category") or raw_item.get("category") or CostingFile.CATEGORY_CATALOGUE
 
             if file_id and CostingFile.objects.filter(costing=costing, id=file_id).exists():
                 cf = CostingFile.objects.get(costing=costing, id=file_id)
@@ -171,6 +172,8 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
                     cf.file_name = file_name
                 if file_size is not None:
                     cf.file_size = file_size
+                if category:
+                    cf.category = category
                 cf.save()
                 kept_file_ids.add(cf.id)
             elif file_content and file_content != "__KEEP_EXISTING__":
@@ -179,6 +182,7 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
                     file=file_content,
                     file_name=file_name,
                     file_size=file_size,
+                    category=category,
                 )
                 kept_file_ids.add(cf.id)
 

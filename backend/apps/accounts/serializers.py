@@ -11,10 +11,11 @@ class RolePermissionSerializer(serializers.ModelSerializer):
 
 class RoleSerializer(serializers.ModelSerializer):
     permissions = RolePermissionSerializer(many=True, read_only=True)
+    user_count = serializers.IntegerField(source="users.count", read_only=True)
 
     class Meta:
         model = Role
-        fields = ["id", "name", "description", "is_system", "permissions"]
+        fields = ["id", "name", "description", "is_system", "permissions", "user_count"]
 
 
 class UserSerializer(serializers.ModelSerializer):

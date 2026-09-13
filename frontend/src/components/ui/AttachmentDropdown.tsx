@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Download, FileSpreadsheet, FileText, Image as ImageIcon, Paperclip, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+  X,
+} from "lucide-react";
 import clsx from "clsx";
 import { mediaUrl } from "@/lib/format";
 
@@ -12,6 +21,7 @@ export interface AttachmentItem {
   file_url?: string | null;
   file_name?: string | null;
   file_size?: number | null;
+  category?: "catalogue" | "rate_list" | string;
 }
 
 function getFileIcon(name?: string | null) {
@@ -51,6 +61,9 @@ export function AttachmentDropdown({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const cleanFiles = (files || []).filter((f) => Boolean(f.file || f.file_url));
+  const catalogueFiles = cleanFiles.filter((f) => f.category !== "rate_list");
+  const rateListFiles = cleanFiles.filter((f) => f.category === "rate_list");
+  const hasBothCategories = catalogueFiles.length > 0 && rateListFiles.length > 0;
 
   useEffect(() => {
     setMounted(true);
@@ -59,7 +72,7 @@ export function AttachmentDropdown({
   const updatePosition = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const popoverWidth = 260;
+      const popoverWidth = hasBothCategories ? 540 : 280;
       let left = rect.left;
       if (left + popoverWidth > window.innerWidth - 16) {
         left = window.innerWidth - popoverWidth - 16;
@@ -67,7 +80,8 @@ export function AttachmentDropdown({
       if (left < 16) left = 16;
 
       let top = rect.bottom + 6;
-      const popoverHeight = Math.min(260, cleanFiles.length * 44 + 50);
+      const maxRows = Math.max(catalogueFiles.length, rateListFiles.length);
+      const popoverHeight = Math.min(320, maxRows * 44 + 80);
       if (top + popoverHeight > window.innerHeight && rect.top > popoverHeight) {
         top = Math.max(16, rect.top - popoverHeight - 6);
       }
@@ -80,7 +94,7 @@ export function AttachmentDropdown({
     if (open) {
       updatePosition();
     }
-  }, [open]);
+  }, [open, hasBothCategories, catalogueFiles.length, rateListFiles.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -101,12 +115,18 @@ export function AttachmentDropdown({
       updatePosition();
     }
 
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("scroll", handleScrollOrResize, true);
     window.addEventListener("resize", handleScrollOrResize);
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("scroll", handleScrollOrResize, true);
       window.removeEventListener("resize", handleScrollOrResize);
     };
@@ -139,6 +159,39 @@ export function AttachmentDropdown({
 
   const extraCount = cleanFiles.length - 1;
 
+  const renderFileRow = (f: AttachmentItem, idx: number, prefix: string) => {
+    const path = f.file || f.file_url || "";
+    const url = path ? (path.startsWith("data:") ? path : mediaUrl(path) || path) : "#";
+    const name = f.file_name || (path ? path.split("/").pop() : `File #${idx + 1}`);
+
+    return (
+      <a
+        key={f.id ? `${prefix}-f-${f.id}` : `${prefix}-f-${idx}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        download={name || "attachment"}
+        onClick={() => setOpen(false)}
+        className="flex items-center justify-between gap-2.5 rounded-lg border border-transparent hover:border-border hover:bg-surface-hover p-1.5 text-xs text-ink transition-colors group"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-sunken border border-border/60">
+            {getFileIcon(name)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-ink group-hover:text-primary-600 text-xs" title={name}>
+              {name}
+            </p>
+            {f.file_size ? <p className="text-[10px] text-ink-muted">{formatFileSize(f.file_size)}</p> : null}
+          </div>
+        </div>
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface border border-border/60 text-ink-muted group-hover:text-primary-600 group-hover:border-primary-300 transition-colors shadow-2xs">
+          <Download className="h-3 w-3" />
+        </div>
+      </a>
+    );
+  };
+
   const popoverMenu =
     open && mounted && typeof document !== "undefined"
       ? createPortal(
@@ -146,57 +199,74 @@ export function AttachmentDropdown({
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
-            className="fixed z-[99999] w-68 rounded-xl border border-border bg-surface p-2 shadow-2xl ring-1 ring-black/10 animate-in fade-in zoom-in-95 duration-100"
+            className={clsx(
+              "fixed z-[99999] rounded-xl border border-border bg-surface p-3 shadow-2xl ring-1 ring-black/10 animate-in fade-in zoom-in-95 duration-100",
+              hasBothCategories ? "w-[540px]" : "w-72"
+            )}
           >
-            <div className="flex items-center justify-between border-b border-border/70 pb-2 mb-1 px-1">
+            <div className="flex items-center justify-between border-b border-border/70 pb-2 mb-2.5 px-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                 All Attachments ({cleanFiles.length})
               </span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md p-1 text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors"
+                className="rounded-md p-1 text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <div className="max-h-[240px] overflow-y-auto py-0.5 space-y-1">
-              {cleanFiles.map((f, idx) => {
-                const path = f.file || f.file_url || "";
-                const url = path ? (path.startsWith("data:") ? path : mediaUrl(path) || path) : "#";
-                const name = f.file_name || (path ? path.split("/").pop() : `File #${idx + 1}`);
+            {hasBothCategories ? (
+              <div className="grid grid-cols-2 divide-x divide-border/60 gap-3">
+                {/* Left Section: Catalogue */}
+                <div className="flex flex-col min-w-0 pr-1">
+                  <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-1.5 border-b border-border/40 text-[10.5px] font-bold uppercase tracking-wider text-primary-700">
+                    <BookOpen className="h-3 w-3 text-primary-600" />
+                    <span>Catalogue ({catalogueFiles.length})</span>
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto space-y-1">
+                    {catalogueFiles.map((f, idx) => renderFileRow(f, idx, "cat"))}
+                  </div>
+                </div>
 
-                return (
-                  <a
-                    key={f.id ? `drop-f-${f.id}` : `drop-f-${idx}`}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={name || "attachment"}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center justify-between gap-2.5 rounded-lg border border-transparent hover:border-border hover:bg-surface-hover p-1.5 text-xs text-ink transition-colors group"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-sunken border border-border/60">
-                        {getFileIcon(name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-ink group-hover:text-primary-600 text-xs" title={name}>
-                          {name}
-                        </p>
-                        {f.file_size ? (
-                          <p className="text-[10px] text-ink-muted">{formatFileSize(f.file_size)}</p>
-                        ) : null}
-                      </div>
+                {/* Right Section: Rate List */}
+                <div className="flex flex-col min-w-0 pl-3">
+                  <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-1.5 border-b border-border/40 text-[10.5px] font-bold uppercase tracking-wider text-emerald-700">
+                    <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
+                    <span>Rate List ({rateListFiles.length})</span>
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto space-y-1">
+                    {rateListFiles.map((f, idx) => renderFileRow(f, idx, "rate"))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="max-h-[280px] overflow-y-auto space-y-1 px-0.5">
+                {catalogueFiles.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-1.5 border-b border-border/40 text-[10.5px] font-bold uppercase tracking-wider text-primary-700">
+                      <BookOpen className="h-3 w-3 text-primary-600" />
+                      <span>Catalogue ({catalogueFiles.length})</span>
                     </div>
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface border border-border/60 text-ink-muted group-hover:text-primary-600 group-hover:border-primary-300 transition-colors shadow-2xs">
-                      <Download className="h-3 w-3" />
+                    <div className="space-y-1">
+                      {catalogueFiles.map((f, idx) => renderFileRow(f, idx, "cat"))}
                     </div>
-                  </a>
-                );
-              })}
-            </div>
+                  </div>
+                )}
+                {rateListFiles.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-1.5 border-b border-border/40 text-[10.5px] font-bold uppercase tracking-wider text-emerald-700">
+                      <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
+                      <span>Rate List ({rateListFiles.length})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {rateListFiles.map((f, idx) => renderFileRow(f, idx, "rate"))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>,
           document.body
         )

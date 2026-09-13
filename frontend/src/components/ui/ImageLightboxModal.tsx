@@ -24,24 +24,29 @@ export function ImageLightboxModal({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoomed, setZoomed] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setCurrentIndex(Math.min(initialIndex, Math.max(0, images.length - 1)));
     setZoomed(false);
+    setConfirmDeleteOpen(false);
   }, [initialIndex, open, images.length]);
 
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") handlePrev();
-      if (e.key === "ArrowRight") handleNext();
+      if (e.key === "Escape") {
+        if (confirmDeleteOpen) setConfirmDeleteOpen(false);
+        else onClose();
+      }
+      if (e.key === "ArrowLeft" && !confirmDeleteOpen) handlePrev();
+      if (e.key === "ArrowRight" && !confirmDeleteOpen) handleNext();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, currentIndex, images.length, onClose]);
+  }, [open, currentIndex, images.length, onClose, confirmDeleteOpen]);
 
   if (!open || !mounted || images.length === 0) return null;
 
@@ -57,18 +62,17 @@ export function ImageLightboxModal({
     setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
   };
 
-  const handleDelete = async () => {
+  const executeDelete = async () => {
     if (!onDelete || !currentImg) return;
-    if (confirm("Are you sure you want to delete this image?")) {
-      setDeleting(true);
-      try {
-        await onDelete(currentImg);
-        if (currentIndex >= images.length - 1) {
-          setCurrentIndex(Math.max(0, images.length - 2));
-        }
-      } finally {
-        setDeleting(false);
+    setDeleting(true);
+    try {
+      await onDelete(currentImg);
+      setConfirmDeleteOpen(false);
+      if (currentIndex >= images.length - 1) {
+        setCurrentIndex(Math.max(0, images.length - 2));
       }
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -109,7 +113,7 @@ export function ImageLightboxModal({
           {onDelete && currentImg.id && (
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => setConfirmDeleteOpen(true)}
               disabled={deleting}
               className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/40 cursor-pointer transition-colors"
               title="Delete image"
@@ -127,6 +131,36 @@ export function ImageLightboxModal({
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Overlay */}
+      {confirmDeleteOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-white p-5 shadow-2xl">
+            <h4 className="text-base font-bold text-ink">Delete Image</h4>
+            <p className="mt-1.5 text-xs text-ink-muted">
+              Are you sure you want to permanently delete this attached image from the record?
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                disabled={deleting}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-md border border-border bg-surface text-ink hover:bg-surface-hover cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDelete}
+                disabled={deleting}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-rose-600 text-white hover:bg-rose-700 cursor-pointer shadow-xs"
+              >
+                {deleting ? "Deleting..." : "Delete Image"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Image Stage */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">

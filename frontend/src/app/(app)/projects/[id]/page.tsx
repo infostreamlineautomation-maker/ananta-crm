@@ -70,7 +70,7 @@ export default function ProjectDetailPage() {
     return <p className="text-sm text-ink-faint">Project not found.</p>;
   }
 
-  const canEdit = can("projects", "edit");
+  const canEdit = can("orders", "edit");
 
   return (
     <div className="flex flex-col gap-5">

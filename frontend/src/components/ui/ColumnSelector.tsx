@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Columns3, RotateCcw } from "lucide-react";
+import { Check, Columns3, GripVertical, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 
 export interface ColumnDef {
@@ -15,11 +15,22 @@ interface ColumnSelectorProps {
   columns: ColumnDef[];
   visibleColumns: Set<string>;
   onChange: (visible: Set<string>) => void;
+  onReorder?: (sourceKey: string, targetKey: string) => void;
+  onReset?: () => void;
   className?: string;
 }
 
-export function ColumnSelector({ columns, visibleColumns, onChange, className }: ColumnSelectorProps) {
+export function ColumnSelector({
+  columns,
+  visibleColumns,
+  onChange,
+  onReorder,
+  onReset,
+  className,
+}: ColumnSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,8 +64,12 @@ export function ColumnSelector({ columns, visibleColumns, onChange, className }:
     onChange(new Set(columns.map((c) => c.key)));
   }
 
-  function resetDefault() {
-    onChange(new Set(columns.filter((c) => c.defaultVisible !== false).map((c) => c.key)));
+  function handleReset() {
+    if (onReset) {
+      onReset();
+    } else {
+      onChange(new Set(columns.filter((c) => c.defaultVisible !== false).map((c) => c.key)));
+    }
   }
 
   return (
@@ -63,7 +78,7 @@ export function ColumnSelector({ columns, visibleColumns, onChange, className }:
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={clsx(
-          "flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink shadow-xs transition-colors hover:bg-surface-hover",
+          "flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink shadow-xs transition-colors hover:bg-surface-hover cursor-pointer",
           open && "border-primary-500 ring-2 ring-primary-100",
         )}
       >
@@ -75,50 +90,95 @@ export function ColumnSelector({ columns, visibleColumns, onChange, className }:
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1.5 w-56 rounded-xl border border-border bg-white p-2 shadow-xl animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 z-40 mt-1.5 w-64 rounded-xl border border-border bg-white p-2.5 shadow-xl animate-in fade-in zoom-in-95 duration-100">
           <div className="flex items-center justify-between border-b border-border/80 px-2 py-1.5 text-[12px] font-bold text-ink">
-            <span>Customize Columns</span>
+            <span>Arrange & Toggle Columns</span>
             <button
-              onClick={resetDefault}
-              className="flex items-center gap-1 text-[11px] font-medium text-primary-600 hover:underline"
+              onClick={handleReset}
+              type="button"
+              className="flex items-center gap-1 text-[11px] font-medium text-primary-600 hover:underline cursor-pointer"
+              title="Reset order, widths & visibility"
             >
               <RotateCcw className="h-3 w-3" /> Reset
             </button>
           </div>
 
-          <div className="my-1 max-h-60 overflow-y-auto py-1">
+          <div className="my-1 max-h-72 overflow-y-auto py-1 divide-y divide-border/40">
             {columns.map((col) => {
               const isChecked = visibleColumns.has(col.key);
+              const isDragging = draggedKey === col.key;
+              const isOver = dragOverKey === col.key && draggedKey !== col.key;
+
               return (
-                <label
+                <div
                   key={col.key}
+                  draggable={!col.required && !!onReorder}
+                  onDragStart={(e) => {
+                    if (col.required || !onReorder) return;
+                    e.dataTransfer.setData("text/plain", col.key);
+                    setDraggedKey(col.key);
+                  }}
+                  onDragOver={(e) => {
+                    if (col.required || !onReorder) return;
+                    e.preventDefault();
+                    setDragOverKey(col.key);
+                  }}
+                  onDragLeave={() => setDragOverKey(null)}
+                  onDrop={(e) => {
+                    if (col.required || !onReorder) return;
+                    e.preventDefault();
+                    const sourceKey = e.dataTransfer.getData("text/plain");
+                    if (sourceKey && sourceKey !== col.key) {
+                      onReorder(sourceKey, col.key);
+                    }
+                    setDraggedKey(null);
+                    setDragOverKey(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedKey(null);
+                    setDragOverKey(null);
+                  }}
                   className={clsx(
-                    "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12.5px] font-medium transition-colors cursor-pointer",
-                    col.required ? "opacity-60 cursor-not-allowed" : "hover:bg-surface-hover",
-                    isChecked ? "text-ink" : "text-ink-muted",
+                    "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[12.5px] font-medium transition-all",
+                    isDragging && "opacity-40 bg-primary-50",
+                    isOver && "border-t-2 border-t-primary-600 bg-primary-50/50",
+                    col.required ? "opacity-75" : "hover:bg-surface-hover",
                   )}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    disabled={col.required}
-                    onChange={() => toggleColumn(col.key, col.required)}
-                    className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500 accent-primary-600"
-                  />
-                  <span className="flex-1 truncate">{col.label}</span>
-                  {col.required && <span className="text-[10px] text-ink-faint">(Fixed)</span>}
-                </label>
+                  <label className="flex flex-1 items-center gap-2 truncate cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={col.required}
+                      onChange={() => toggleColumn(col.key, col.required)}
+                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-600 focus:ring-primary-500 accent-primary-600 cursor-pointer"
+                    />
+                    <span className={clsx("truncate", isChecked ? "text-ink font-medium" : "text-ink-muted")}>
+                      {col.label}
+                    </span>
+                  </label>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {col.required ? (
+                      <span className="text-[10px] font-medium text-ink-faint bg-surface-sunken px-1 rounded">Fixed</span>
+                    ) : onReorder ? (
+                      <span className="p-0.5 text-ink-faint hover:text-ink cursor-grab active:cursor-grabbing" title="Drag to reorder">
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               );
             })}
           </div>
 
-          <div className="border-t border-border/80 pt-1.5">
+          <div className="border-t border-border/80 pt-1.5 flex items-center justify-between">
             <button
               type="button"
               onClick={showAll}
-              className="w-full rounded-md px-2 py-1 text-center text-[11.5px] font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"
+              className="w-full rounded-md px-2 py-1 text-center text-[11.5px] font-semibold text-primary-700 hover:bg-primary-50 cursor-pointer"
             >
-              Select All Columns
+              Show All Columns
             </button>
           </div>
         </div>

@@ -67,15 +67,23 @@ class CostingItem(models.Model):
 
 
 class CostingFile(models.Model):
+    CATEGORY_CATALOGUE = "catalogue"
+    CATEGORY_RATE_LIST = "rate_list"
+    CATEGORY_CHOICES = [
+        (CATEGORY_CATALOGUE, "Catalogue"),
+        (CATEGORY_RATE_LIST, "Rate List"),
+    ]
+
     costing = models.ForeignKey(Costing, on_delete=models.CASCADE, related_name="files")
     file = models.FileField(upload_to="costings/files/")
     file_name = models.CharField(max_length=255, blank=True)
     file_size = models.PositiveIntegerField(null=True, blank=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default=CATEGORY_CATALOGUE)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["id"]
 
     def __str__(self):
-        return f"File #{self.pk} for Costing #{self.costing_id} - {self.file_name}"
+        return f"File #{self.pk} ({self.category}) for Costing #{self.costing_id} - {self.file_name}"
 

@@ -8,8 +8,8 @@ CLIENTS = "clients"
 COMPANIES = "companies"
 CATALOG = "catalog"
 SUPPLIERS = "suppliers"
-PROJECTS = "projects"
 ORDERS = "orders"
+PROJECTS = "orders"  # legacy alias
 QUOTATIONS = "quotations"
 COSTING = "costing"
 REPORTS = "reports"
@@ -22,7 +22,6 @@ MODULES = {
     COMPANIES: "Companies",
     CATALOG: "Products",
     SUPPLIERS: "Suppliers",
-    PROJECTS: "Projects",
     ORDERS: "Orders",
     QUOTATIONS: "Quotations",
     COSTING: "Costing",

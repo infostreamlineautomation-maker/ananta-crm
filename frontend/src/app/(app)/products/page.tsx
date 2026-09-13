@@ -24,6 +24,8 @@ import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { ProductModal } from "@/components/products/ProductModal";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { useTableGrid } from "@/lib/useTableGrid";
+import { ResizableTh } from "@/components/ui/ResizableTh";
 
 const BASE_PRODUCTS_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Select", required: true, defaultVisible: true },
@@ -41,6 +43,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
@@ -94,19 +97,11 @@ export default function ProductsPage() {
     return list;
   }, [customFields]);
 
-  const [cols, setCols] = useState<Set<string>>(
-    new Set(["select", "product_name", "description", "created_at", "updated_at", "actions"])
-  );
-
-  useEffect(() => {
-    if (customFields && customFields.length > 0) {
-      setCols((prev) => {
-        const next = new Set(prev);
-        customFields.forEach((cf) => next.add(`custom_${cf.field_key}`));
-        return next;
-      });
-    }
-  }, [customFields]);
+  const grid = useTableGrid({
+    tableKey: "products",
+    defaultColumns: pageColumns,
+    defaultVisibleKeys: ["select", "product_name", "description", "actions"],
+  });
 
   const path = useMemo(() => {
     const params = new URLSearchParams();
@@ -143,9 +138,8 @@ export default function ProductsPage() {
     });
   };
 
-  const bulkDelete = async () => {
+  const handleBulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} selected product(s)?`)) return;
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -153,6 +147,7 @@ export default function ProductsPage() {
       );
       toast.success(`${selected.size} product(s) deleted successfully`);
       setSelected(new Set());
+      setBulkDeleteConfirmOpen(false);
       reload();
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete selected products");
@@ -191,22 +186,64 @@ export default function ProductsPage() {
     return base;
   }, [customFields]);
 
-  const colSpan = 4 + (customFields?.length || 0);
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
-  return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Products"
-        action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus className="h-4 w-4" /> Add Product
-            </Button>
-          )
-        }
-      />
+  const renderCell = (colKey: string, p: Product) => {
+    if (colKey === "select") {
+      return (
+        <td key={colKey} className="w-10 px-3 py-2 text-center">
+          <input
+            type="checkbox"
+            checked={selected.has(p.id)}
+            onChange={() => toggleSelectOne(p.id)}
+            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+          />
+        </td>
+      );
+    }
+    if (colKey === "product_name") {
+      return <td key={colKey} className={`${TD} font-semibold`}>{p.product_name}</td>;
+    }
+    if (colKey === "description") {
+      return <td key={colKey} className={`${TD} max-w-md truncate text-ink-muted`}>{p.description || "—"}</td>;
+    }
+    if (colKey.startsWith("custom_")) {
+      const fieldKey = colKey.replace("custom_", "");
+      return (
+        <td key={colKey} className={`${TD} text-ink-muted`}>
+          {String(p.extra_data?.[fieldKey] ?? "—")}
+        </td>
+      );
+    }
+    if (colKey === "created_at") {
+      return <td key={colKey} className={`${TD} text-ink-muted text-xs`}>{formatDate(p.created_at)}</td>;
+    }
+    if (colKey === "updated_at") {
+      return <td key={colKey} className={`${TD} text-ink-muted text-xs`}>{formatDate(p.updated_at)}</td>;
+    }
+    if (colKey === "actions") {
+      return (
+        <td key={colKey} className={`${TD} text-right`}>
+          <div className="flex justify-end gap-1">
+            {canEdit && (
+              <RowActionButton label="Edit" onClick={() => setEditing(p)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </RowActionButton>
+            )}
+            {canDelete && (
+              <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(p)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </RowActionButton>
+            )}
+          </div>
+        </td>
+      );
+    }
+    return <td key={colKey} className={TD}>—</td>;
+  };
 
+  return (
+    <div className="flex flex-col gap-4">
       <FilterBar
         search={search}
         onSearchChange={(val) => {
@@ -228,9 +265,11 @@ export default function ProductsPage() {
         actions={
           <div className="flex items-center gap-2">
             <ColumnSelector
-              columns={pageColumns}
-              visibleColumns={cols}
-              onChange={setCols}
+              columns={grid.columns}
+              visibleColumns={grid.visibleColumns}
+              onChange={grid.setVisibleColumns}
+              onReorder={grid.reorderColumns}
+              onReset={grid.resetGrid}
             />
             <ExportDropdown
               data={data?.results || []}
@@ -239,6 +278,11 @@ export default function ProductsPage() {
               title="Product Catalog"
               columns={productExportColumns}
             />
+            {canAdd && (
+              <Button variant="primary" onClick={() => setEditing("new")}>
+                <Plus className="h-4 w-4" /> Add Product
+              </Button>
+            )}
           </div>
         }
       />
@@ -266,7 +310,7 @@ export default function ProductsPage() {
               <Button
                 variant="danger"
                 size="sm"
-                onClick={bulkDelete}
+                onClick={() => setBulkDeleteConfirmOpen(true)}
                 loading={bulkDeleting}
                 className="h-8"
               >
@@ -283,119 +327,65 @@ export default function ProductsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("product_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Product Name</span>
-                      {getColFilter("product_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("product_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("description") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Description</span>
-                      {getColFilter("description") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("description")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {customFields?.map((f) => {
-                  if (!cols.has(`custom_${f.field_key}`)) return null;
-                  const filterKey = `custom__${f.field_key}`;
-                  const colFilter = getColFilter(filterKey);
-                  return (
-                    <th key={f.id} className={TH}>
-                      <div className="inline-flex items-center">
-                        <span>{f.label}</span>
-                        {colFilter && (
-                          <ColumnHeaderFilter
-                            column={colFilter}
-                            activeFilters={activeFilters}
-                            onFilterChange={(k, v) => {
-                              setFilter(k, v);
-                              setPage(1);
-                            }}
+                {grid.columns
+                  .filter((c) => grid.visibleColumns.has(c.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {cols.has("updated_at") && <th className={TH}>Updated Date</th>}
-                {cols.has("actions") && <th className={TH}></th>}
+                        </ResizableTh>
+                      );
+                    }
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh key="actions" columnKey="actions" grid={grid} align="right" isDraggable={false}>
+                          <span className="sr-only">Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+                    const filterKey = col.key.startsWith("custom_")
+                      ? `custom__${col.key.replace("custom_", "")}`
+                      : col.key;
+                    const colFilter = getColFilter(filterKey);
+
+                    return (
+                      <ResizableTh key={col.key} columnKey={col.key} grid={grid}>
+                        <div className="inline-flex items-center">
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={Array.from(cols).length} emptyLabel="No products yet." />
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size}
+                emptyLabel="No products yet."
+              />
               {data?.results.map((p) => (
                 <tr key={p.id} className={TR}>
-                  {cols.has("select") && (
-                    <td className="w-10 px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(p.id)}
-                        onChange={() => toggleSelectOne(p.id)}
-                        className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                      />
-                    </td>
-                  )}
-                  {cols.has("product_name") && <td className={`${TD} font-semibold`}>{p.product_name}</td>}
-                  {cols.has("description") && <td className={`${TD} max-w-md truncate text-ink-muted`}>{p.description || "—"}</td>}
-                  {customFields?.map((f) => {
-                    if (!cols.has(`custom_${f.field_key}`)) return null;
-                    return (
-                      <td key={f.id} className={`${TD} text-ink-muted`}>
-                        {String(p.extra_data?.[f.field_key] ?? "—")}
-                      </td>
-                    );
-                  })}
-                  {cols.has("created_at") && <td className={`${TD} text-ink-muted text-xs`}>{formatDate(p.created_at)}</td>}
-                  {cols.has("updated_at") && <td className={`${TD} text-ink-muted text-xs`}>{formatDate(p.updated_at)}</td>}
-                  {cols.has("actions") && (
-                    <td className={`${TD} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        {canEdit && (
-                          <RowActionButton label="Edit" onClick={() => setEditing(p)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                        {canDelete && (
-                          <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(p)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => renderCell(col.key, p))}
                 </tr>
               ))}
             </tbody>
@@ -430,6 +420,17 @@ export default function ProductsPage() {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this product.");
             }
           }}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setBulkDeleteConfirmOpen(false)}
+          title="Delete Selected Products"
+          description={`Are you sure you want to delete ${selected.size} selected product(s)? This action can be undone later from the archive.`}
+          confirmLabel="Delete All Selected"
+          onConfirm={handleBulkDelete}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Upload, X } from "lucide-react";
+import { Building2, Trash2, Upload, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { Company, Country } from "@/lib/types";
 import { mediaUrl } from "@/lib/format";
@@ -45,6 +45,7 @@ export function CompanyForm({
     remarks: company?.remarks ?? "",
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +62,11 @@ export function CompanyForm({
     try {
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, String(v ?? "")));
-      if (logoFile) body.append("logo", logoFile);
+      if (logoFile) {
+        body.append("logo", logoFile);
+      } else if (removeLogo) {
+        body.append("logo", "");
+      }
 
       if (company) {
         const updated = await apiFetch<Company>(`/api/companies/${company.id}/`, { method: "PATCH", body });
@@ -163,7 +168,7 @@ export function CompanyForm({
       <FieldGroup title="Branding">
         <Field label="Logo" className="sm:col-span-2">
           <div className="flex items-center gap-3">
-            {mediaUrl(company?.logo) && !logoFile ? (
+            {mediaUrl(company?.logo) && !logoFile && !removeLogo ? (
               // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, dynamic remote URL
               <img src={mediaUrl(company?.logo)!} alt="" width={44} height={44} className="h-11 w-11 rounded-md border border-border object-cover" />
             ) : logoFile ? (
@@ -174,20 +179,28 @@ export function CompanyForm({
                 <Building2 className="h-4.5 w-4.5" />
               </div>
             )}
-            <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-white px-3 text-[13px] font-semibold text-ink hover:bg-surface-hover">
+            <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-white px-3 text-[13px] font-semibold text-ink hover:bg-surface-hover shadow-2xs">
               <Upload className="h-3.5 w-3.5" />
               Upload logo
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { setLogoFile(e.target.files?.[0] ?? null); setRemoveLogo(false); }} />
             </label>
-            {logoFile && (
+            {logoFile ? (
               <button
                 type="button"
                 onClick={() => setLogoFile(null)}
-                className="text-xs text-ink-muted hover:text-primary-600 flex items-center gap-1"
+                className="text-xs text-ink-muted hover:text-primary-600 flex items-center gap-1 cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" /> Remove selected
               </button>
-            )}
+            ) : company?.logo && !removeLogo ? (
+              <button
+                type="button"
+                onClick={() => setRemoveLogo(true)}
+                className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove current logo
+              </button>
+            ) : null}
           </div>
         </Field>
       </FieldGroup>

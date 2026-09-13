@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  BookOpen,
   Calendar,
   Download,
   ExternalLink,
@@ -19,7 +20,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import clsx from "clsx";
-import { CostingDetail } from "@/lib/types";
+import { CostingDetail, CostingFile } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -70,14 +71,70 @@ export function CostingViewModal({
   const profit = parseFloat(costing.profit || "0");
   const profitPercent = parseFloat(costing.profit_percent || "0");
 
-  const allFiles =
+  const allFiles: CostingFile[] =
     costing.files && costing.files.length > 0
       ? costing.files
       : costing.file
-      ? [{ file: costing.file, file_name: costing.file_name }]
+      ? [{ file: costing.file, file_name: costing.file_name, category: "catalogue" }]
       : [];
 
+  const catalogueFiles = allFiles.filter((f) => f.category !== "rate_list");
+  const rateListFiles = allFiles.filter((f) => f.category === "rate_list");
+
   const extraEntries = Object.entries(firstItem?.extra_data || {});
+
+  const renderFileCard = (f: CostingFile, idx: number, prefix: string) => {
+    const fPath = f.file || (f as any).file_url || "";
+    const fUrl = fPath ? (fPath.startsWith("data:") ? fPath : mediaUrl(fPath) || fPath) : "";
+    const fName = f.file_name || (fPath ? fPath.split("/").pop() : `File #${idx + 1}`);
+    const isImg = isImageFile(fName || fUrl);
+
+    return (
+      <div
+        key={f.id ? `${prefix}-f-${f.id}` : `${prefix}-f-${idx}`}
+        className="flex items-center justify-between gap-2.5 rounded-lg border border-border bg-surface px-3 py-2 shadow-2xs"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken border border-border shadow-2xs">
+            {getFileIcon(fName || fUrl)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-ink" title={fName || undefined}>
+              {fName}
+            </p>
+            <p className="text-[10.5px] text-ink-muted">
+              {f.file_size ? formatFileSize(f.file_size) : isImg ? "Image document" : "Attached file"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {isImg && fUrl && (
+            <button
+              type="button"
+              onClick={() => setPreviewLightbox(fUrl)}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors cursor-pointer"
+              title="Preview image"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {fUrl && (
+            <a
+              href={fUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={fName || "attachment"}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-primary-600 hover:text-primary-700 hover:bg-surface-hover shadow-2xs transition-colors"
+              title="Download / Open file"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -150,41 +207,33 @@ export function CostingViewModal({
               Costing Rates &amp; Quantities
             </h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-surface-sunken/40 border border-border/70 p-3">
-                <span className="text-[11px] font-semibold text-ink-muted">Supplier Rate</span>
-                <p className="tnum mt-1 text-base font-extrabold text-ink">
-                  {formatCurrency(firstItem?.supplier_rate || "0")}
-                </p>
+              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Supplier Rate (Cost/unit)</p>
+                <p className="tnum mt-0.5 text-sm font-bold text-ink">{formatCurrency(firstItem?.supplier_rate)}</p>
               </div>
-              <div className="rounded-lg bg-surface-sunken/40 border border-border/70 p-3">
-                <span className="text-[11px] font-semibold text-ink-muted">Quantity</span>
-                <p className="tnum mt-1 text-base font-extrabold text-ink">{firstItem?.quantity || "1"}</p>
+              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Quantity</p>
+                <p className="tnum mt-0.5 text-sm font-bold text-ink">{firstItem?.quantity || "0"}</p>
               </div>
-              <div className="rounded-lg bg-surface-sunken/40 border border-border/70 p-3">
-                <span className="text-[11px] font-semibold text-ink-muted">Client Rate</span>
-                <p className="tnum mt-1 text-base font-extrabold text-ink">
-                  {formatCurrency(firstItem?.client_rate || "0")}
-                </p>
+              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Client Rate (Price/unit)</p>
+                <p className="tnum mt-0.5 text-sm font-bold text-ink">{formatCurrency(firstItem?.client_rate)}</p>
               </div>
             </div>
 
-            {/* Custom fields if present */}
+            {/* Custom Fields Extra Data */}
             {extraEntries.length > 0 && (
-              <div className="mt-3.5 pt-3 border-t border-border/60">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint mb-2 block">
-                  Additional Specifications &amp; Charges
-                </span>
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-ink-faint mb-2">Custom Fields</h5>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {extraEntries.map(([key, val]) => {
-                    const colConfig = costing.columns_config?.find((c) => c.key === key);
-                    const label = colConfig?.label || key.replace(/_/g, " ");
-                    return (
-                      <div key={key} className="rounded-md bg-surface-sunken/30 border border-border/50 px-2.5 py-1.5">
-                        <span className="text-[10.5px] font-medium text-ink-muted block capitalize">{label}</span>
-                        <span className="text-xs font-semibold text-ink">{val || "—"}</span>
-                      </div>
-                    );
-                  })}
+                  {extraEntries.map(([key, val]) => (
+                    <div key={key} className="rounded-lg bg-surface-sunken/30 border border-border/60 px-2.5 py-1.5">
+                      <span className="text-[10px] font-semibold text-ink-muted capitalize">
+                        {key.replace(/^custom_\d+_?/, "").replace(/_/g, " ")}
+                      </span>
+                      <p className="text-xs font-bold text-ink truncate mt-0.5">{String(val || "—")}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -212,66 +261,40 @@ export function CostingViewModal({
             </div>
           </div>
 
-          {/* Attached Files & Documents */}
+          {/* Attached Files & Documents (Catalogue & Rate List) */}
           {allFiles.length > 0 && (
-            <div className="rounded-xl border border-border bg-surface p-4 shadow-2xs">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2.5">
-                Attached Documents ({allFiles.length})
-              </h4>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {allFiles.map((f, idx) => {
-                  const fPath = f.file || (f as any).file_url || "";
-                  const fUrl = fPath ? (fPath.startsWith("data:") ? fPath : mediaUrl(fPath) || fPath) : "";
-                  const fName = f.file_name || (fPath ? fPath.split("/").pop() : `File #${idx + 1}`);
-                  const isImg = isImageFile(fName || fUrl);
-
-                  return (
-                    <div
-                      key={f.id ? `modal-f-${f.id}` : `modal-f-${idx}`}
-                      className="flex items-center justify-between gap-2.5 rounded-lg border border-border bg-surface-sunken/40 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface border border-border shadow-2xs">
-                          {getFileIcon(fName || fUrl)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-semibold text-ink" title={fName || undefined}>
-                            {fName}
-                          </p>
-                          <p className="text-[10.5px] text-ink-muted">
-                            {f.file_size ? formatFileSize(f.file_size) : isImg ? "Image document" : "Attached file"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isImg && fUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewLightbox(fUrl)}
-                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors cursor-pointer"
-                            title="Preview image"
-                          >
-                            <ZoomIn className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {fUrl && (
-                          <a
-                            href={fUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download={fName || "attachment"}
-                            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-primary-600 hover:text-primary-700 hover:bg-surface-hover shadow-2xs transition-colors"
-                            title="Download / Open file"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="rounded-xl border border-border bg-surface p-4 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-border/70 pb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+                  Attached Documents ({allFiles.length})
+                </h4>
               </div>
+
+              {/* Catalogue Section */}
+              {catalogueFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-primary-700">
+                    <BookOpen className="h-3.5 w-3.5 text-primary-600" />
+                    <span>Catalogue / Samples ({catalogueFiles.length})</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {catalogueFiles.map((f, idx) => renderFileCard(f, idx, "view-cat"))}
+                  </div>
+                </div>
+              )}
+
+              {/* Rate List Section */}
+              {rateListFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Rate List / Price Sheet ({rateListFiles.length})</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {rateListFiles.map((f, idx) => renderFileCard(f, idx, "view-rate"))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { ExportColumn, ExportFormat, exportData } from "@/lib/export-utils";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganization } from "@/lib/organization-context";
+import { getBrandLogo, getReportLogo, mediaUrl } from "@/lib/format";
 import { ExportModal } from "./ExportModal";
 
 export interface ExportDropdownProps<T = any> {
@@ -46,6 +47,8 @@ export function ExportDropdown<T>({
 
   const activeCompanyName = customCompanyName || activeOrganization?.name || "Ananta Graphics";
   const primaryColor = activeOrganization?.primary_color || "#C31432";
+  const logoUrl = getReportLogo(activeCompanyName, activeOrganization?.report_logo, activeOrganization?.logo);
+  const watermarkLogoUrl = getBrandLogo(activeCompanyName, activeOrganization?.logo);
 
   // Compute selected data items
   const computedSelectedData = useMemo(() => {
@@ -82,9 +85,13 @@ export function ExportDropdown<T>({
         }
         const targetData = hasSelection ? computedSelectedData : data;
         const docTitle = title || filename.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-        exportData(format, targetData, columns, filename, docTitle, {
+        const defaultCols = columns.filter((c) => c.defaultSelected !== false);
+        const targetCols = defaultCols.length > 0 ? defaultCols : columns;
+        await exportData(format, targetData, targetCols, filename, docTitle, {
           companyName: activeCompanyName,
           primaryColor,
+          logoUrl,
+          watermarkLogoUrl,
         });
         const labels = { excel: "Excel (.xlsx)", csv: "CSV (.csv)", pdf: "PDF (.pdf)" };
         toast.success(`Exported ${targetData.length} records to ${labels[format]} for ${activeCompanyName}.`);

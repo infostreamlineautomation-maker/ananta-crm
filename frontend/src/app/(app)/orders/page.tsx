@@ -22,30 +22,32 @@ import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from 
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { ResizableTh } from "@/components/ui/ResizableTh";
+import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ExportColumn } from "@/lib/export-utils";
 
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
-  { header: "Project No", accessor: (o: any) => o.order_no, category: "Basic Info" },
-  { header: "Project Name / Title", accessor: (o: any) => o.project_title || o.project_name || "", category: "Basic Info" },
-  { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info" },
-  { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor" },
-  { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor" },
-  { header: "Supplier / Vendor", accessor: (o: any) => o.supplier_name || "", category: "Client & Vendor" },
-  { header: "Client Phone", accessor: (o: any) => o.client_phone || "", category: "Client & Vendor" },
-  { header: "Client Email", accessor: (o: any) => o.client_email || "", category: "Client & Vendor" },
-  { header: "Currency", accessor: (o: any) => o.currency_code || "INR", category: "Financials & Tax" },
-  { header: "Total (Without GST)", accessor: (o: any) => o.subtotal || o.grand_total, category: "Financials & Tax" },
-  { header: "GST %", accessor: (o: any) => o.tax_percent ?? "0", category: "Financials & Tax" },
-  { header: "GST Tax Amount", accessor: (o: any) => o.tax_amount || "0.00", category: "Financials & Tax" },
-  { header: "Total Bill (With GST)", accessor: (o: any) => o.grand_total, category: "Financials & Tax" },
-  { header: "Advance / Paid Amount", accessor: (o: any) => o.paid_amount || "0.00", category: "Financials & Tax" },
-  { header: "Balance Due", accessor: (o: any) => o.due_amount || "0.00", category: "Financials & Tax" },
-  { header: "Delivery Status", accessor: (o: any) => labelize(o.delivery_status), category: "Workflow & Status" },
-  { header: "Payment Status", accessor: (o: any) => labelize(o.payment_status), category: "Workflow & Status" },
-  { header: "Delivery Deadline / Time", accessor: (o: any) => o.delivery_time || "", category: "Workflow & Status" },
+  { header: "Project No", accessor: (o: any) => o.order_no, category: "Basic Info", defaultSelected: true },
+  { header: "Project Name / Title", accessor: (o: any) => o.project_title || o.project_name || "", category: "Basic Info", defaultSelected: true },
+  { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info", defaultSelected: true },
+  { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor", defaultSelected: true },
+  { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor", defaultSelected: false },
+  { header: "Supplier / Vendor", accessor: (o: any) => o.supplier_name || "", category: "Client & Vendor", defaultSelected: false },
+  { header: "Client Phone", accessor: (o: any) => o.client_phone || "", category: "Client & Vendor", defaultSelected: false },
+  { header: "Client Email", accessor: (o: any) => o.client_email || "", category: "Client & Vendor", defaultSelected: false },
+  { header: "Currency", accessor: (o: any) => o.currency_code || "INR", category: "Financials & Tax", defaultSelected: false },
+  { header: "Total (Without GST)", accessor: (o: any) => o.subtotal || o.grand_total, category: "Financials & Tax", defaultSelected: false },
+  { header: "GST %", accessor: (o: any) => o.tax_percent ?? "0", category: "Financials & Tax", defaultSelected: false },
+  { header: "GST Tax Amount", accessor: (o: any) => o.tax_amount || "0.00", category: "Financials & Tax", defaultSelected: false },
+  { header: "Total Bill (With GST)", accessor: (o: any) => o.grand_total, category: "Financials & Tax", defaultSelected: true },
+  { header: "Advance / Paid Amount", accessor: (o: any) => o.paid_amount || "0.00", category: "Financials & Tax", defaultSelected: true },
+  { header: "Balance Due", accessor: (o: any) => o.due_amount || "0.00", category: "Financials & Tax", defaultSelected: true },
+  { header: "Delivery Status", accessor: (o: any) => labelize(o.delivery_status), category: "Workflow & Status", defaultSelected: true },
+  { header: "Payment Status", accessor: (o: any) => labelize(o.payment_status), category: "Workflow & Status", defaultSelected: true },
+  { header: "Delivery Deadline / Time", accessor: (o: any) => o.delivery_time || "", category: "Workflow & Status", defaultSelected: false },
   {
     header: "Line Items Summary",
     accessor: (o: any) =>
@@ -53,15 +55,26 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
       o.items_preview ||
       "",
     category: "Line Items & Proofs",
+    defaultSelected: false,
   },
   {
-    header: "Proof / Artwork Images URLs",
-    accessor: (o: any) =>
-      o.images?.map((img: any) => mediaUrl(img.image)).filter(Boolean).join(", ") || "",
+    header: "Image Preview",
+    accessor: (o: any) => {
+      const count = o.images?.length || 0;
+      return count > 0 ? `${count} Image${count > 1 ? "s" : ""}` : "-";
+    },
+    imageAccessor: (o: any) => {
+      if (o.images && o.images.length > 0) {
+        const firstImg = o.images[0]?.image;
+        return firstImg ? mediaUrl(firstImg) : null;
+      }
+      return null;
+    },
     category: "Line Items & Proofs",
+    defaultSelected: true,
   },
-  { header: "Remarks / Notes", accessor: (o: any) => o.remarks || "", category: "Workflow & Status" },
-  { header: "Created Date", accessor: (o: any) => o.created_at ? formatDate(o.created_at) : "", category: "System Dates" },
+  { header: "Remarks / Notes", accessor: (o: any) => o.remarks || "", category: "Workflow & Status", defaultSelected: false },
+  { header: "Created Date", accessor: (o: any) => o.created_at ? formatDate(o.created_at) : "", category: "System Dates", defaultSelected: false },
 ];
 
 const ORDERS_COLUMNS: ColumnDef[] = [
@@ -95,9 +108,23 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [cols, setCols] = useState<Set<string>>(
-    new Set(["select", "order_no", "images", "date", "client_name", "grand_total", "paid_amount", "due_amount", "delivery_status", "payment_status", "actions"])
-  );
+  const grid = useTableGrid({
+    tableKey: "orders",
+    defaultColumns: ORDERS_COLUMNS,
+    defaultVisibleKeys: [
+      "select",
+      "order_no",
+      "images",
+      "date",
+      "client_name",
+      "grand_total",
+      "paid_amount",
+      "due_amount",
+      "delivery_status",
+      "payment_status",
+      "actions",
+    ],
+  });
   const [deleting, setDeleting] = useState<OrderSummary | null>(null);
   const [copyingId, setCopyingId] = useState<number | null>(null);
   const [notifyingOrder, setNotifyingOrder] = useState<OrderSummary | null>(null);
@@ -233,20 +260,7 @@ export default function OrdersPage() {
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Projects"
-        action={
-          canAdd && (
-            <Link href="/orders/new">
-              <Button variant="primary">
-                <Plus className="h-4 w-4" /> New Project
-              </Button>
-            </Link>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -299,7 +313,21 @@ export default function OrdersPage() {
                 columns={PROJECTS_EXPORT_COLUMNS}
               />
 
-              <ColumnSelector columns={ORDERS_COLUMNS} visibleColumns={cols} onChange={setCols} />
+              <ColumnSelector
+                columns={grid.columns}
+                visibleColumns={grid.visibleColumns}
+                onChange={grid.setVisibleColumns}
+                onReorder={grid.reorderColumns}
+                onReset={grid.resetGrid}
+              />
+
+              {canAdd && (
+                <Link href="/orders/new">
+                  <Button variant="primary">
+                    <Plus className="h-4 w-4" /> New Order
+                  </Button>
+                </Link>
+              )}
             </div>
           }
         />
@@ -381,289 +409,258 @@ export default function OrdersPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                {cols.has("select") && (
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={!!data && data.results.length > 0 && selected.size === data.results.length}
-                      onChange={toggleAll}
-                      aria-label="Select all"
-                      className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
-                    />
-                  </th>
-                )}
-                {cols.has("order_no") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Project No</span>
-                      {getColFilter("order_no") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("order_no")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("project_title") && <th className={TH}>Project Name / Title</th>}
-                {cols.has("images") && <th className={TH}>Images</th>}
-                {cols.has("date") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Date</span>
-                      {getColFilter("date") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("date")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("client_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Client</span>
-                      {getColFilter("client_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("client_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("company_name") && <th className={TH}>Company</th>}
-                {cols.has("supplier_name") && <th className={TH}>Supplier / Vendor</th>}
-                {cols.has("delivery_time") && <th className={TH}>Delivery Deadline</th>}
-                {cols.has("description") && <th className={TH}>Remarks / Notes</th>}
-                {cols.has("currency_code") && <th className={TH}>Currency</th>}
-                {cols.has("subtotal") && <th className={`${TH} text-right`}>Total (Without GST)</th>}
-                {cols.has("tax_percent") && <th className={`${TH} text-right`}>GST %</th>}
-                {cols.has("tax_amount") && <th className={`${TH} text-right`}>GST Amount</th>}
-                {cols.has("grand_total") && (
-                  <th className={`${TH} text-right`}>
-                    <div className="inline-flex items-center justify-end">
-                      <span>Total Amount</span>
-                      {getColFilter("amount") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("amount")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("paid_amount") && <th className={`${TH} text-right`}>Paid Amount</th>}
-                {cols.has("due_amount") && <th className={`${TH} text-right`}>Balance Due</th>}
-                {cols.has("delivery_status") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Delivery Status</span>
-                      {getColFilter("delivery_status") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("delivery_status")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("payment_status") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Payment Status</span>
-                      {getColFilter("payment_status") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("payment_status")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {cols.has("updated_at") && <th className={TH}>Updated Date</th>}
-                {cols.has("actions") && <th className={`${TH} text-right`}>Actions</th>}
+                {grid.columns
+                  .filter((col) => grid.visibleColumns.has(col.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh
+                          key="select"
+                          columnKey="select"
+                          grid={grid}
+                          isDraggable={false}
+                          isResizable={false}
+                          align="center"
+                          className="w-10 px-3 text-center"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!data && data.results.length > 0 && selected.size === data.results.length}
+                            onChange={toggleAll}
+                            aria-label="Select all"
+                            className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
+                          />
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh
+                          key="actions"
+                          columnKey="actions"
+                          grid={grid}
+                          align="right"
+                          isDraggable={false}
+                        >
+                          <span>Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+
+                    const isRight = ["subtotal", "tax_percent", "tax_amount", "grand_total", "paid_amount", "due_amount"].includes(col.key);
+                    const colFilter = getColFilter(col.key === "grand_total" ? "amount" : col.key);
+
+                    return (
+                      <ResizableTh
+                        key={col.key}
+                        columnKey={col.key}
+                        grid={grid}
+                        align={isRight ? "right" : "left"}
+                      >
+                        <div className={clsx("inline-flex items-center", isRight && "justify-end")}>
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               <TableState
                 loading={loading}
                 empty={!loading && (data?.results.length ?? 0) === 0}
-                colSpan={cols.size}
+                colSpan={grid.visibleColumns.size}
                 emptyLabel="No projects found matching criteria."
               />
               {data?.results.map((o) => (
                 <tr key={o.id} className={`${TR} hover:bg-surface-hover transition-colors`}>
-                  {cols.has("select") && (
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(o.id)}
-                        onChange={() => toggle(o.id)}
-                        className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
-                      />
-                    </td>
-                  )}
-                  {cols.has("order_no") && (
-                    <td className={TD}>
-                      <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
-                        {o.order_no}
-                      </Link>
-                      {!cols.has("project_title") && o.project_title && (
-                        <div className="text-[12px] font-medium text-ink-muted truncate max-w-[180px]" title={o.project_title}>
-                          {o.project_title}
-                        </div>
-                      )}
-                    </td>
-                  )}
-                  {cols.has("project_title") && (
-                    <td className={`${TD} font-medium text-ink max-w-[200px] truncate`} title={o.project_title || ""}>
-                      {o.project_title || "—"}
-                    </td>
-                  )}
-                  {cols.has("images") && (
-                    <td className={TD}>
-                      {o.images && o.images.length > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => setActiveLightboxImages(o.images || [])}
-                          className="group relative flex items-center justify-center rounded-lg border border-border/90 bg-white p-1 shadow-xs transition-all hover:border-primary-500 hover:shadow-md cursor-pointer focus:outline-hidden"
-                          title={`Click to view ${o.images.length} image${o.images.length === 1 ? "" : "s"} in high-res gallery`}
-                        >
-                          <div className="relative h-18 w-20 sm:h-20 sm:w-24 overflow-hidden rounded-md bg-surface-sunken/60 flex items-center justify-center">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={o.images[0].image}
-                              alt={o.images[0].caption || "Proof preview"}
-                              className="h-full w-full object-contain p-0.5 transition-transform duration-200 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10 flex items-center justify-center">
-                              <ImageIcon className="h-5 w-5 text-white opacity-0 drop-shadow-md transition-opacity group-hover:opacity-100" />
-                            </div>
-                          </div>
-                          {o.images.length > 1 && (
-                            <span className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full bg-slate-900/90 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-white shadow-xs ring-1.5 ring-white">
-                              +{o.images.length - 1}
-                            </span>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="text-ink-faint text-xs">—</span>
-                      )}
-                    </td>
-                  )}
-                  {cols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                  {cols.has("client_name") && (
-                    <td className={TD}>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-ink">{o.client_name}</span>
-                        {!cols.has("company_name") && o.company_name && (
-                          <span className="text-[12px] font-medium text-ink-muted">
-                            ({o.company_name})
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                  {cols.has("company_name") && <td className={`${TD} text-ink-muted`}>{o.company_name || "—"}</td>}
-                  {cols.has("supplier_name") && <td className={`${TD} text-ink-muted`}>{o.supplier_name || "—"}</td>}
-                  {cols.has("delivery_time") && <td className={`${TD} text-ink-muted max-w-[160px] truncate`} title={o.delivery_time || ""}>{o.delivery_time || "—"}</td>}
-                  {cols.has("description") && <td className={`${TD} text-ink-muted max-w-[180px] truncate`} title={o.description || ""}>{o.description || "—"}</td>}
-                  {cols.has("currency_code") && <td className={`${TD} font-mono text-xs text-ink-muted`}>{o.currency_code || "INR"}</td>}
-                  {cols.has("subtotal") && <td className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.subtotal || o.grand_total, o.currency_code)}</td>}
-                  {cols.has("tax_percent") && <td className={`${TD} tnum text-right text-ink-muted`}>{o.tax_percent ?? "0"}%</td>}
-                  {cols.has("tax_amount") && <td className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.tax_amount || "0.00", o.currency_code)}</td>}
-                  {cols.has("grand_total") && (
-                    <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
-                  )}
-                  {cols.has("paid_amount") && (
-                    <td className={`${TD} tnum text-right font-medium text-emerald-700`}>
-                      {formatCurrency(o.paid_amount || "0.00", o.currency_code)}
-                    </td>
-                  )}
-                  {cols.has("due_amount") && (
-                    <td className={`${TD} tnum text-right font-bold ${Number(o.due_amount) > 0 ? "text-rose-600" : "text-emerald-700"}`}>
-                      {formatCurrency(o.due_amount || "0.00", o.currency_code)}
-                    </td>
-                  )}
-                  {cols.has("delivery_status") && (
-                    <td className={TD}>
-                      <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
-                    </td>
-                  )}
-                  {cols.has("payment_status") && (
-                    <td className={TD}>
-                      <StatusPill
-                        label={
-                          o.payment_status === "partial" && o.due_amount
-                            ? `Partial (Due: ${formatCurrency(o.due_amount, o.currency_code)})`
-                            : labelize(o.payment_status)
-                        }
-                        tone={PAYMENT_STATUS_TONE[o.payment_status]}
-                      />
-                    </td>
-                  )}
-                  {cols.has("created_at") && <td className={`${TD} text-xs text-ink-muted`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>}
-                  {cols.has("updated_at") && <td className={`${TD} text-xs text-ink-muted`}>{o.updated_at ? formatDate(o.updated_at) : "—"}</td>}
-                  {cols.has("actions") && (
-                    <td className={`${TD} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingOrder(o)}>
-                          <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
-                        </RowActionButton>
-                        {canAdd && (
-                          <RowActionButton
-                            label="Duplicate / Copy Project"
-                            onClick={() => handleCopyOrder(o.id)}
-                            loading={copyingId === o.id}
-                          >
-                            <Copy className="h-3.5 w-3.5 text-slate-600" />
-                          </RowActionButton>
-                        )}
-                        <Link href={`/orders/${o.id}/print`} target="_blank">
-                          <RowActionButton label="Print Bill / PDF" onClick={() => {}}>
-                            <Printer className="h-3.5 w-3.5 text-primary-600" />
-                          </RowActionButton>
-                        </Link>
-                        <Link href={`/orders/${o.id}`}>
-                          <RowActionButton label="View / Edit" onClick={() => {}}>
-                            {canEdit ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </RowActionButton>
-                        </Link>
-                        {canDelete && (
-                          <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(o)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => {
+                      switch (col.key) {
+                        case "select":
+                          return (
+                            <td key="select" className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(o.id)}
+                                onChange={() => toggle(o.id)}
+                                className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
+                              />
+                            </td>
+                          );
+                        case "order_no":
+                          return (
+                            <td key="order_no" className={TD}>
+                              <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
+                                {o.order_no}
+                              </Link>
+                              {!grid.visibleColumns.has("project_title") && o.project_title && (
+                                <div className="text-[12px] font-medium text-ink-muted truncate max-w-[180px]" title={o.project_title}>
+                                  {o.project_title}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        case "project_title":
+                          return (
+                            <td key="project_title" className={`${TD} font-medium text-ink max-w-[200px] truncate`} title={o.project_title || ""}>
+                              {o.project_title || "—"}
+                            </td>
+                          );
+                        case "images":
+                          return (
+                            <td key="images" className={TD}>
+                              {o.images && o.images.length > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveLightboxImages(o.images || [])}
+                                  className="group relative flex items-center justify-center rounded-lg border border-border/90 bg-white p-1 shadow-xs transition-all hover:border-primary-500 hover:shadow-md cursor-pointer focus:outline-hidden"
+                                  title={`Click to view ${o.images.length} image${o.images.length === 1 ? "" : "s"} in high-res gallery`}
+                                >
+                                  <div className="relative h-18 w-20 sm:h-20 sm:w-24 overflow-hidden rounded-md bg-surface-sunken/60 flex items-center justify-center">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={o.images[0].image}
+                                      alt={o.images[0].caption || "Proof preview"}
+                                      className="h-full w-full object-contain p-0.5 transition-transform duration-200 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10 flex items-center justify-center">
+                                      <ImageIcon className="h-5 w-5 text-white opacity-0 drop-shadow-md transition-opacity group-hover:opacity-100" />
+                                    </div>
+                                  </div>
+                                  {o.images.length > 1 && (
+                                    <span className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full bg-slate-900/90 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-white shadow-xs ring-1.5 ring-white">
+                                      +{o.images.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="text-ink-faint text-xs">—</span>
+                              )}
+                            </td>
+                          );
+                        case "date":
+                          return <td key="date" className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>;
+                        case "client_name":
+                          return (
+                            <td key="client_name" className={TD}>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-ink">{o.client_name}</span>
+                                {!grid.visibleColumns.has("company_name") && o.company_name && (
+                                  <span className="text-[12px] font-medium text-ink-muted">
+                                    ({o.company_name})
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        case "company_name":
+                          return <td key="company_name" className={`${TD} text-ink-muted`}>{o.company_name || "—"}</td>;
+                        case "supplier_name":
+                          return <td key="supplier_name" className={`${TD} text-ink-muted`}>{o.supplier_name || "—"}</td>;
+                        case "delivery_time":
+                          return <td key="delivery_time" className={`${TD} text-ink-muted max-w-[160px] truncate`} title={o.delivery_time || ""}>{o.delivery_time || "—"}</td>;
+                        case "description":
+                          return <td key="description" className={`${TD} text-ink-muted max-w-[180px] truncate`} title={o.description || ""}>{o.description || "—"}</td>;
+                        case "currency_code":
+                          return <td key="currency_code" className={`${TD} font-mono text-xs text-ink-muted`}>{o.currency_code || "INR"}</td>;
+                        case "subtotal":
+                          return <td key="subtotal" className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.subtotal || o.grand_total, o.currency_code)}</td>;
+                        case "tax_percent":
+                          return <td key="tax_percent" className={`${TD} tnum text-right text-ink-muted`}>{o.tax_percent ?? "0"}%</td>;
+                        case "tax_amount":
+                          return <td key="tax_amount" className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.tax_amount || "0.00", o.currency_code)}</td>;
+                        case "grand_total":
+                          return (
+                            <td key="grand_total" className={`${TD} tnum text-right font-semibold text-ink`}>
+                              {formatCurrency(o.grand_total, o.currency_code)}
+                            </td>
+                          );
+                        case "paid_amount":
+                          return (
+                            <td key="paid_amount" className={`${TD} tnum text-right font-medium text-emerald-700`}>
+                              {formatCurrency(o.paid_amount || "0.00", o.currency_code)}
+                            </td>
+                          );
+                        case "due_amount":
+                          return (
+                            <td key="due_amount" className={`${TD} tnum text-right font-bold ${Number(o.due_amount) > 0 ? "text-rose-600" : "text-emerald-700"}`}>
+                              {formatCurrency(o.due_amount || "0.00", o.currency_code)}
+                            </td>
+                          );
+                        case "delivery_status":
+                          return (
+                            <td key="delivery_status" className={TD}>
+                              <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                            </td>
+                          );
+                        case "payment_status":
+                          return (
+                            <td key="payment_status" className={TD}>
+                              <StatusPill
+                                label={
+                                  o.payment_status === "partial" && o.due_amount
+                                    ? `Partial (Due: ${formatCurrency(o.due_amount, o.currency_code)})`
+                                    : labelize(o.payment_status)
+                                }
+                                tone={PAYMENT_STATUS_TONE[o.payment_status]}
+                              />
+                            </td>
+                          );
+                        case "created_at":
+                          return <td key="created_at" className={`${TD} text-xs text-ink-muted`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>;
+                        case "updated_at":
+                          return <td key="updated_at" className={`${TD} text-xs text-ink-muted`}>{o.updated_at ? formatDate(o.updated_at) : "—"}</td>;
+                        case "actions":
+                          return (
+                            <td key="actions" className={`${TD} text-right`}>
+                              <div className="flex justify-end gap-1">
+                                <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingOrder(o)}>
+                                  <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                                </RowActionButton>
+                                {canAdd && (
+                                  <RowActionButton
+                                    label="Duplicate / Copy Project"
+                                    onClick={() => handleCopyOrder(o.id)}
+                                    loading={copyingId === o.id}
+                                  >
+                                    <Copy className="h-3.5 w-3.5 text-slate-600" />
+                                  </RowActionButton>
+                                )}
+                                <Link href={`/orders/${o.id}/print`} target="_blank">
+                                  <RowActionButton label="Print Bill / PDF" onClick={() => {}}>
+                                    <Printer className="h-3.5 w-3.5 text-primary-600" />
+                                  </RowActionButton>
+                                </Link>
+                                <Link href={`/orders/${o.id}`}>
+                                  <RowActionButton label="View / Edit" onClick={() => {}}>
+                                    {canEdit ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                  </RowActionButton>
+                                </Link>
+                                {canDelete && (
+                                  <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(o)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </RowActionButton>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
                 </tr>
               ))}
             </tbody>

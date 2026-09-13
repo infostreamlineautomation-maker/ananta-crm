@@ -63,6 +63,8 @@ class SupplierSerializer(serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, read_only=True)
     supplier_products = SupplierProductSerializer(many=True, read_only=True)
     files = SupplierFileSerializer(many=True, read_only=True)
+    website = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
     product_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False
     )
@@ -95,19 +97,12 @@ class SupplierSerializer(serializers.ModelSerializer):
                 SupplierProduct.objects.get_or_create(supplier=instance, product_id=pid)
         return supplier
 
-
     def validate(self, attrs):
-        # Ports the legacy duplicate-supplier guard (name OR contact match),
-        # scoped to the active organization — Ananta and Meewa can each have
-        # their own supplier by the same name without tripping this.
         name = attrs.get("supplier_name")
-        contact = attrs.get("contact")
         organization = self.instance.organization if self.instance else self.context["request"].organization
         qs = Supplier.objects.filter(is_deleted=False, organization=organization)
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
-        if name and qs.filter(supplier_name__iexact=name).exists():
+        if name and qs.filter(supplier_name__iexact=name.strip()).exists():
             raise serializers.ValidationError({"supplier_name": "A supplier with this name already exists."})
-        if contact and qs.filter(contact=contact).exists():
-            raise serializers.ValidationError({"contact": "A supplier with this contact already exists."})
         return attrs

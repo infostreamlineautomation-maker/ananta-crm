@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -10,15 +11,17 @@ import {
   Package,
   Truck,
   FolderKanban,
-  ClipboardList,
   FileText,
   Calculator,
   BarChart3,
   UserCog,
   ShieldCheck,
   Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useSidebar } from "@/lib/sidebar-context";
 import { MODULES } from "@/lib/modules";
 import { OrgSwitcher } from "./OrgSwitcher";
 
@@ -68,21 +71,47 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { can } = useAuth();
+  const { isCollapsed, toggleSidebar } = useSidebar();
+
+  // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleSidebar]);
 
   return (
-    <aside className="flex w-64 flex-none flex-col border-r border-border bg-surface">
-      <OrgSwitcher />
+    <aside
+      className={clsx(
+        "flex flex-none flex-col border-r border-border bg-surface transition-[width] duration-300 ease-in-out relative select-none",
+        isCollapsed ? "w-[72px]" : "w-64"
+      )}
+    >
+      {/* Top Organization Branding Header */}
+      <OrgSwitcher isCollapsed={isCollapsed} />
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+      {/* Main Navigation List */}
+      <nav className={clsx("flex-1 overflow-y-auto pb-4 overflow-x-hidden", isCollapsed ? "px-2" : "px-3")}>
         {NAV_GROUPS.map((group, gi) => {
           const items = group.items.filter((item) => item.module === null || can(item.module, "view"));
           if (items.length === 0) return null;
           return (
-            <div key={gi} className={gi === 0 ? "" : "mt-5"}>
+            <div key={gi} className={gi === 0 ? "" : isCollapsed ? "mt-3" : "mt-5"}>
               {group.label && (
-                <div className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                  {group.label}
-                </div>
+                <>
+                  {isCollapsed ? (
+                    <div className="mx-auto my-2 w-7 border-t border-border/70" />
+                  ) : (
+                    <div className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+                      {group.label}
+                    </div>
+                  )}
+                </>
               )}
               <div className="flex flex-col gap-0.5">
                 {items.map((item) => {
@@ -92,15 +121,36 @@ export function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      title={isCollapsed ? item.label : undefined}
                       className={clsx(
-                        "flex items-center gap-2.5 rounded-md border-l-[3px] px-3 py-2 text-[13.5px] font-semibold transition-colors",
+                        "group relative flex items-center rounded-lg transition-all",
+                        isCollapsed
+                          ? "h-10 w-10 mx-auto justify-center"
+                          : "gap-2.5 border-l-[3px] px-3 py-2 text-[13.5px] font-semibold",
                         active
-                          ? "border-primary-500 bg-primary-50 text-primary-600"
-                          : "border-transparent text-ink-muted hover:bg-surface-sunken hover:text-ink",
+                          ? isCollapsed
+                            ? "bg-primary-50 text-primary-600 ring-1 ring-primary-200"
+                            : "border-primary-500 bg-primary-50 text-primary-600 font-bold"
+                          : isCollapsed
+                            ? "text-ink-muted hover:bg-surface-sunken hover:text-ink"
+                            : "border-transparent text-ink-muted hover:bg-surface-sunken hover:text-ink",
                       )}
                     >
-                      <Icon className="h-[18px] w-[18px] flex-none" strokeWidth={2} />
-                      <span className="truncate">{item.label}</span>
+                      <Icon
+                        className={clsx(
+                          "flex-none transition-transform duration-150 group-hover:scale-110",
+                          isCollapsed ? "h-5 w-5" : "h-[18px] w-[18px]"
+                        )}
+                        strokeWidth={active ? 2.2 : 2}
+                      />
+                      {!isCollapsed && <span className="truncate">{item.label}</span>}
+
+                      {/* Tooltip on hover when collapsed */}
+                      {isCollapsed && (
+                        <div className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-md bg-ink px-2.5 py-1 text-[12px] font-semibold text-white shadow-md transition-all group-hover:flex items-center animate-in fade-in zoom-in-95 duration-100">
+                          {item.label}
+                        </div>
+                      )}
                     </Link>
                   );
                 })}
@@ -109,6 +159,30 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Bottom Footer with Sidebar Collapse Toggle */}
+      <div className={clsx("border-t border-border p-2.5 transition-all", isCollapsed ? "flex justify-center" : "px-3")}>
+        <button
+          onClick={toggleSidebar}
+          title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
+          className={clsx(
+            "flex items-center rounded-lg text-[13px] font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors cursor-pointer group",
+            isCollapsed ? "h-10 w-10 justify-center" : "w-full gap-2.5 px-2.5 py-2"
+          )}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-[18px] w-[18px] text-ink-faint group-hover:text-ink transition-colors" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-[18px] w-[18px] text-ink-faint group-hover:text-ink transition-colors" />
+              <span className="flex-1 text-left truncate">Collapse menu</span>
+              <kbd className="hidden sm:inline-block rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-mono text-ink-faint">
+                Ctrl+B
+              </kbd>
+            </>
+          )}
+        </button>
+      </div>
     </aside>
   );
 }

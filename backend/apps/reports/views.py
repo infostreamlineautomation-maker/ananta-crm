@@ -202,9 +202,19 @@ def analytics(request):
     prev_end_date = start_date - timedelta(days=1)
     prev_start_date = prev_end_date - timedelta(days=duration_days - 1)
 
+    client_id_param = request.query_params.get("client_id")
+    product_id_param = request.query_params.get("product_id")
+
     # Current period orders
     orders_qs = Order.objects.filter(organization=org, date__gte=start_date, date__lte=end_date)
     prev_orders_qs = Order.objects.filter(organization=org, date__gte=prev_start_date, date__lte=prev_end_date)
+
+    if client_id_param:
+        orders_qs = orders_qs.filter(client_id=client_id_param)
+        prev_orders_qs = prev_orders_qs.filter(client_id=client_id_param)
+    if product_id_param:
+        orders_qs = orders_qs.filter(items__product_id=product_id_param).distinct()
+        prev_orders_qs = prev_orders_qs.filter(items__product_id=product_id_param).distinct()
 
     # Current totals
     cur_totals = orders_qs.aggregate(
@@ -382,41 +392,70 @@ def analytics(request):
         "avg_margin_percent": avg_margin_pct,
     }
 
-    # Top products (top 5)
+    # Product sales breakdown in date range
     prod_qs = (
-        OrderItem.objects.filter(order__organization=org, order__date__gte=start_date, order__date__lte=end_date)
-        .values("product__product_name")
+        OrderItem.objects.filter(order__in=orders_qs)
+        .values("product_id", "product__product_name")
         .annotate(
             total_qty=Sum("qty"),
+            orders_count=Count("order_id", distinct=True),
             revenue=Sum(conv_item),
         )
-        .order_by("-revenue")[:5]
+        .order_by("-revenue")
     )
-    top_products = [
-        {
-            "name": p["product__product_name"] or "Custom Item",
-            "qty": float(p["total_qty"] or 0),
-            "revenue": float(p["revenue"] or 0),
-            "share_pct": round(float((p["revenue"] or 0) / cur_rev * 100), 1) if cur_rev > 0 else 0.0,
-        }
-        for p in prod_qs
-    ]
+    top_products = []
+    for p in prod_qs:
+        p_rev = float(p["revenue"] or 0)
+        p_qty = float(p["total_qty"] or 0)
+        top_products.append(
+            {
+                "id": p["product_id"],
+                "name": p["product__product_name"] or "Custom Item",
+                "qty": p_qty,
+                "orders_count": p["orders_count"],
+                "revenue": p_rev,
+                "avg_price": round(p_rev / p_qty, 2) if p_qty > 0 else 0.0,
+                "share_pct": round(float(p_rev / float(cur_rev) * 100), 1) if cur_rev > 0 else 0.0,
+            }
+        )
 
-    # Top clients (top 5)
+    # Client sales breakdown in date range
     client_qs = (
-        orders_qs.values("client__client_name")
-        .annotate(revenue=Sum(conv_order), order_count=Count("id"))
-        .order_by("-revenue")[:5]
+        orders_qs.values(
+            "client_id",
+            "client__client_name",
+            "client__company__company_name",
+            "client__email",
+            "client__phone",
+        )
+        .annotate(
+            revenue=Sum(conv_order),
+            paid_revenue=Sum(conv_paid),
+            order_count=Count("id"),
+        )
+        .order_by("-revenue")
     )
-    top_clients_list = [
-        {
-            "name": c["client__client_name"] or "Unknown Client",
-            "revenue": float(c["revenue"] or 0),
-            "order_count": c["order_count"],
-            "share_pct": round(float((c["revenue"] or 0) / cur_rev * 100), 1) if cur_rev > 0 else 0.0,
-        }
-        for c in client_qs
-    ]
+    top_clients_list = []
+    for c in client_qs:
+        c_rev = float(c["revenue"] or 0)
+        c_paid = float(c["paid_revenue"] or 0)
+        c_pending = max(0.0, c_rev - c_paid)
+        cnt = c["order_count"] or 1
+        top_clients_list.append(
+            {
+                "id": c["client_id"],
+                "name": c["client__client_name"] or "Unknown Client",
+                "company_name": c["client__company__company_name"] or "—",
+                "email": c["client__email"] or "—",
+                "phone": c["client__phone"] or "—",
+                "revenue": c_rev,
+                "paid_revenue": c_paid,
+                "pending_revenue": c_pending,
+                "order_count": c["order_count"],
+                "avg_order_value": round(c_rev / cnt, 2),
+                "share_pct": round(float(c_rev / float(cur_rev) * 100), 1) if cur_rev > 0 else 0.0,
+            }
+        )
 
     base_curr_code = org.default_currency_code if org else "INR"
 
@@ -463,13 +502,19 @@ def export_csv(request):
         .order_by("-date", "-id")
     )
 
-    # Optional status filters
+    # Optional status & entity filters
     delivery_status = request.query_params.get("delivery_status")
     if delivery_status:
         orders_qs = orders_qs.filter(delivery_status=delivery_status)
     payment_status = request.query_params.get("payment_status")
     if payment_status:
         orders_qs = orders_qs.filter(payment_status=payment_status)
+    client_id = request.query_params.get("client_id")
+    if client_id:
+        orders_qs = orders_qs.filter(client_id=client_id)
+    product_id = request.query_params.get("product_id")
+    if product_id:
+        orders_qs = orders_qs.filter(items__product_id=product_id).distinct()
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     filename = f"sales_report_{base_curr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"

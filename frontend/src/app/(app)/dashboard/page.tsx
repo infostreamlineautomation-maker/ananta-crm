@@ -57,7 +57,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const canOrders = can("orders", "view");
-  const canProjects = can("projects", "view");
   const canReports = can("reports", "view");
   const canNotifications = can("notifications", "view");
 
@@ -76,7 +75,7 @@ export default function DashboardPage() {
             .catch(() => {}),
         );
       }
-      if (canProjects) {
+      if (canOrders) {
         tasks.push(
           apiFetch<Paginated<ProjectSummary>>("/api/projects/?status=active")
             .then((r) => {
@@ -112,7 +111,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [dateFrom, dateTo, canOrders, canProjects, canReports, canNotifications]);
+  }, [dateFrom, dateTo, canOrders, canReports, canNotifications]);
 
   const displayName = user?.first_name || user?.username || "";
   const kpis = analytics?.kpis;
@@ -154,7 +153,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Primary KPI Metrics Bar */}
-      {(canReports || canProjects) && (
+      {(canReports || canOrders) && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {canReports && kpis && (
             <>
@@ -218,7 +217,7 @@ export default function DashboardPage() {
             </>
           )}
 
-          {canProjects && activeProjects !== null && (
+          {canOrders && activeProjects !== null && (
             <div className="relative overflow-hidden rounded-xl border border-border bg-white p-5 shadow-xs transition-all hover:shadow-md">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Active Projects</span>

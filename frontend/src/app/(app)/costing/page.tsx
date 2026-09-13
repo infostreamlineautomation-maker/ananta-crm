@@ -24,6 +24,8 @@ import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { CostingViewModal } from "./CostingViewModal";
 import { AttachmentDropdown } from "@/components/ui/AttachmentDropdown";
+import { useTableGrid } from "@/lib/useTableGrid";
+import { ResizableTh } from "@/components/ui/ResizableTh";
 
 const COSTING_PAGE_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Select", required: true },
@@ -50,13 +52,17 @@ export default function CostingPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [page, setPage] = useState(1);
-  const [cols, setCols] = useState<Set<string>>(
-    new Set(["select", "date", "client", "file", "supplier", "product", "supplier_rate", "quantity", "client_rate", "profit", "profit_percent", "actions"])
-  );
   const [viewingCosting, setViewingCosting] = useState<CostingDetail | null>(null);
   const [deleting, setDeleting] = useState<CostingDetail | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+
+  const grid = useTableGrid({
+    tableKey: "costing",
+    defaultColumns: COSTING_PAGE_COLUMNS,
+    defaultVisibleKeys: ["select", "date", "client", "file", "supplier", "product", "supplier_rate", "quantity", "client_rate", "profit", "profit_percent", "actions"],
+  });
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -131,9 +137,8 @@ export default function CostingPage() {
     });
   };
 
-  const bulkDelete = async () => {
+  const handleBulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} selected costing sheet(s)?`)) return;
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -141,6 +146,7 @@ export default function CostingPage() {
       );
       toast.success(`${selected.size} costing sheet(s) deleted successfully`);
       setSelected(new Set());
+      setBulkDeleteConfirmOpen(false);
       reload();
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete selected costings");
@@ -163,40 +169,158 @@ export default function CostingPage() {
     { key: "profit_percent", header: "Profit Percentage (%)", accessor: (c) => `${parseFloat(c.profit_percent || "0").toFixed(1)}%`, category: "Financials & Margins", defaultSelected: true },
     {
       key: "files",
-      header: "Attached Files URLs",
+      header: "Attached Documents",
       accessor: (c) => {
-        const list = c.files?.length
-          ? c.files.map((f) => mediaUrl(f.file || f.file_url || "") || f.file || "")
-          : c.file
-          ? [mediaUrl(c.file) || c.file]
-          : [];
-        return list.filter(Boolean).join(", ");
+        const count = c.files?.length || (c.file ? 1 : 0);
+        return count > 0 ? `${count} Document${count > 1 ? "s" : ""} Attached` : "-";
       },
       category: "Files & Documents",
-      defaultSelected: true,
+      defaultSelected: false,
     },
-    { key: "description", header: "Job Title / Description", accessor: (c) => c.description || "", category: "Basic Information", defaultSelected: true },
-    { key: "created_at", header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
-    { key: "updated_at", header: "Last Updated", accessor: (c) => formatDate(c.updated_at), category: "System Dates" },
+    { key: "description", header: "Job Title / Description", accessor: (c) => c.description || "", category: "Basic Information", defaultSelected: false },
+    { key: "created_at", header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates", defaultSelected: false },
+    { key: "updated_at", header: "Last Updated", accessor: (c) => formatDate(c.updated_at), category: "System Dates", defaultSelected: false },
   ], []);
 
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
-  return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Costing"
-        action={
-          canAdd && (
-            <Link href="/costing/new">
-              <Button variant="primary">
-                <Plus className="h-4 w-4" /> New Costing
-              </Button>
-            </Link>
-          )
-        }
-      />
+  const renderCell = (colKey: string, c: CostingDetail) => {
+    const profit = parseFloat(c.profit);
+    const profitPercent = parseFloat(c.profit_percent);
+    const firstItem = c.items?.[0];
 
+    if (colKey === "select") {
+      return (
+        <td key={colKey} className="w-10 px-3 py-2 text-center">
+          <input
+            type="checkbox"
+            checked={selected.has(c.id)}
+            onChange={() => toggleSelectOne(c.id)}
+            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+          />
+        </td>
+      );
+    }
+    if (colKey === "date") return <td key={colKey} className={`${TD} text-ink-muted`}>{formatDate(c.costing_date)}</td>;
+    if (colKey === "client") {
+      return (
+        <td key={colKey} className={TD}>
+          <button
+            type="button"
+            onClick={() => setViewingCosting(c)}
+            className="font-medium text-ink hover:text-primary-600 hover:underline transition-colors text-left"
+          >
+            {c.client_display || "—"}
+          </button>
+        </td>
+      );
+    }
+    if (colKey === "project_name") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.project_name || "—"}</td>;
+    if (colKey === "file") {
+      return (
+        <td key={colKey} className={TD}>
+          <AttachmentDropdown
+            files={
+              c.files && c.files.length > 0
+                ? c.files
+                : c.file
+                ? [{ file: c.file, file_name: c.file_name }]
+                : []
+            }
+            maxDisplayWidth="max-w-[110px]"
+          />
+        </td>
+      );
+    }
+    if (colKey === "supplier") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.supplier_display || "—"}</td>;
+    if (colKey === "product") return <td key={colKey} className={`${TD} text-ink-muted`}>{c.product_display || "—"}</td>;
+    if (colKey === "supplier_rate") {
+      return (
+        <td key={colKey} className={`${TD} tnum text-right text-ink-muted`}>
+          {formatCurrency(firstItem?.supplier_rate || "0")}
+        </td>
+      );
+    }
+    if (colKey === "quantity") {
+      return (
+        <td key={colKey} className={`${TD} tnum text-right text-ink-muted`}>
+          {firstItem?.quantity || "1"}
+        </td>
+      );
+    }
+    if (colKey === "client_rate") {
+      return (
+        <td key={colKey} className={`${TD} tnum text-right text-ink-muted`}>
+          {formatCurrency(firstItem?.client_rate || "0")}
+        </td>
+      );
+    }
+    if (colKey === "supplier_cost") {
+      return (
+        <td key={colKey} className={`${TD} tnum text-right text-ink-muted`}>
+          {formatCurrency(c.supplier_cost || "0")}
+        </td>
+      );
+    }
+    if (colKey === "client_revenue") {
+      return (
+        <td key={colKey} className={`${TD} tnum text-right text-ink-muted`}>
+          {formatCurrency(c.client_revenue || "0")}
+        </td>
+      );
+    }
+    if (colKey === "profit") {
+      return (
+        <td key={colKey} className={clsx(TD, "tnum text-right font-semibold", profit >= 0 ? "text-success-700" : "text-primary-600")}>
+          {formatCurrency(c.profit)}
+        </td>
+      );
+    }
+    if (colKey === "profit_percent") {
+      return (
+        <td key={colKey} className={TD}>
+          <span
+            className={clsx(
+              "ml-auto inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[12px] font-bold",
+              profitPercent >= 20 ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700",
+            )}
+          >
+            {profitPercent.toFixed(1)}%
+          </span>
+        </td>
+      );
+    }
+    if (colKey === "description") return <td key={colKey} className={`${TD} text-ink-muted max-w-[180px] truncate`} title={c.description || ""}>{c.description || "—"}</td>;
+    if (colKey === "created_at") return <td key={colKey} className={`${TD} text-xs text-ink-muted`}>{c.created_at ? formatDate(c.created_at) : "—"}</td>;
+    if (colKey === "updated_at") return <td key={colKey} className={`${TD} text-xs text-ink-muted`}>{c.updated_at ? formatDate(c.updated_at) : "—"}</td>;
+    if (colKey === "actions") {
+      return (
+        <td key={colKey} className={`${TD} text-right`}>
+          <div className="flex justify-end gap-1">
+            <RowActionButton label="View" onClick={() => setViewingCosting(c)}>
+              <Eye className="h-3.5 w-3.5" />
+            </RowActionButton>
+            {canEdit && (
+              <Link href={`/costing/${c.id}`}>
+                <RowActionButton label="Edit" onClick={() => {}}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </RowActionButton>
+              </Link>
+            )}
+            {canDelete && (
+              <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </RowActionButton>
+            )}
+          </div>
+        </td>
+      );
+    }
+    return <td key={colKey} className={TD}>—</td>;
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
       <FilterBar
         filters={filterColumns}
         activeFilters={activeFilters}
@@ -217,7 +341,20 @@ export default function CostingPage() {
               title="Costing Report"
               columns={costingExportColumns}
             />
-            <ColumnSelector columns={COSTING_PAGE_COLUMNS} visibleColumns={cols} onChange={setCols} />
+            <ColumnSelector
+              columns={grid.columns}
+              visibleColumns={grid.visibleColumns}
+              onChange={grid.setVisibleColumns}
+              onReorder={grid.reorderColumns}
+              onReset={grid.resetGrid}
+            />
+            {canAdd && (
+              <Link href="/costing/new">
+                <Button variant="primary">
+                  <Plus className="h-4 w-4" /> New Costing
+                </Button>
+              </Link>
+            )}
           </div>
         }
       />
@@ -245,7 +382,7 @@ export default function CostingPage() {
               <Button
                 variant="danger"
                 size="sm"
-                onClick={bulkDelete}
+                onClick={() => setBulkDeleteConfirmOpen(true)}
                 loading={bulkDeleting}
                 className="h-8"
               >
@@ -262,215 +399,65 @@ export default function CostingPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("date") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Date</span>
-                      {getColFilter("date") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("date")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("client") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Client</span>
-                      {getColFilter("client") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("client")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("project_name") && <th className={TH}>Project Name</th>}
-                {cols.has("file") && <th className={TH}>Attachment</th>}
-                {cols.has("supplier") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Supplier</span>
-                      {getColFilter("supplier") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("supplier")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("product") && <th className={TH}>Product</th>}
-                {cols.has("supplier_rate") && <th className={`${TH} text-right`}>Supplier Rate</th>}
-                {cols.has("quantity") && <th className={`${TH} text-right`}>Qty</th>}
-                {cols.has("client_rate") && <th className={`${TH} text-right`}>Client Rate</th>}
-                {cols.has("supplier_cost") && <th className={`${TH} text-right`}>Supplier Total Cost</th>}
-                {cols.has("client_revenue") && <th className={`${TH} text-right`}>Client Total Revenue</th>}
-                {cols.has("profit") && (
-                  <th className={`${TH} text-right`}>
-                    <div className="inline-flex items-center justify-end">
-                      <span>Profit</span>
-                      {getColFilter("profit") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("profit")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("profit_percent") && <th className={`${TH} text-right`}>Profit %</th>}
-                {cols.has("description") && <th className={TH}>Remarks / Notes</th>}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {cols.has("updated_at") && <th className={TH}>Updated Date</th>}
-                {cols.has("actions") && <th className={TH}></th>}
+                {grid.columns
+                  .filter((c) => grid.visibleColumns.has(c.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                          />
+                        </ResizableTh>
+                      );
+                    }
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh key="actions" columnKey="actions" grid={grid} align="right" isDraggable={false}>
+                          <span className="sr-only">Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+                    const isRight = ["supplier_rate", "quantity", "client_rate", "supplier_cost", "client_revenue", "profit", "profit_percent"].includes(col.key);
+                    const colFilter = getColFilter(col.key);
+
+                    return (
+                      <ResizableTh key={col.key} columnKey={col.key} grid={grid} align={isRight ? "right" : "left"}>
+                        <div className={`inline-flex items-center ${isRight ? "justify-end" : ""}`}>
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No costing sheets yet." />
-              {data?.results.map((c) => {
-                const profit = parseFloat(c.profit);
-                const profitPercent = parseFloat(c.profit_percent);
-                const firstItem = c.items?.[0];
-                return (
-                  <tr key={c.id} className={TR}>
-                    {cols.has("select") && (
-                      <td className="w-10 px-3 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(c.id)}
-                          onChange={() => toggleSelectOne(c.id)}
-                          className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                        />
-                      </td>
-                    )}
-                    {cols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(c.costing_date)}</td>}
-                    {cols.has("client") && (
-                      <td className={TD}>
-                        <button
-                          type="button"
-                          onClick={() => setViewingCosting(c)}
-                          className="font-medium text-ink hover:text-primary-600 hover:underline transition-colors text-left"
-                        >
-                          {c.client_display || "—"}
-                        </button>
-                      </td>
-                    )}
-                    {cols.has("project_name") && <td className={`${TD} text-ink-muted`}>{c.project_name || "—"}</td>}
-                    {cols.has("file") && (
-                      <td className={TD}>
-                        <AttachmentDropdown
-                          files={
-                            c.files && c.files.length > 0
-                              ? c.files
-                              : c.file
-                              ? [{ file: c.file, file_name: c.file_name }]
-                              : []
-                          }
-                          maxDisplayWidth="max-w-[110px]"
-                        />
-                      </td>
-                    )}
-                    {cols.has("supplier") && <td className={`${TD} text-ink-muted`}>{c.supplier_display || "—"}</td>}
-                    {cols.has("product") && <td className={`${TD} text-ink-muted`}>{c.product_display || "—"}</td>}
-                    {cols.has("supplier_rate") && (
-                      <td className={`${TD} tnum text-right text-ink-muted`}>
-                        {formatCurrency(firstItem?.supplier_rate || "0")}
-                      </td>
-                    )}
-                    {cols.has("quantity") && (
-                      <td className={`${TD} tnum text-right text-ink-muted`}>
-                        {firstItem?.quantity || "1"}
-                      </td>
-                    )}
-                    {cols.has("client_rate") && (
-                      <td className={`${TD} tnum text-right text-ink-muted`}>
-                        {formatCurrency(firstItem?.client_rate || "0")}
-                      </td>
-                    )}
-                    {cols.has("supplier_cost") && (
-                      <td className={`${TD} tnum text-right text-ink-muted`}>
-                        {formatCurrency(c.supplier_cost || "0")}
-                      </td>
-                    )}
-                    {cols.has("client_revenue") && (
-                      <td className={`${TD} tnum text-right text-ink-muted`}>
-                        {formatCurrency(c.client_revenue || "0")}
-                      </td>
-                    )}
-                    {cols.has("profit") && (
-                      <td className={clsx(TD, "tnum text-right font-semibold", profit >= 0 ? "text-success-700" : "text-primary-600")}>
-                        {formatCurrency(c.profit)}
-                      </td>
-                    )}
-                    {cols.has("profit_percent") && (
-                      <td className={TD}>
-                        <span
-                          className={clsx(
-                            "ml-auto inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[12px] font-bold",
-                            profitPercent >= 20 ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700",
-                          )}
-                        >
-                          {profitPercent.toFixed(1)}%
-                        </span>
-                      </td>
-                    )}
-                    {cols.has("description") && <td className={`${TD} text-ink-muted max-w-[180px] truncate`} title={c.description || ""}>{c.description || "—"}</td>}
-                    {cols.has("created_at") && <td className={`${TD} text-xs text-ink-muted`}>{c.created_at ? formatDate(c.created_at) : "—"}</td>}
-                    {cols.has("updated_at") && <td className={`${TD} text-xs text-ink-muted`}>{c.updated_at ? formatDate(c.updated_at) : "—"}</td>}
-                    {cols.has("actions") && (
-                      <td className={`${TD} text-right`}>
-                        <div className="flex justify-end gap-1">
-                          <RowActionButton label="View" onClick={() => setViewingCosting(c)}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                          {canEdit && (
-                            <Link href={`/costing/${c.id}`}>
-                              <RowActionButton label="Edit" onClick={() => {}}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </RowActionButton>
-                            </Link>
-                          )}
-                          {canDelete && (
-                            <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </RowActionButton>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size}
+                emptyLabel="No costing sheets yet."
+              />
+              {data?.results.map((c) => (
+                <tr key={c.id} className={TR}>
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => renderCell(col.key, c))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -502,6 +489,17 @@ export default function CostingPage() {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this costing sheet.");
             }
           }}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setBulkDeleteConfirmOpen(false)}
+          title="Delete Selected Costing Sheets"
+          description={`Are you sure you want to delete ${selected.size} selected costing sheet(s)? This action can be undone later from the archive.`}
+          confirmLabel="Delete All Selected"
+          onConfirm={handleBulkDelete}
         />
       )}
     </div>

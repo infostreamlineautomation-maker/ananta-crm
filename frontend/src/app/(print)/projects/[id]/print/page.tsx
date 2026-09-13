@@ -7,7 +7,7 @@ import { ArrowLeft, FileText, Image as ImageIcon, Loader2, Printer } from "lucid
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
 import { AppSettings, Client, OrderSummary, ProjectSummary } from "@/lib/types";
-import { formatCurrency, mediaUrl, getBrandLogo } from "@/lib/format";
+import { formatCurrency, mediaUrl, getBrandLogo, getReportLogo } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
 interface ProjectDetail extends ProjectSummary {
@@ -88,7 +88,7 @@ export default function ProjectPrintPage() {
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
   const designation = settings?.quotation_designation || "Proprietor";
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
-  const logoImage = getBrandLogo(companyName, settings?.logo || settings?.app_logo);
+  const logoImage = getReportLogo(companyName, settings?.report_logo, settings?.logo || settings?.app_logo);
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
   const hasBackground = Boolean(bgImage && useBackground);
 
@@ -159,15 +159,11 @@ export default function ProjectPrintPage() {
         >
           {/* Digital Fallback Header (Only displayed if no background letterpad) */}
           {!hasBackground && (
-            <div className="border-b-2 border-primary-600 px-10 pt-8 pb-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
+            <div className="border-b-2 border-primary-600 px-10 pt-8 pb-4 flex items-start justify-between">
+              <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoImage} alt={companyName} className="h-14 w-auto object-contain" />
-                <div>
-                  <h1 className="text-xl font-black text-black tracking-tight">{companyName}</h1>
-                  {settings?.tagline && <p className="text-xs font-semibold text-primary-700">{settings.tagline}</p>}
-                  {settings?.company_address && <p className="text-[11.5px] text-neutral-600 mt-0.5 max-w-sm">{settings.company_address}</p>}
-                </div>
+                <img src={logoImage} alt={companyName} className="h-14 sm:h-16 w-auto max-w-[280px] object-contain object-left mb-2" />
+                {settings?.company_address && <p className="text-[11.5px] text-neutral-600 max-w-sm whitespace-pre-line">{settings.company_address}</p>}
               </div>
               <div className="text-right text-xs text-neutral-600">
                 {settings?.company_phone && <p>Tel: {settings.company_phone}</p>}

@@ -88,21 +88,10 @@ export default function ProjectsPage() {
   }, [debouncedSearch, appendQueryParams, page]);
 
   const { data, loading, reload } = usePaginatedList<ProjectSummary>(path);
-  const canAdd = can("projects", "add");
+  const canAdd = can("orders", "add");
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Projects"
-        action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" /> New Project
-            </Button>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       <FilterBar
         search={search}
         onSearchChange={(val) => {
@@ -122,12 +111,19 @@ export default function ProjectsPage() {
           setPage(1);
         }}
         actions={
-          <ExportDropdown
-            data={data?.results || []}
-            filename="projects_export"
-            title="Projects Report"
-            columns={PROJECTS_EXPORT_COLUMNS}
-          />
+          <div className="flex items-center gap-2">
+            <ExportDropdown
+              data={data?.results || []}
+              filename="projects_export"
+              title="Projects Report"
+              columns={PROJECTS_EXPORT_COLUMNS}
+            />
+            {canAdd && (
+              <Button variant="primary" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4" /> New Project
+              </Button>
+            )}
+          </div>
         }
       />
 

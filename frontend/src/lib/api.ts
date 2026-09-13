@@ -51,10 +51,26 @@ export class ApiError extends Error {
   status: number;
   data: unknown;
   constructor(status: number, data: unknown) {
-    const detail =
-      data && typeof data === "object" && "detail" in data && typeof (data as { detail: unknown }).detail === "string"
-        ? (data as { detail: string }).detail
-        : "Something went wrong. Please try again.";
+    let detail = "Something went wrong. Please try again.";
+    if (data && typeof data === "object") {
+      if ("detail" in data && typeof (data as { detail: unknown }).detail === "string") {
+        detail = (data as { detail: string }).detail;
+      } else if (Array.isArray(data)) {
+        detail = data.join(", ");
+      } else {
+        const messages: string[] = [];
+        for (const [key, val] of Object.entries(data)) {
+          const fieldName = key.replace(/_/g, " ");
+          const text = Array.isArray(val) ? val.join(", ") : String(val);
+          messages.push(key === "non_field_errors" ? text : `${fieldName}: ${text}`);
+        }
+        if (messages.length > 0) {
+          detail = messages.join(" | ");
+        }
+      }
+    } else if (typeof data === "string" && data.trim()) {
+      detail = data;
+    }
     super(detail);
     this.status = status;
     this.data = data;

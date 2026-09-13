@@ -284,7 +284,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
       });
       toast.success(`Copied to ${copy.order_no}.`);
-      router.push(`/orders/${copy.id}`);
+      router.push("/orders");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't copy this project.");
     } finally {

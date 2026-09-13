@@ -26,6 +26,8 @@ import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
+import { ResizableTh } from "@/components/ui/ResizableTh";
+import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
@@ -37,15 +39,15 @@ const TYPE_TONE: Record<ClientType, string> = {
 };
 
 const CLIENTS_EXPORT_COLUMNS: ExportColumn<Client>[] = [
-  { header: "Client Name", accessor: (c) => c.client_name, category: "Basic Info" },
-  { header: "Client Type / Tier", accessor: (c) => `Tier ${c.client_type}`, category: "Basic Info" },
-  { header: "Company Name", accessor: (c) => c.company_name || "", category: "Basic Info" },
-  { header: "Phone Number", accessor: (c) => c.phone, category: "Contact Info" },
-  { header: "Email Address", accessor: (c) => c.email, category: "Contact Info" },
-  { header: "Address", accessor: (c) => c.address, category: "Contact Info" },
-  { header: "Country", accessor: (c) => c.country_name || "", category: "Contact Info" },
-  { header: "Currency Code", accessor: (c) => c.currency_code || "INR", category: "Financials" },
-  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates" },
+  { header: "Client Name", accessor: (c) => c.client_name, category: "Basic Info", defaultSelected: true },
+  { header: "Client Type / Tier", accessor: (c) => `Tier ${c.client_type}`, category: "Basic Info", defaultSelected: true },
+  { header: "Company Name", accessor: (c) => c.company_name || "", category: "Basic Info", defaultSelected: true },
+  { header: "Phone Number", accessor: (c) => c.phone, category: "Contact Info", defaultSelected: true },
+  { header: "Email Address", accessor: (c) => c.email, category: "Contact Info", defaultSelected: true },
+  { header: "Address", accessor: (c) => c.address, category: "Contact Info", defaultSelected: false },
+  { header: "Country", accessor: (c) => c.country_name || "", category: "Contact Info", defaultSelected: true },
+  { header: "Currency Code", accessor: (c) => c.currency_code || "INR", category: "Financials", defaultSelected: false },
+  { header: "Created Date", accessor: (c) => formatDate(c.created_at), category: "System Dates", defaultSelected: false },
 ];
 
 const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
@@ -68,7 +70,6 @@ export default function ClientsPage() {
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [cols, setCols] = useState<Set<string>>(new Set(CLIENTS_PAGE_COLUMNS.map((c) => c.key)));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
@@ -143,9 +144,15 @@ export default function ClientsPage() {
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
 
+  const grid = useTableGrid({
+    tableKey: "clients",
+    defaultColumns: allColumns,
+    defaultVisibleKeys: CLIENTS_PAGE_COLUMNS.map((c) => c.key),
+  });
+
   useEffect(() => {
     if (customFields && customFields.length > 0) {
-      setCols((prev) => {
+      grid.setVisibleColumns((prev) => {
         const next = new Set(prev);
         customFields.forEach((f) => {
           if (f.show_in_table) next.add(`extra_${f.field_key}`);
@@ -224,18 +231,7 @@ export default function ClientsPage() {
   }, [customFields]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Clients"
-        action={
-          canAdd && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus className="h-4 w-4" /> Add Client
-            </Button>
-          )
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -287,7 +283,18 @@ export default function ClientsPage() {
                 title="Clients Directory"
                 columns={fullExportColumns}
               />
-              <ColumnSelector columns={allColumns} visibleColumns={cols} onChange={setCols} />
+              <ColumnSelector
+                columns={grid.columns}
+                visibleColumns={grid.visibleColumns}
+                onChange={grid.setVisibleColumns}
+                onReorder={grid.reorderColumns}
+                onReset={grid.resetGrid}
+              />
+              {canAdd && (
+                <Button variant="primary" onClick={() => setEditing("new")}>
+                  <Plus className="h-4 w-4" /> Add Client
+                </Button>
+              )}
             </div>
           }
         />
@@ -369,243 +376,198 @@ export default function ClientsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {cols.has("select") && (
-                  <th className="w-10 px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data?.results?.length && selected.size === data.results.length)}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                    />
-                  </th>
-                )}
-                {cols.has("client_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Client Name</span>
-                      {getColFilter("client_name") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("client_name")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("client_type") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Type</span>
-                      {getColFilter("client_type") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("client_type")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("designation") && <th className={TH}>Designation</th>}
-                {cols.has("company_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Company</span>
-                      {getColFilter("company") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("company")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("country_name") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Country</span>
-                      {getColFilter("country") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("country")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("phone") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Phone</span>
-                      {getColFilter("phone") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("phone")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("email") && (
-                  <th className={TH}>
-                    <div className="inline-flex items-center">
-                      <span>Email</span>
-                      {getColFilter("email") && (
-                        <ColumnHeaderFilter
-                          column={getColFilter("email")!}
-                          activeFilters={activeFilters}
-                          onFilterChange={(k, v) => {
-                            setFilter(k, v);
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </div>
-                  </th>
-                )}
-                {cols.has("address") && <th className={TH}>Address</th>}
-                {cols.has("groups") && <th className={TH}>Groups</th>}
-                {cols.has("currency_code") && <th className={TH}>Currency</th>}
-                {cols.has("created_at") && <th className={TH}>Created Date</th>}
-                {customFields?.map((f) => {
-                  const colKey = `extra_${f.field_key}`;
-                  const filterKey = `custom__${f.field_key}`;
-                  if (!cols.has(colKey)) return null;
-                  const colFilter = getColFilter(filterKey);
-                  return (
-                    <th key={f.id} className={TH}>
-                      <div className="inline-flex items-center">
-                        <span>{f.label}</span>
-                        {colFilter && (
-                          <ColumnHeaderFilter
-                            column={colFilter}
-                            activeFilters={activeFilters}
-                            onFilterChange={(k, v) => {
-                              setFilter(k, v);
-                              setPage(1);
-                            }}
+                {grid.columns
+                  .filter((col) => grid.visibleColumns.has(col.key))
+                  .map((col) => {
+                    if (col.key === "select") {
+                      return (
+                        <ResizableTh
+                          key="select"
+                          columnKey="select"
+                          grid={grid}
+                          isDraggable={false}
+                          isResizable={false}
+                          align="center"
+                          className="w-10 px-3 text-center"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            onChange={toggleSelectAll}
+                            className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {cols.has("actions") && <th className={TH}></th>}
+                        </ResizableTh>
+                      );
+                    }
+
+                    if (col.key === "actions") {
+                      return (
+                        <ResizableTh
+                          key="actions"
+                          columnKey="actions"
+                          grid={grid}
+                          align="right"
+                          isDraggable={false}
+                        >
+                          <span>Actions</span>
+                        </ResizableTh>
+                      );
+                    }
+
+                    const filterKey = col.key.startsWith("extra_")
+                      ? `custom__${col.key.replace("extra_", "")}`
+                      : col.key === "company_name"
+                      ? "company"
+                      : col.key === "country_name"
+                      ? "country"
+                      : col.key;
+                    const colFilter = getColFilter(filterKey);
+
+                    return (
+                      <ResizableTh
+                        key={col.key}
+                        columnKey={col.key}
+                        grid={grid}
+                      >
+                        <div className="inline-flex items-center">
+                          <span>{col.label}</span>
+                          {colFilter && (
+                            <ColumnHeaderFilter
+                              column={colFilter}
+                              activeFilters={activeFilters}
+                              onFilterChange={(k, v) => {
+                                setFilter(k, v);
+                                setPage(1);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ResizableTh>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              <TableState loading={loading} empty={!loading && (data?.results.length ?? 0) === 0} colSpan={cols.size} emptyLabel="No clients yet." />
+              <TableState
+                loading={loading}
+                empty={!loading && (data?.results.length ?? 0) === 0}
+                colSpan={grid.visibleColumns.size}
+                emptyLabel="No clients yet."
+              />
               {data?.results.map((c) => (
                 <tr key={c.id} className={TR}>
-                  {cols.has("select") && (
-                    <td className="w-10 px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleSelectOne(c.id)}
-                        className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
-                      />
-                    </td>
-                  )}
-                  {cols.has("client_name") && (
-                    <td className={`${TD} font-semibold`}>
-                      <Link href={`/clients/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
-                        {c.client_name}
-                      </Link>
-                    </td>
-                  )}
-                  {cols.has("client_type") && (
-                    <td className={TD}>
-                      <span className={clsx("inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold", TYPE_TONE[c.client_type])}>
-                        {c.client_type}
-                      </span>
-                    </td>
-                  )}
-                  {cols.has("company_name") && (
-                    <td className={`${TD} text-ink-muted`}>
-                      {c.company ? (
-                        <Link href={`/companies/${c.company}`} className="text-ink hover:text-primary-600 transition-colors">
-                          {c.company_name}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  )}
-                  {cols.has("country_name") && <td className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>}
-                  {cols.has("phone") && <td className={`${TD} text-ink-muted`}>{c.phone || "—"}</td>}
-                  {cols.has("email") && <td className={`${TD} text-ink-muted`}>{c.email || "—"}</td>}
-                  {cols.has("address") && <td className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>}
-                  {cols.has("groups") && (
-                    <td className={TD}>
-                      {(() => {
-                        const matchedGroups = clientGroups.filter((g) => c.group_ids?.includes(g.id));
-                        if (matchedGroups.length === 0) return <span className="text-ink-muted">—</span>;
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => {
+                      if (col.key.startsWith("extra_")) {
+                        const fieldKey = col.key.replace("extra_", "");
                         return (
-                          <div className="flex flex-wrap gap-1 max-w-[180px]">
-                            {matchedGroups.map((grp) => (
-                              <span
-                                key={grp.id}
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-ink border border-border bg-surface-sunken"
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: grp.color || "#881337" }} />
-                                {grp.name}
-                              </span>
-                            ))}
-                          </div>
+                          <td key={col.key} className={`${TD} text-ink-muted`}>
+                            {String(c.extra_data?.[fieldKey] ?? "—")}
+                          </td>
                         );
-                      })()}
-                    </td>
-                  )}
-                  {cols.has("currency_code") && <td className={`${TD} text-ink-muted font-mono font-medium`}>{c.currency_code || "INR"}</td>}
-                  {cols.has("created_at") && <td className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>}
-                  {customFields?.map((f) =>
-                    cols.has(`extra_${f.field_key}`) ? (
-                      <td key={f.id} className={`${TD} text-ink-muted`}>
-                        {String(c.extra_data?.[f.field_key] ?? "—")}
-                      </td>
-                    ) : null
-                  )}
-                  {cols.has("actions") && (
-                    <td className={`${TD} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        <Link href={`/clients/${c.id}`}>
-                          <RowActionButton label="View" onClick={() => {}}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        </Link>
-                        {canEdit && (
-                          <RowActionButton label="Edit" onClick={() => setEditing(c)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                        {canDelete && (
-                          <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </RowActionButton>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                      }
+
+                      switch (col.key) {
+                        case "select":
+                          return (
+                            <td key="select" className="w-10 px-3 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(c.id)}
+                                onChange={() => toggleSelectOne(c.id)}
+                                className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
+                              />
+                            </td>
+                          );
+                        case "client_name":
+                          return (
+                            <td key="client_name" className={`${TD} font-semibold`}>
+                              <Link href={`/clients/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
+                                {c.client_name}
+                              </Link>
+                            </td>
+                          );
+                        case "client_type":
+                          return (
+                            <td key="client_type" className={TD}>
+                              <span className={clsx("inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold", TYPE_TONE[c.client_type])}>
+                                {c.client_type}
+                              </span>
+                            </td>
+                          );
+                        case "company_name":
+                          return (
+                            <td key="company_name" className={`${TD} text-ink-muted`}>
+                              {c.company ? (
+                                <Link href={`/companies/${c.company}`} className="text-ink hover:text-primary-600 transition-colors">
+                                  {c.company_name}
+                                </Link>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          );
+                        case "country_name":
+                          return <td key="country_name" className={`${TD} text-ink-muted`}>{c.country_name || "—"}</td>;
+                        case "phone":
+                          return <td key="phone" className={`${TD} text-ink-muted`}>{c.phone || "—"}</td>;
+                        case "email":
+                          return <td key="email" className={`${TD} text-ink-muted`}>{c.email || "—"}</td>;
+                        case "address":
+                          return <td key="address" className={`${TD} text-ink-muted max-w-[200px] truncate`} title={c.address}>{c.address || "—"}</td>;
+                        case "groups":
+                          return (
+                            <td key="groups" className={TD}>
+                              {(() => {
+                                const matchedGroups = clientGroups.filter((g) => c.group_ids?.includes(g.id));
+                                if (matchedGroups.length === 0) return <span className="text-ink-muted">—</span>;
+                                return (
+                                  <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                    {matchedGroups.map((grp) => (
+                                      <span
+                                        key={grp.id}
+                                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-ink border border-border bg-surface-sunken"
+                                      >
+                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: grp.color || "#881337" }} />
+                                        {grp.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          );
+                        case "currency_code":
+                          return <td key="currency_code" className={`${TD} text-ink-muted font-mono font-medium`}>{c.currency_code || "INR"}</td>;
+                        case "created_at":
+                          return <td key="created_at" className={`${TD} text-ink-muted`}>{formatDate(c.created_at)}</td>;
+                        case "actions":
+                          return (
+                            <td key="actions" className={`${TD} text-right`}>
+                              <div className="flex justify-end gap-1">
+                                <Link href={`/clients/${c.id}`}>
+                                  <RowActionButton label="View" onClick={() => {}}>
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </RowActionButton>
+                                </Link>
+                                {canEdit && (
+                                  <RowActionButton label="Edit" onClick={() => setEditing(c)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </RowActionButton>
+                                )}
+                                {canDelete && (
+                                  <RowActionButton label="Delete" tone="danger" onClick={() => setDeleting(c)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </RowActionButton>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
                 </tr>
               ))}
             </tbody>

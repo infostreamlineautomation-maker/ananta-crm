@@ -22,7 +22,7 @@ function OrgLogo({ logo, name, size = 36 }: { logo: string | null; name: string;
   );
 }
 
-export function OrgSwitcher() {
+export function OrgSwitcher({ isCollapsed = false }: { isCollapsed?: boolean }) {
   const { organizations, activeOrganization, switchOrganization } = useOrganization();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -38,11 +38,13 @@ export function OrgSwitcher() {
 
   if (!activeOrganization) {
     return (
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <OrgLogo logo={null} name="Ananta CRM" />
-        <div className="min-w-0">
-          <div className="truncate text-[15px] font-extrabold leading-tight text-primary-500">Ananta CRM</div>
-        </div>
+      <div className={clsx("flex items-center gap-2.5 px-3 py-4", isCollapsed ? "justify-center px-2" : "px-4")}>
+        <OrgLogo logo={null} name="Ananta CRM" size={isCollapsed ? 32 : 36} />
+        {!isCollapsed && (
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-extrabold leading-tight text-primary-500">Ananta CRM</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -50,27 +52,40 @@ export function OrgSwitcher() {
   const canSwitch = organizations.length > 1;
 
   return (
-    <div className="relative px-3 py-3" ref={ref}>
+    <div className={clsx("relative py-3 transition-all", isCollapsed ? "px-2 flex justify-center" : "px-3")} ref={ref}>
       <button
         onClick={() => canSwitch && setOpen((v) => !v)}
         disabled={!canSwitch}
+        title={isCollapsed ? `${activeOrganization.name} (Click to switch)` : undefined}
         className={clsx(
-          "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors",
-          canSwitch && "hover:bg-surface-sunken",
+          "flex items-center rounded-lg transition-colors group cursor-pointer",
+          isCollapsed
+            ? "justify-center p-1.5 hover:bg-surface-sunken"
+            : "w-full gap-2.5 px-2 py-2 text-left hover:bg-surface-sunken",
+          !canSwitch && "cursor-default"
         )}
       >
-        <OrgLogo logo={activeOrganization.logo} name={activeOrganization.name} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-extrabold leading-tight text-primary-500">{activeOrganization.name}</div>
-          <div className="truncate text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-            {activeOrganization.tagline || " "}
-          </div>
-        </div>
-        {canSwitch && <ChevronsUpDown className="h-3.5 w-3.5 flex-none text-ink-faint" />}
+        <OrgLogo logo={activeOrganization.logo} name={activeOrganization.name} size={isCollapsed ? 32 : 36} />
+        {!isCollapsed && (
+          <>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14.5px] font-extrabold leading-tight text-primary-500">{activeOrganization.name}</div>
+              <div className="truncate text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                {activeOrganization.tagline || " "}
+              </div>
+            </div>
+            {canSwitch && <ChevronsUpDown className="h-3.5 w-3.5 flex-none text-ink-faint group-hover:text-ink transition-colors" />}
+          </>
+        )}
       </button>
 
       {open && (
-        <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-border bg-surface py-1.5 shadow-[var(--shadow-pop)]">
+        <div
+          className={clsx(
+            "absolute z-50 mt-1.5 rounded-xl border border-border bg-surface py-1.5 shadow-[var(--shadow-pop)] animate-in fade-in zoom-in-95 duration-100",
+            isCollapsed ? "left-14 top-2 w-56" : "left-3 right-3"
+          )}
+        >
           <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-faint">Switch business</p>
           {organizations.map((org) => (
             <button
@@ -81,10 +96,10 @@ export function OrgSwitcher() {
                 setOpen(false);
                 await switchOrganization(org.id);
               }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-sunken disabled:opacity-60"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-sunken disabled:opacity-60 cursor-pointer"
             >
-              <OrgLogo logo={org.logo} name={org.name} size={28} />
-              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{org.name}</span>
+              <OrgLogo logo={org.logo} name={org.name} size={26} />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{org.name}</span>
               {org.id === activeOrganization.id && <Check className="h-3.5 w-3.5 flex-none text-primary-500" />}
             </button>
           ))}
