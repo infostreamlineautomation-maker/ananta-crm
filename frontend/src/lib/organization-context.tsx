@@ -23,6 +23,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [activeId, setActiveId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [switchingOrg, setSwitchingOrg] = useState<Organization | null>(null);
+
   const load = useCallback(async () => {
     try {
       const res = await apiFetch<{ organizations: Organization[]; active_organization_id: number | null }>(
@@ -49,6 +51,24 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [user, load]);
 
   const switchOrganization = useCallback(async (id: number) => {
+    const target = organizations.find((o) => o.id === id);
+    if (target) {
+      setSwitchingOrg(target);
+      applyOrgTheme(target.primary_color);
+      document.title = target.name.toLowerCase().includes("crm") ? target.name : `${target.name} CRM`;
+      const logoUrl = getBrandLogo(target.name, target.logo);
+      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+      if (iconLinks.length === 0) {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.href = logoUrl;
+        document.head.appendChild(link);
+      } else {
+        iconLinks.forEach((link) => {
+          link.href = logoUrl;
+        });
+      }
+    }
     await apiFetch("/api/organizations/switch/", { method: "POST", body: JSON.stringify({ organization: id }) });
     // Hard navigation rather than a client-side refetch: every page's local
     // state (client lists, dashboard totals, cached picker options, ...) is
@@ -56,7 +76,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     // refetch would have to individually invalidate every one of them to be
     // safe. A full reload guarantees zero stale cross-organization data.
     window.location.href = "/dashboard";
-  }, []);
+  }, [organizations]);
 
   const activeOrganization = organizations.find((o) => o.id === activeId) ?? null;
 
@@ -93,6 +113,40 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   return (
     <OrganizationContext.Provider value={{ organizations, activeOrganization, loading, switchOrganization, refresh: load }}>
       {children}
+      {switchingOrg && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-bg/95 backdrop-blur-md select-none animate-in fade-in duration-200">
+          <div className="relative flex items-center justify-center">
+            {/* Ambient Radial Glow */}
+            <div className="absolute h-36 w-36 rounded-full bg-[var(--color-primary-500)]/20 blur-2xl animate-pulse-glow" />
+            {/* Outer Orbiting ring */}
+            <div className="absolute h-32 w-32 rounded-full border-2 border-dashed border-[var(--color-primary-400)]/50 animate-spin-slow" />
+            {/* Inner counter rotating ring */}
+            <div className="absolute h-28 w-28 rounded-full border border-t-[var(--color-primary-500)] border-r-transparent border-b-[var(--color-primary-400)]/30 border-l-transparent animate-spin-reverse" />
+
+            {/* Circular Logo Emblem */}
+            <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full aspect-square bg-white p-2.5 shadow-2xl border-2 border-white ring-4 ring-primary-100 overflow-hidden animate-float-harmonic-1 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={getBrandLogo(switchingOrg.name, switchingOrg.logo)}
+                alt={switchingOrg.name}
+                className="h-full w-full rounded-full aspect-square object-contain"
+              />
+            </div>
+          </div>
+
+          <div className="mt-7 flex flex-col items-center gap-1.5 text-center max-w-sm px-4">
+            <h3 className="text-base md:text-lg font-extrabold text-ink tracking-tight">
+              Switching to {switchingOrg.name}...
+            </h3>
+            <p className="text-xs font-semibold text-ink-muted">
+              Loading workspace, permissions & preferences
+            </p>
+            <div className="mt-3.5 h-1.5 w-40 overflow-hidden rounded-full bg-surface-sunken p-0.5 border border-border/50">
+              <div className="h-full w-2/3 rounded-full bg-[var(--color-primary-500)] animate-shimmer-line shadow-xs" />
+            </div>
+          </div>
+        </div>
+      )}
     </OrganizationContext.Provider>
   );
 }

@@ -247,7 +247,7 @@ export function LoadingState({
         {/* Central Circular Logo Emblem Badge */}
         <div
           className={clsx(
-            "relative z-10 flex items-center justify-center rounded-full bg-white shadow-lg border border-border overflow-hidden p-2 transition-transform duration-300 animate-float-harmonic-1",
+            "relative z-10 flex items-center justify-center rounded-full aspect-square bg-white shadow-lg border border-border overflow-hidden p-2 transition-transform duration-300 animate-float-harmonic-1 shrink-0",
             currentSize.emblem
           )}
         >
@@ -255,7 +255,7 @@ export function LoadingState({
           <img
             src={getBrandLogo(orgName, activeOrganization?.logo)}
             alt={orgName}
-            className={clsx("rounded-full object-contain transition-all", currentSize.logoImg)}
+            className={clsx("rounded-full aspect-square object-contain transition-all shrink-0", currentSize.logoImg)}
             onError={() => setImgError(true)}
           />
         </div>

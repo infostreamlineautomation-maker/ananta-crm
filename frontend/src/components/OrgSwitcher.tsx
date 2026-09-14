@@ -11,14 +11,18 @@ function OrgLogo({ logo, name, size = 36 }: { logo: string | null; name: string;
   const brandSrc = getBrandLogo(name, logo);
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- Brand logo
-    <img
-      src={error ? getBrandLogo(name) : brandSrc}
-      alt={name}
+    <div
       style={{ width: size, height: size }}
-      className="flex-none rounded-full border border-border bg-white object-contain p-0.5 shadow-xs"
-      onError={() => setError(true)}
-    />
+      className="relative flex-none rounded-full aspect-square border border-border bg-white overflow-hidden p-0.5 shadow-xs flex items-center justify-center shrink-0"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- Brand logo */}
+      <img
+        src={error ? getBrandLogo(name) : brandSrc}
+        alt={name}
+        className="h-full w-full rounded-full aspect-square object-contain"
+        onError={() => setError(true)}
+      />
+    </div>
   );
 }
 
