@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import { useAuth } from "./auth-context";
+import { getBrandLogo } from "./format";
 import { applyOrgTheme } from "./theme";
 import { Organization } from "./types";
 
@@ -58,6 +59,36 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const activeOrganization = organizations.find((o) => o.id === activeId) ?? null;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    if (activeOrganization) {
+      const orgName = activeOrganization.name || "Ananta Graphics";
+      document.title = orgName.toLowerCase().includes("crm") ? orgName : `${orgName} CRM`;
+
+      const logoUrl = getBrandLogo(activeOrganization.name, activeOrganization.logo);
+      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+      if (iconLinks.length === 0) {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.href = logoUrl;
+        document.head.appendChild(link);
+      } else {
+        iconLinks.forEach((link) => {
+          link.href = logoUrl;
+        });
+      }
+    } else {
+      document.title = "Ananta CRM";
+      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+      if (iconLinks.length > 0) {
+        iconLinks.forEach((link) => {
+          link.href = "/ananta_logo.png";
+        });
+      }
+    }
+  }, [activeOrganization]);
 
   return (
     <OrganizationContext.Provider value={{ organizations, activeOrganization, loading, switchOrganization, refresh: load }}>
