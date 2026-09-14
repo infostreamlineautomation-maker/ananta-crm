@@ -13,7 +13,7 @@ function OrgLogo({ logo, name, size = 36 }: { logo: string | null; name: string;
   return (
     <div
       style={{ width: size, height: size }}
-      className="relative flex-none rounded-full aspect-square border border-border bg-white overflow-hidden p-0.5 shadow-xs flex items-center justify-center shrink-0"
+      className="relative flex-none rounded-full aspect-square bg-white overflow-hidden flex items-center justify-center shrink-0"
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- Brand logo */}
       <img

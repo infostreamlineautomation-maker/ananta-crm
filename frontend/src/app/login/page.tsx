@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, TriangleAlert } from "lucide-react";
 import { useAuth, ApiError } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
+import { apiFetch } from "@/lib/api";
+import { getBrandLogo } from "@/lib/format";
+import { Organization } from "@/lib/types";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -14,10 +17,27 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [publicOrgs, setPublicOrgs] = useState<Organization[]>([]);
 
   useEffect(() => {
     if (!loading && user) router.replace("/dashboard");
   }, [loading, user, router]);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiFetch<{ organizations: Organization[] }>("/api/organizations/public/")
+      .then((res) => {
+        if (isMounted && res?.organizations?.length) {
+          setPublicOrgs(res.organizations);
+        }
+      })
+      .catch(() => {
+        // Graceful fallback to default brand logos
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,31 +53,41 @@ export default function LoginPage() {
     }
   }
 
+  const orgList = publicOrgs.length > 0 ? publicOrgs : [
+    { id: 1, name: "Ananta Graphics", logo: null, primary_color: "#c31432", slug: "ananta" } as Organization,
+    { id: 2, name: "Meewa Industries", logo: null, primary_color: "#EE3050", slug: "meewa" } as Organization,
+  ];
+
+  const titleText = orgList.length > 1
+    ? `${orgList.map((o) => o.name.replace(/\s+(CRM|Graphics|Industries|Pvt|Ltd).*$/i, "")).join(" × ")} CRM`
+    : `${orgList[0]?.name || "Enterprise"} CRM`;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-[380px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          {/* Dual Brand Circular Badges */}
+          {/* Dynamic Brand Circular Badges */}
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="flex h-13 w-13 items-center justify-center rounded-full bg-white p-1 shadow-md border border-border ring-2 ring-primary-500/20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/ananta_logo.png"
-                alt="Ananta Graphics"
-                className="h-full w-full object-contain rounded-full"
-              />
-            </div>
-            <div className="h-0.5 w-4 bg-linear-to-r from-primary-500 to-[#EE3050] opacity-40 rounded-full" />
-            <div className="flex h-13 w-13 items-center justify-center rounded-full bg-white p-1 shadow-md border border-border ring-2 ring-[#EE3050]/20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/meewa_logo.png"
-                alt="Meewa Industries"
-                className="h-full w-full object-contain rounded-full"
-              />
-            </div>
+            {orgList.map((org, index) => (
+              <div key={org.id || index} className="flex items-center gap-3">
+                {index > 0 && (
+                  <div className="h-0.5 w-4 bg-linear-to-r from-primary-500 to-[#EE3050] opacity-40 rounded-full" />
+                )}
+                <div
+                  className="relative flex h-14 w-14 items-center justify-center rounded-full aspect-square bg-white overflow-hidden shrink-0"
+                  title={org.name}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={getBrandLogo(org.name, org.logo)}
+                    alt={org.name}
+                    className="h-full w-full rounded-full aspect-square object-contain"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight text-ink">Ananta × Meewa CRM</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-ink">{titleText}</h1>
           <p className="mt-1 text-sm text-ink-muted">Sign in to your enterprise account</p>
         </div>
 

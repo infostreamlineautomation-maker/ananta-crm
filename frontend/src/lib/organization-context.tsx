@@ -124,7 +124,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             <div className="absolute h-28 w-28 rounded-full border border-t-[var(--color-primary-500)] border-r-transparent border-b-[var(--color-primary-400)]/30 border-l-transparent animate-spin-reverse" />
 
             {/* Circular Logo Emblem */}
-            <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full aspect-square bg-white p-2.5 shadow-2xl border-2 border-white ring-4 ring-primary-100 overflow-hidden animate-float-harmonic-1 shrink-0">
+            <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full aspect-square bg-white p-1 overflow-hidden animate-float-harmonic-1 shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={getBrandLogo(switchingOrg.name, switchingOrg.logo)}

@@ -1,6 +1,6 @@
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import has_permission
@@ -9,6 +9,27 @@ from apps.core.modules import EDIT, SETTINGS, VIEW
 from .middleware import _available_organizations, user_can_access
 from .models import Organization
 from .serializers import OrganizationSerializer, OrganizationSettingsSerializer
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_branding(request):
+    """Returns list of all active organizations with their public branding details
+    (name, slug, logo, report_logo, primary_color) for login and public branding views."""
+    orgs = Organization.objects.all().order_by("id")
+    data = [
+        {
+            "id": org.id,
+            "name": org.name,
+            "slug": org.slug,
+            "logo": request.build_absolute_uri(org.logo.url) if org.logo else None,
+            "report_logo": request.build_absolute_uri(org.report_logo.url) if org.report_logo else None,
+            "primary_color": org.primary_color,
+            "tagline": org.tagline or "",
+        }
+        for org in orgs
+    ]
+    return Response({"organizations": data})
 
 
 @api_view(["GET"])
