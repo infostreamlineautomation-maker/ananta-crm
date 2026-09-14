@@ -17,8 +17,11 @@ interface OrganizationContextValue {
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
+let lastFaviconUrl: string | null = null;
+
 function setTabFavicon(url: string) {
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined" || !url || lastFaviconUrl === url) return;
+  lastFaviconUrl = url;
   try {
     const existing = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
     existing.forEach((el) => el.parentNode?.removeChild(el));

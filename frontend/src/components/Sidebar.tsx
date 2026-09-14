@@ -121,6 +121,7 @@ export function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={true}
                       title={isCollapsed ? item.label : undefined}
                       className={clsx(
                         "group relative flex items-center rounded-lg transition-all",
