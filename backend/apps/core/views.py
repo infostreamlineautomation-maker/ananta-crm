@@ -142,66 +142,6 @@ class CustomFieldFilterSet(filters.FilterSet):
         return queryset.filter(module__in=[value, val_lower, canonical])
 
 
-DEFAULT_CUSTOM_FIELDS = {
-    "order_item": [
-        {"field_key": "gsm", "label": "GSM (Paper Weight)", "field_type": "number", "options": [], "default_value": "300", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 1},
-        {"field_key": "paper_type", "label": "Paper / Material Type", "field_type": "select", "options": ["Art Card", "SBS Board", "Kraft Paper", "Maplitho Paper", "Duplex Board", "Vinyl", "Canvas"], "default_value": "Art Card", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 2},
-        {"field_key": "lamination", "label": "Lamination / Coating", "field_type": "select", "options": ["None", "Gloss Thermal", "Matt Thermal", "Velvet / Soft Touch", "Spot UV", "Drip Off", "Aqueous"], "default_value": "Matt Thermal", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 3},
-        {"field_key": "finishing", "label": "Finishing & Binding", "field_type": "select", "options": ["None", "Die Cutting", "Creasing / Folding", "Foil Stamping", "Embossing", "Perfect Binding", "Saddle Stitching"], "default_value": "Die Cutting", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 4},
-    ],
-    "quotation_item": [
-        {"field_key": "material", "label": "Material & GSM", "field_type": "text", "options": [], "default_value": "350 GSM Art Board", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 1},
-        {"field_key": "finishing", "label": "Finishing Details", "field_type": "text", "options": [], "default_value": "Matt Lamination + Spot UV", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 2},
-        {"field_key": "delivery_days", "label": "Delivery Lead Time (Days)", "field_type": "number", "options": [], "default_value": "3", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 3},
-    ],
-    "costing_item": [
-        {"field_key": "paper_cost", "label": "Paper / Material Cost", "field_type": "number", "options": [], "default_value": "0", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 1},
-        {"field_key": "printing_charge", "label": "Plate & Printing Charge", "field_type": "number", "options": [], "default_value": "0", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 2},
-        {"field_key": "lamination_cost", "label": "Lamination Charge", "field_type": "number", "options": [], "default_value": "0", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 3},
-        {"field_key": "die_finishing_cost", "label": "Die & Finishing Charge", "field_type": "number", "options": [], "default_value": "0", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 4},
-        {"field_key": "wastage_percent", "label": "Wastage Allowance %", "field_type": "number", "options": [], "default_value": "5", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 5},
-        {"field_key": "machine_setup", "label": "Machine Setup Fee", "field_type": "number", "options": [], "default_value": "0", "is_required": False, "show_in_table": False, "show_in_print": True, "sort_order": 6},
-    ],
-    "product": [],
-    "client": [],
-    "company": [],
-    "supplier": [],
-}
-
-
-def seed_default_custom_fields(org, module=None, replace=False):
-    if not org:
-        return []
-    modules_to_seed = (
-        [module]
-        if module and module in DEFAULT_CUSTOM_FIELDS
-        else list(DEFAULT_CUSTOM_FIELDS.keys())
-    )
-    seeded_fields = []
-    for mod in modules_to_seed:
-        field_list = DEFAULT_CUSTOM_FIELDS.get(mod, [])
-        if replace:
-            CustomFieldDefinition.objects.filter(organization=org, module=mod).delete()
-        for idx, item in enumerate(field_list):
-            field, created = CustomFieldDefinition.objects.get_or_create(
-                organization=org,
-                module=mod,
-                field_key=item["field_key"],
-                defaults={
-                    "label": item["label"],
-                    "field_type": item["field_type"],
-                    "options": item.get("options", []),
-                    "default_value": item.get("default_value", ""),
-                    "is_required": item.get("is_required", False),
-                    "show_in_table": item.get("show_in_table", True),
-                    "show_in_print": item.get("show_in_print", True),
-                    "sort_order": item.get("sort_order", idx + 1),
-                },
-            )
-            seeded_fields.append(field)
-    return seeded_fields
-
-
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     serializer_class = CustomFieldDefinitionSerializer
     permission_classes = [IsAuthenticated]
@@ -221,30 +161,6 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
-
-    @action(detail=False, methods=["post"], url_path="reset-defaults")
-    def reset_defaults(self, request):
-        """Allows admin to reset or restore default industry standard columns for a specific tab or all tabs."""
-        org = getattr(request, "organization", None)
-        if not org:
-            return Response({"error": "No active organization found."}, status=400)
-
-        module = request.data.get("module")
-        replace = request.data.get("replace", True)
-        if module:
-            module = MODULE_ALIASES.get(module.lower().strip(), module.lower().strip())
-
-        seeded = seed_default_custom_fields(org, module=module, replace=replace)
-        qs = CustomFieldDefinition.objects.filter(organization=org)
-        if module:
-            qs = qs.filter(module=module)
-        serializer = self.get_serializer(qs.order_by("sort_order", "id"), many=True)
-        return Response(
-            {
-                "message": f"Successfully loaded standard default columns{' for ' + module if module else ''}.",
-                "fields": serializer.data,
-            }
-        )
 
 
 class QuickSearchView(APIView):

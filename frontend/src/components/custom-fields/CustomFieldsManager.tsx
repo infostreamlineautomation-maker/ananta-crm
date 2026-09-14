@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Edit2, Loader2, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Check, Edit2, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { apiFetch, ApiError } from "@/lib/api";
 import { CustomFieldDefinition, CustomFieldModule, CustomFieldType } from "@/lib/types";
@@ -62,11 +62,9 @@ export function CustomFieldsManager() {
   const [selectedModule, setSelectedModule] = useState<CustomFieldModule>("order_item");
   const [fields, setFields] = useState<CustomFieldDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [resetting, setResetting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<"all" | "table" | "print" | "required">("all");
   const [modalOpen, setModalOpen] = useState(false);
-  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [deletingField, setDeletingField] = useState<CustomFieldDefinition | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
   const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
@@ -99,26 +97,6 @@ export function CustomFieldsManager() {
     setActiveFilterTab("all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModule]);
-
-  const executeResetDefaults = async () => {
-    setResetting(true);
-    try {
-      const res = await apiFetch<{ message: string; fields: CustomFieldDefinition[] }>(
-        "/api/custom-fields/reset-defaults/",
-        {
-          method: "POST",
-          body: JSON.stringify({ module: selectedModule, replace: false }),
-        }
-      );
-      setFields(res.fields || []);
-      toast.success(res.message || "Standard default columns loaded successfully.");
-      setResetDialogOpen(false);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to load default columns.");
-    } finally {
-      setResetting(false);
-    }
-  };
 
   const handleQuickToggle = async (f: CustomFieldDefinition, key: "show_in_table" | "show_in_print" | "is_required") => {
     const updatedVal = !f[key];
@@ -300,17 +278,6 @@ export function CustomFieldsManager() {
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setResetDialogOpen(true)}
-              loading={resetting}
-              className="gap-1.5 whitespace-nowrap bg-white hover:bg-surface-hover shadow-2xs"
-              title="Reload standard columns for this tab"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Restore Defaults
-            </Button>
-            <Button
-              type="button"
               variant="primary"
               size="sm"
               onClick={openCreateModal}
@@ -384,17 +351,12 @@ export function CustomFieldsManager() {
         ) : filteredFields.length === 0 ? (
           <Card className="p-8 text-center flex flex-col items-center justify-center gap-3">
             <p className="text-xs font-semibold text-ink-muted">
-              {searchQuery ? "No columns match your search query." : `No columns found for ${currentModuleObj?.label}.`}
+              {searchQuery ? "No columns match your search query." : `No custom fields defined for ${currentModuleObj?.label} yet.`}
             </p>
             {!searchQuery && (
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="primary" size="sm" onClick={() => setResetDialogOpen(true)} loading={resetting}>
-                  <Sparkles className="h-3.5 w-3.5" /> Load Standard Default Columns
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={openCreateModal}>
-                  + Add Custom Column
-                </Button>
-              </div>
+              <Button type="button" variant="primary" size="sm" onClick={openCreateModal}>
+                <Plus className="h-3.5 w-3.5" /> Add Custom Column
+              </Button>
             )}
           </Card>
         ) : (
@@ -642,16 +604,6 @@ export function CustomFieldsManager() {
       )}
 
       {/* Confirmation Dialogs */}
-      <ConfirmDialog
-        open={resetDialogOpen}
-        onClose={() => setResetDialogOpen(false)}
-        onConfirm={executeResetDefaults}
-        title="Restore Standard Columns"
-        description={`Reload all standard default columns for ${currentModuleObj?.label}? All standard fields will be initialized while retaining your existing attributes.`}
-        confirmLabel="Restore Defaults"
-        loading={resetting}
-      />
-
       <ConfirmDialog
         open={!!deletingField}
         onClose={() => setDeletingField(null)}
