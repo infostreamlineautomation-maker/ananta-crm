@@ -10,9 +10,12 @@ venv/
 ENV/
 env/
 backend/staticfiles/
-backend/uploads/
 backend/media/
 *.sqlite3
+
+# Media & Uploads (keep subfolder structure, ignore actual uploads)
+backend/uploads/*
+!backend/uploads/**/.gitkeep
 
 # Node / Frontend / Next.js
 node_modules/
@@ -36,6 +39,8 @@ backend/.env
 frontend/.env
 frontend/.env.local
 backend/local_crm_data.json
+!.env.example
+!**/.env.example
 
 # OS & IDE
 .DS_Store
@@ -45,5 +50,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Large stitch archives
+# Design exports and temporary files
 stitch_ananta_crm_design_system.zip
+stitch_export/
+backend/tmp_seed/
