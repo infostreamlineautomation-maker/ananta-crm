@@ -45,8 +45,15 @@ class Command(BaseCommand):
             created += was_created
         self.stdout.write(self.style.SUCCESS(f"Seeded {len(MEEWA_PRODUCTS)} Meewa products ({created} newly created)"))
 
+        # Give all superusers access to both organizations
+        superusers = User.objects.filter(is_superuser=True)
+        for user in superusers:
+            OrganizationMembership.objects.get_or_create(user=user, organization=ananta)
+            OrganizationMembership.objects.get_or_create(user=user, organization=meewa)
+            self.stdout.write(self.style.SUCCESS(f"Superuser '{user.username}' assigned to Ananta & Meewa"))
+
         admin_user = User.objects.filter(username="admin").first()
-        if admin_user:
+        if admin_user and not admin_user.is_superuser:
             OrganizationMembership.objects.get_or_create(user=admin_user, organization=ananta)
             OrganizationMembership.objects.get_or_create(user=admin_user, organization=meewa)
             self.stdout.write(self.style.SUCCESS("admin can access both organizations"))
