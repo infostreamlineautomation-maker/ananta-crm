@@ -17,6 +17,26 @@ interface OrganizationContextValue {
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
+function setTabFavicon(url: string) {
+  if (typeof document === "undefined") return;
+  try {
+    const existing = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+    existing.forEach((el) => el.parentNode?.removeChild(el));
+
+    const link = document.createElement("link");
+    link.type = "image/png";
+    link.rel = "icon";
+    link.href = url;
+    document.head.appendChild(link);
+
+    const shortcut = document.createElement("link");
+    shortcut.type = "image/png";
+    shortcut.rel = "shortcut icon";
+    shortcut.href = url;
+    document.head.appendChild(shortcut);
+  } catch {}
+}
+
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -57,17 +77,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       applyOrgTheme(target.primary_color);
       document.title = target.name.toLowerCase().includes("crm") ? target.name : `${target.name} CRM`;
       const logoUrl = getBrandLogo(target.name, target.logo);
-      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
-      if (iconLinks.length === 0) {
-        const link = document.createElement("link");
-        link.rel = "icon";
-        link.href = logoUrl;
-        document.head.appendChild(link);
-      } else {
-        iconLinks.forEach((link) => {
-          link.href = logoUrl;
-        });
-      }
+      setTabFavicon(logoUrl);
+      try {
+        localStorage.setItem("crm_active_org_name", target.name);
+        localStorage.setItem("crm_active_org_logo", logoUrl);
+        localStorage.setItem("crm_active_org_color", target.primary_color || "");
+      } catch {}
     }
     await apiFetch("/api/organizations/switch/", { method: "POST", body: JSON.stringify({ organization: id }) });
     // Hard navigation rather than a client-side refetch: every page's local
@@ -84,29 +99,28 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (typeof document === "undefined") return;
 
     if (activeOrganization) {
-      const orgName = activeOrganization.name || "Ananta Graphics";
+      const orgName = activeOrganization.name;
       document.title = orgName.toLowerCase().includes("crm") ? orgName : `${orgName} CRM`;
 
       const logoUrl = getBrandLogo(activeOrganization.name, activeOrganization.logo);
-      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
-      if (iconLinks.length === 0) {
-        const link = document.createElement("link");
-        link.rel = "icon";
-        link.href = logoUrl;
-        document.head.appendChild(link);
-      } else {
-        iconLinks.forEach((link) => {
-          link.href = logoUrl;
-        });
-      }
+      setTabFavicon(logoUrl);
+      try {
+        localStorage.setItem("crm_active_org_name", activeOrganization.name);
+        localStorage.setItem("crm_active_org_logo", logoUrl);
+        localStorage.setItem("crm_active_org_color", activeOrganization.primary_color || "");
+      } catch {}
     } else {
-      document.title = "Ananta CRM";
-      const iconLinks = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
-      if (iconLinks.length > 0) {
-        iconLinks.forEach((link) => {
-          link.href = "/ananta_logo.png";
-        });
-      }
+      // In loading state or transition: retain previously loaded organization branding from localStorage
+      try {
+        const savedName = localStorage.getItem("crm_active_org_name");
+        const savedLogo = localStorage.getItem("crm_active_org_logo");
+        if (savedName) {
+          document.title = savedName.toLowerCase().includes("crm") ? savedName : `${savedName} CRM`;
+        }
+        if (savedLogo) {
+          setTabFavicon(savedLogo);
+        }
+      } catch {}
     }
   }, [activeOrganization]);
 

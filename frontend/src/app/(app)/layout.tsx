@@ -21,7 +21,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <DualLogoLoader
         label="Loading Workspace..."
-        sublabel="Ananta Graphics × Meewa Industries"
         fullscreen
       />
     );

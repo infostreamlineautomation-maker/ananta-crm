@@ -32,12 +32,45 @@ export default function LoginPage() {
         }
       })
       .catch(() => {
-        // Graceful fallback to default brand logos
+        // Fallback to defaults
       });
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const orgList = publicOrgs.length > 0 ? publicOrgs : [
+    { id: 1, name: "Ananta Graphics", logo: null, primary_color: "#c31432", slug: "ananta" } as Organization,
+    { id: 2, name: "Meewa Industries", logo: null, primary_color: "#EE3050", slug: "meewa" } as Organization,
+  ];
+
+  const titleText = orgList.length > 1
+    ? `${orgList.map((o) => o.name.replace(/\s+(CRM|Graphics|Industries|Pvt|Ltd).*$/i, "")).join(" × ")} CRM`
+    : `${orgList[0]?.name || "Enterprise"} CRM`;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const savedName = localStorage.getItem("crm_active_org_name");
+    const savedLogo = localStorage.getItem("crm_active_org_logo");
+    if (savedName) {
+      document.title = savedName.toLowerCase().includes("crm") ? savedName : `${savedName} CRM`;
+    } else {
+      document.title = titleText;
+    }
+    const firstLogo = savedLogo || (orgList[0] ? getBrandLogo(orgList[0].name, orgList[0].logo) : null);
+    if (firstLogo) {
+      try {
+        const existing = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+        existing.forEach((el) => el.parentNode?.removeChild(el));
+
+        const link = document.createElement("link");
+        link.type = "image/png";
+        link.rel = "icon";
+        link.href = firstLogo;
+        document.head.appendChild(link);
+      } catch {}
+    }
+  }, [titleText, orgList]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,15 +85,6 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   }
-
-  const orgList = publicOrgs.length > 0 ? publicOrgs : [
-    { id: 1, name: "Ananta Graphics", logo: null, primary_color: "#c31432", slug: "ananta" } as Organization,
-    { id: 2, name: "Meewa Industries", logo: null, primary_color: "#EE3050", slug: "meewa" } as Organization,
-  ];
-
-  const titleText = orgList.length > 1
-    ? `${orgList.map((o) => o.name.replace(/\s+(CRM|Graphics|Industries|Pvt|Ltd).*$/i, "")).join(" × ")} CRM`
-    : `${orgList[0]?.name || "Enterprise"} CRM`;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
