@@ -20,7 +20,8 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 let lastFaviconUrl: string | null = null;
 
 function setTabFavicon(url: string) {
-  if (typeof document === "undefined" || !url || lastFaviconUrl === url) return;
+  if (typeof document === "undefined" || !url) return;
+  if (lastFaviconUrl === url) return;
   lastFaviconUrl = url;
   try {
     const existing = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
@@ -37,6 +38,12 @@ function setTabFavicon(url: string) {
     shortcut.rel = "shortcut icon";
     shortcut.href = url;
     document.head.appendChild(shortcut);
+
+    const apple = document.createElement("link");
+    apple.type = "image/png";
+    apple.rel = "apple-touch-icon";
+    apple.href = url;
+    document.head.appendChild(apple);
   } catch {}
 }
 

@@ -18,8 +18,13 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AnantaGraphics x MeewaIndustries CRM",
+  title: "Ananta Graphics CRM",
   description: "Enterprise Order, Quotation, and Client Management System.",
+  icons: {
+    icon: "/ananta_logo.png",
+    shortcut: "/ananta_logo.png",
+    apple: "/ananta_logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

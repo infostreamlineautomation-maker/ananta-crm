@@ -27,8 +27,11 @@ export function mediaUrl(path: string | null | undefined): string | null {
 
 export function getBrandLogo(nameOrOrg?: string | null, customLogoPath?: string | null): string {
   if (customLogoPath) {
-    const url = mediaUrl(customLogoPath);
-    if (url) return url;
+    const lower = customLogoPath.toLowerCase();
+    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
+      const url = mediaUrl(customLogoPath);
+      if (url) return url;
+    }
   }
   const str = (nameOrOrg || "").toLowerCase();
   if (str.includes("meewa")) {
