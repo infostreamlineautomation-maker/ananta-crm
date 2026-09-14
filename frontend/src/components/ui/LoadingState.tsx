@@ -38,34 +38,15 @@ export function DualLogoLoader({
   orgs?: Organization[];
 }) {
   const { organizations: contextOrgs } = useOrganization();
-  const [fetchedOrgs, setFetchedOrgs] = useState<Organization[]>([]);
-
-  useEffect(() => {
-    if (orgs && orgs.length > 0) return;
-    if (contextOrgs && contextOrgs.length > 0) return;
-    let isMounted = true;
-    apiFetch<{ organizations: Organization[] }>("/api/organizations/public/")
-      .then((res) => {
-        if (isMounted && res?.organizations?.length) {
-          setFetchedOrgs(res.organizations);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, [orgs, contextOrgs]);
 
   const activeOrgs = (orgs && orgs.length > 0)
     ? orgs
     : (contextOrgs && contextOrgs.length > 0)
       ? contextOrgs
-      : (fetchedOrgs.length > 0)
-        ? fetchedOrgs
-        : [
-            { id: 1, name: "Ananta Graphics", logo: null, primary_color: "#c31432", slug: "ananta" } as Organization,
-            { id: 2, name: "Meewa Industries", logo: null, primary_color: "#EE3050", slug: "meewa" } as Organization,
-          ];
+      : [
+          { id: 1, name: "Ananta Graphics", logo: null, primary_color: "#c31432", slug: "ananta" } as Organization,
+          { id: 2, name: "Meewa Industries", logo: null, primary_color: "#EE3050", slug: "meewa" } as Organization,
+        ];
 
   const sub = sublabel || (activeOrgs.length > 1
     ? activeOrgs.map((o) => o.name).join(" × ")
