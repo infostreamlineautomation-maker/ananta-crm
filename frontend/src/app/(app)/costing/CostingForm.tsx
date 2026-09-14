@@ -24,7 +24,6 @@ import {
   Client,
   CostingDetail,
   CostingFile,
-  CustomFieldDefinition,
   Product,
   QuotationColumn,
   Supplier,
@@ -126,23 +125,6 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
 
   const [description, setDescription] = useState(costing?.description ?? "");
   const [columns, setColumns] = useState<QuotationColumn[]>(costing?.columns_config ?? []);
-
-  // If creating new costing, load default custom field columns for costing_item
-  useEffect(() => {
-    if (!costing) {
-      apiFetch<CustomFieldDefinition[]>("/api/custom-fields/?module=costing_item")
-        .then((defs) => {
-          if (defs.length > 0 && columns.length === 0) {
-            const initialCols: QuotationColumn[] = defs.map((d) => ({
-              key: d.field_key,
-              label: d.label,
-            }));
-            setColumns(initialCols);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [costing]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

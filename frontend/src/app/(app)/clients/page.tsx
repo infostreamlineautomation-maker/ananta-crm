@@ -55,13 +55,13 @@ const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "client_name", label: "Client Name", required: true },
   { key: "client_type", label: "Type" },
   { key: "company_name", label: "Company" },
-  { key: "country_name", label: "Country" },
   { key: "phone", label: "Phone" },
   { key: "email", label: "Email" },
-  { key: "address", label: "Address" },
-  { key: "groups", label: "Groups" },
-  { key: "currency_code", label: "Currency" },
-  { key: "created_at", label: "Created Date" },
+  { key: "country_name", label: "Country" },
+  { key: "address", label: "Address", defaultVisible: false },
+  { key: "groups", label: "Groups", defaultVisible: false },
+  { key: "currency_code", label: "Currency", defaultVisible: false },
+  { key: "created_at", label: "Created Date", defaultVisible: false },
   { key: "actions", label: "Actions", required: true },
 ];
 
@@ -140,6 +140,7 @@ export default function ClientsPage() {
     const dynamicCols: ColumnDef[] = (customFields || []).map((f) => ({
       key: `extra_${f.field_key}`,
       label: f.label,
+      defaultVisible: false,
     }));
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
@@ -147,20 +148,17 @@ export default function ClientsPage() {
   const grid = useTableGrid({
     tableKey: "clients",
     defaultColumns: allColumns,
-    defaultVisibleKeys: CLIENTS_PAGE_COLUMNS.map((c) => c.key),
+    defaultVisibleKeys: [
+      "select",
+      "client_name",
+      "client_type",
+      "company_name",
+      "phone",
+      "email",
+      "country_name",
+      "actions",
+    ],
   });
-
-  useEffect(() => {
-    if (customFields && customFields.length > 0) {
-      grid.setVisibleColumns((prev) => {
-        const next = new Set(prev);
-        customFields.forEach((f) => {
-          if (f.show_in_table) next.add(`extra_${f.field_key}`);
-        });
-        return next;
-      });
-    }
-  }, [customFields]);
 
   const path = useMemo(() => {
     const params = new URLSearchParams();

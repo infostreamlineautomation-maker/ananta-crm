@@ -70,15 +70,15 @@ const SUPPLIERS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "sr", label: "SR", required: true },
   { key: "rating", label: "Rating (ABC)" },
   { key: "supplier_name", label: "Supplier Name", required: true },
-  { key: "source", label: "Source / Origin" },
+  { key: "source", label: "Source / Origin", defaultVisible: false },
   { key: "products", label: "Products" },
   { key: "company_name", label: "Company Name" },
   { key: "contact", label: "Primary Business Contact" },
   { key: "email", label: "Business Email" },
-  { key: "website", label: "Website" },
-  { key: "address", label: "Office Address" },
-  { key: "remark", label: "Internal Notes" },
-  { key: "docs", label: "Docs" },
+  { key: "website", label: "Website", defaultVisible: false },
+  { key: "address", label: "Office Address", defaultVisible: false },
+  { key: "remark", label: "Internal Notes", defaultVisible: false },
+  { key: "docs", label: "Docs", defaultVisible: false },
   { key: "created_at", label: "Created Date", defaultVisible: false },
   { key: "updated_at", label: "Updated Date", defaultVisible: false },
   { key: "actions", label: "Action", required: true },
@@ -167,6 +167,7 @@ export default function SuppliersPage() {
     const dynamicCols: ColumnDef[] = (customFields || []).map((f: CustomFieldDefinition) => ({
       key: `extra_${f.field_key}`,
       label: f.label,
+      defaultVisible: false,
     }));
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
@@ -174,20 +175,18 @@ export default function SuppliersPage() {
   const grid = useTableGrid({
     tableKey: "suppliers",
     defaultColumns: allColumns,
-    defaultVisibleKeys: SUPPLIERS_PAGE_COLUMNS.map((c) => c.key),
+    defaultVisibleKeys: [
+      "select",
+      "sr",
+      "rating",
+      "supplier_name",
+      "products",
+      "company_name",
+      "contact",
+      "email",
+      "actions",
+    ],
   });
-
-  useEffect(() => {
-    if (customFields && customFields.length > 0) {
-      grid.setVisibleColumns((prev) => {
-        const next = new Set(prev);
-        customFields.forEach((f: CustomFieldDefinition) => {
-          if (f.show_in_table) next.add(`extra_${f.field_key}`);
-        });
-        return next;
-      });
-    }
-  }, [customFields]);
 
   const path = useMemo(() => {
     const params = new URLSearchParams();

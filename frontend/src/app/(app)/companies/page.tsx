@@ -60,19 +60,19 @@ const COMPANIES_PAGE_COLUMNS: ColumnDef[] = [
   { key: "company_name", label: "Company Name", required: true },
   { key: "contact_name", label: "Contact Person" },
   { key: "gstin", label: "GSTIN" },
-  { key: "msin_number", label: "MSIN Number" },
-  { key: "reg_no", label: "Reg No" },
-  { key: "country_name", label: "Country" },
-  { key: "state", label: "State" },
+  { key: "msin_number", label: "MSIN Number", defaultVisible: false },
+  { key: "reg_no", label: "Reg No", defaultVisible: false },
+  { key: "country_name", label: "Country", defaultVisible: false },
+  { key: "state", label: "State", defaultVisible: false },
   { key: "city", label: "City" },
-  { key: "zip_code", label: "Zip Code" },
-  { key: "address", label: "Address" },
+  { key: "zip_code", label: "Zip Code", defaultVisible: false },
+  { key: "address", label: "Address", defaultVisible: false },
   { key: "contact_email", label: "Contact Email" },
   { key: "contact_phone", label: "Contact Phone" },
-  { key: "company_phone", label: "Company Phone" },
-  { key: "social", label: "Social Media" },
-  { key: "remarks", label: "Remarks" },
-  { key: "created_at", label: "Created Date" },
+  { key: "company_phone", label: "Company Phone", defaultVisible: false },
+  { key: "social", label: "Social Media", defaultVisible: false },
+  { key: "remarks", label: "Remarks", defaultVisible: false },
+  { key: "created_at", label: "Created Date", defaultVisible: false },
   { key: "actions", label: "Actions", required: true },
 ];
 
@@ -152,6 +152,7 @@ export default function CompaniesPage() {
     const dynamicCols: ColumnDef[] = (customFields || []).map((f) => ({
       key: `extra_${f.field_key}`,
       label: f.label,
+      defaultVisible: false,
     }));
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
@@ -159,7 +160,17 @@ export default function CompaniesPage() {
   const grid = useTableGrid({
     tableKey: "companies",
     defaultColumns: allColumns,
-    defaultVisibleKeys: COMPANIES_PAGE_COLUMNS.map((c) => c.key),
+    defaultVisibleKeys: [
+      "select",
+      "logo",
+      "company_name",
+      "contact_name",
+      "contact_phone",
+      "contact_email",
+      "city",
+      "gstin",
+      "actions",
+    ],
   });
 
   const path = useMemo(() => {

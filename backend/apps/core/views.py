@@ -337,16 +337,6 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         org = getattr(self.request, "organization", None)
         if not org:
             return CustomFieldDefinition.objects.none()
-
-        # If this organization has zero custom fields for a requested module (or overall), auto-seed standard defaults
-        req_module = self.request.query_params.get("module")
-        if req_module:
-            canonical = MODULE_ALIASES.get(req_module.lower().strip(), req_module.lower().strip())
-            if not CustomFieldDefinition.objects.filter(organization=org, module=canonical).exists():
-                seed_default_custom_fields(org, module=canonical)
-        elif not CustomFieldDefinition.objects.filter(organization=org).exists():
-            seed_default_custom_fields(org)
-
         return CustomFieldDefinition.objects.filter(organization=org).order_by("sort_order", "id")
 
     def perform_create(self, serializer):

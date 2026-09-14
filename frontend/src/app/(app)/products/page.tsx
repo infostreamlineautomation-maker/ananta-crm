@@ -85,7 +85,7 @@ export default function ProductsPage() {
         list.push({
           key: `custom_${cf.field_key}`,
           label: cf.label,
-          defaultVisible: true,
+          defaultVisible: false,
         });
       });
     }

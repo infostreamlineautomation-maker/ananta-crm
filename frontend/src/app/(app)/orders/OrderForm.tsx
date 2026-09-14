@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Copy, MessageSquare, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
-import { Client, Country, CustomFieldDefinition, OrderDetail, OrderImage, OrderItemDetail, Product, QuotationColumn, Supplier } from "@/lib/types";
+import { Client, Country, OrderDetail, OrderImage, OrderItemDetail, Product, QuotationColumn, Supplier } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { useForex } from "@/lib/forex";
 import { useOrganization } from "@/lib/organization-context";
@@ -88,23 +88,6 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
       ? String(order.grand_total)
       : "0"
   );
-
-  // If creating new order, load default custom field columns for order_item
-  useEffect(() => {
-    if (!order) {
-      apiFetch<CustomFieldDefinition[]>("/api/custom-fields/?module=order_item")
-        .then((defs) => {
-          if (defs.length > 0 && columns.length === 0) {
-            const initialCols: QuotationColumn[] = defs.map((d) => ({
-              key: d.field_key,
-              label: d.label,
-            }));
-            setColumns(initialCols);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [order]);
 
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
