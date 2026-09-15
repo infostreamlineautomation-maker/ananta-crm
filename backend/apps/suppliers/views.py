@@ -23,12 +23,27 @@ class SupplierViewSet(SoftDeleteModuleViewSet):
     # create/update/delete activity logging is handled by the base
     # SoftDeleteModuleViewSet/ModuleViewSet now (see apps.core.viewsets) —
     # this was the one-off version that pattern was generalized from.
-    queryset = Supplier.objects.prefetch_related("contacts", "supplier_products__product", "files").all()
+    queryset = Supplier.objects.select_related("company").prefetch_related("contacts", "supplier_products__product", "files").all()
     serializer_class = SupplierSerializer
     module_name = SUPPLIERS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
-    filterset_fields = ["rating"]
-    search_fields = ["supplier_name", "rating", "company_name", "contact", "email", "source", "product_details", "address", "remark"]
+    filterset_fields = ["rating", "company"]
+    search_fields = [
+        "supplier_name",
+        "rating",
+        "company_name",
+        "company__company_name",
+        "contact",
+        "email",
+        "source",
+        "product_details",
+        "supplier_products__product__product_name",
+        "address",
+        "remark",
+    ]
+
+    def get_queryset(self):
+        return super().get_queryset().distinct()
 
 
 class SupplierContactViewSet(ModuleViewSet):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -18,7 +18,8 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
-import { CustomFieldDefinition, Product, Supplier } from "@/lib/types";
+import { Company, Country, CustomFieldDefinition, Product, Supplier } from "@/lib/types";
+import { CompanyForm } from "@/app/(app)/companies/CompanyForm";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -108,6 +109,11 @@ export default function SuppliersPage() {
       {
         key: "supplier_name",
         label: "Supplier Name",
+        type: "text",
+      },
+      {
+        key: "products",
+        label: "Products",
         type: "text",
       },
       {
@@ -598,7 +604,13 @@ export default function SuppliersPage() {
                           case "company_name":
                             return (
                               <td key="company_name" className={`${TD_CELL} text-ink font-medium whitespace-nowrap`}>
-                                {s.company_name || s.owner_name_contact || "—"}
+                                {s.company ? (
+                                  <Link href={`/companies/${s.company}`} className="text-primary-600 hover:underline">
+                                    {s.company_name || s.owner_name_contact}
+                                  </Link>
+                                ) : (
+                                  s.company_name || s.owner_name_contact || "—"
+                                )}
                               </td>
                             );
                           case "contact":
@@ -762,12 +774,13 @@ export function SupplierForm({
 }: {
   supplier: Supplier | null;
   onCancel: () => void;
-  onSaved: () => void;
+  onSaved: (savedSupplier?: Supplier) => void;
 }) {
   const toast = useToast();
   const [form, setForm] = useState({
     supplier_name: supplier?.supplier_name ?? "",
     rating: (supplier?.rating as "A" | "B" | "C") ?? "B",
+    company: supplier?.company ?? ("" as string | number),
     company_name: supplier?.company_name ?? supplier?.owner_name_contact ?? "",
     contact: supplier?.contact ?? "",
     source: supplier?.source ?? "",
@@ -776,6 +789,10 @@ export function SupplierForm({
     address: supplier?.address ?? "",
     remark: supplier?.remark ?? "",
   });
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [quickAddCompanyOpen, setQuickAddCompanyOpen] = useState(false);
 
   const initialProducts = useMemo(() => {
     if (supplier?.product_details) {
@@ -799,13 +816,29 @@ export function SupplierForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadCompanies = useCallback(() => {
+    apiFetch<Paginated<Company>>("/api/companies/?page_size=200")
+      .then((res) => setCompanies(res.results || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadCompanies();
+    apiFetch<Country[]>("/api/countries/")
+      .then((res) => {
+        if (Array.isArray(res)) setCountries(res);
+        else if ((res as any)?.results) setCountries((res as any).results);
+      })
+      .catch(() => {});
+  }, [loadCompanies]);
+
   useEffect(() => {
     apiFetch<Paginated<any>>("/api/custom-fields/?module=supplier")
       .then((res) => setCustomFields(res.results || []))
       .catch(() => {});
   }, []);
 
-  function set<K extends keyof typeof form>(key: K, value: string) {
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -845,6 +878,7 @@ export function SupplierForm({
 
       const payload = {
         ...form,
+        company: form.company ? Number(form.company) : null,
         owner_name_contact: form.company_name, // keep backward compat
         product_details: productDetailsStr,
         extra_data: extraData,
@@ -891,7 +925,7 @@ export function SupplierForm({
         }
       }
 
-      onSaved();
+      onSaved(savedSupplier);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this supplier.");
     } finally {
@@ -951,7 +985,22 @@ export function SupplierForm({
         </Field>
 
         <Field label="Company Name">
-          <Input value={form.company_name} onChange={(e) => set("company_name", e.target.value)} placeholder="e.g. Acme Corp" />
+          <Combobox
+            value={form.company || null}
+            onChange={(v) => {
+              set("company", v || "");
+              const matched = companies.find((c) => c.id === v);
+              if (matched) {
+                set("company_name", matched.company_name);
+              } else if (!v) {
+                set("company_name", "");
+              }
+            }}
+            options={companies.map((c) => ({ value: c.id, label: c.company_name }))}
+            placeholder="Select or enter company..."
+            onAddNew={() => setQuickAddCompanyOpen(true)}
+            addNewLabel="Add new company"
+          />
         </Field>
         <Field label="Contact Number">
           <Input value={form.contact} onChange={(e) => set("contact", e.target.value)} placeholder="e.g. +91 9876543210" />
@@ -1207,6 +1256,28 @@ export function SupplierForm({
           </Button>
         </div>
       </form>
+
+      <SlideOver
+        open={quickAddCompanyOpen}
+        onClose={() => setQuickAddCompanyOpen(false)}
+        title="Add New Company"
+        size="lg"
+        zIndex={60}
+      >
+        <CompanyForm
+          company={null}
+          countries={countries}
+          onCancel={() => setQuickAddCompanyOpen(false)}
+          onSaved={(created) => {
+            if (created) {
+              setCompanies((prev) => [...prev, created]);
+              set("company", created.id);
+              set("company_name", created.company_name);
+            }
+            setQuickAddCompanyOpen(false);
+          }}
+        />
+      </SlideOver>
     </>
   );
 }

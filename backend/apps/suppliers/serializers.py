@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.core.serializers import SameOrganizationFieldsMixin
 from apps.core.validators import validate_file_upload
 
 from .models import Supplier, SupplierContact, SupplierFile, SupplierProduct
@@ -59,27 +60,37 @@ class SupplierFileSerializer(_SameOrgSupplierMixin, serializers.ModelSerializer)
         return value
 
 
-class SupplierSerializer(serializers.ModelSerializer):
+class SupplierSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, read_only=True)
     supplier_products = SupplierProductSerializer(many=True, read_only=True)
     files = SupplierFileSerializer(many=True, read_only=True)
     website = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
+    company_name = serializers.CharField(required=False, allow_blank=True)
     product_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False
     )
+    same_organization_fields = ["company"]
 
     class Meta:
         model = Supplier
         fields = [
-            "id", "supplier_name", "rating", "company_name", "owner_name_contact", "contact", "source",
+            "id", "supplier_name", "rating", "company", "company_name", "owner_name_contact", "contact", "source",
             "product_details", "address", "email", "website", "remark", "extra_data", "is_deleted",
             "contacts", "supplier_products", "files", "product_ids", "created_at", "updated_at",
         ]
         read_only_fields = ["is_deleted", "created_at", "updated_at"]
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.company and not ret.get("company_name"):
+            ret["company_name"] = instance.company.company_name
+        return ret
+
     def create(self, validated_data):
         product_ids = validated_data.pop("product_ids", None)
+        if validated_data.get("company") and not validated_data.get("company_name"):
+            validated_data["company_name"] = validated_data["company"].company_name
         supplier = super().create(validated_data)
         if product_ids is not None:
             for pid in product_ids:
@@ -88,6 +99,8 @@ class SupplierSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         product_ids = validated_data.pop("product_ids", None)
+        if validated_data.get("company") and not validated_data.get("company_name"):
+            validated_data["company_name"] = validated_data["company"].company_name
         supplier = super().update(instance, validated_data)
         if product_ids is not None:
             existing_pids = set(instance.supplier_products.values_list("product_id", flat=True))

@@ -32,6 +32,24 @@ import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
+export const CLIENT_TYPE_TONE: Record<string, { badge: string; label: string; description: string }> = {
+  A: {
+    badge: "bg-emerald-100 text-emerald-800 border-emerald-300 ring-emerald-500/20",
+    label: "Grade A",
+    description: "Top / Best Client",
+  },
+  B: {
+    badge: "bg-sky-100 text-sky-800 border-sky-300 ring-sky-500/20",
+    label: "Grade B",
+    description: "Standard Client",
+  },
+  C: {
+    badge: "bg-amber-100 text-amber-800 border-amber-300 ring-amber-500/20",
+    label: "Grade C",
+    description: "Low Priority Client",
+  },
+};
+
 const TYPE_TONE: Record<ClientType, string> = {
   A: "bg-primary-50 text-primary-600",
   B: "bg-warning-50 text-warning-700",
@@ -714,21 +732,40 @@ export function ClientForm({
           <Input value={form.client_name} onChange={(e) => set("client_name", e.target.value)} required autoFocus />
         </Field>
 
-        <Field label="Client Type" required>
+        <Field label="Client Rating (ABC Classification)" hint="Grade this client to easily recognize top-tier accounts">
           <div className="grid grid-cols-3 gap-2">
-            {(["A", "B", "C"] as ClientType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => set("client_type", t)}
-                className={clsx(
-                  "h-10 rounded-md border text-sm font-bold transition-colors cursor-pointer",
-                  form.client_type === t ? "border-primary-400 bg-primary-50 text-primary-600" : "border-border bg-white text-ink-muted hover:bg-surface-hover",
-                )}
-              >
-                {t}
-              </button>
-            ))}
+            {(["A", "B", "C"] as ClientType[]).map((t) => {
+              const isSelected = form.client_type === t;
+              const config = CLIENT_TYPE_TONE[t];
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => set("client_type", t)}
+                  className={clsx(
+                    "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer",
+                    isSelected
+                      ? t === "A"
+                        ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-bold shadow-xs"
+                        : t === "B"
+                        ? "bg-sky-50 border-sky-500 ring-2 ring-sky-500/20 text-sky-950 font-bold shadow-xs"
+                        : "bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-950 font-bold shadow-xs"
+                      : "bg-white border-border text-ink-muted hover:bg-surface-hover hover:text-ink"
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black mb-1",
+                      t === "A" ? "bg-emerald-600 text-white" : t === "B" ? "bg-sky-600 text-white" : "bg-amber-600 text-white"
+                    )}
+                  >
+                    {t}
+                  </span>
+                  <span className="text-[12px] font-bold">{config.label}</span>
+                  <span className="text-[10px] text-ink-muted mt-0.5">{config.description}</span>
+                </button>
+              );
+            })}
           </div>
         </Field>
 

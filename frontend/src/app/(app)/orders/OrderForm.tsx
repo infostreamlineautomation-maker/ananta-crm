@@ -17,6 +17,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { ClientForm } from "../clients/page";
+import { SupplierForm } from "../suppliers/page";
 import { ProductModal } from "@/components/products/ProductModal";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
@@ -37,17 +38,23 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
 
   const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: countries } = useList<Country>("/api/countries/");
-  const { items: suppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
+  const { items: rawSuppliers, reload: reloadSuppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
   const { items: rawProducts, reload: reloadProducts } = useList<Product>("/api/products/?page_size=200");
 
   const [clients, setClients] = useState<Client[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
+  const [quickAddSupplierOpen, setQuickAddSupplierOpen] = useState(false);
   const [quickAddProductOpen, setQuickAddProductOpen] = useState(false);
 
   useEffect(() => {
     if (rawClients.length) setClients(rawClients);
   }, [rawClients]);
+
+  useEffect(() => {
+    if (rawSuppliers.length) setSuppliers(rawSuppliers);
+  }, [rawSuppliers]);
 
   useEffect(() => {
     if (rawProducts.length) setProducts(rawProducts);
@@ -523,6 +530,8 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     onChange={(v) => setSupplier(Number(v))}
                     options={supplierOptions}
                     placeholder="Select vendor / supplier..."
+                    onAddNew={() => setQuickAddSupplierOpen(true)}
+                    addNewLabel="Add new supplier"
                   />
                 </Field>
                 <Field label="Delivery Time / Instructions">
@@ -720,6 +729,27 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
             } else {
               reloadClients();
             }
+          }}
+        />
+      </SlideOver>
+
+      {/* Quick Add Supplier Modal */}
+      <SlideOver
+        open={quickAddSupplierOpen}
+        onClose={() => setQuickAddSupplierOpen(false)}
+        title="Add New Supplier"
+        size="lg"
+      >
+        <SupplierForm
+          supplier={null}
+          onCancel={() => setQuickAddSupplierOpen(false)}
+          onSaved={(savedSupplier) => {
+            setQuickAddSupplierOpen(false);
+            if (savedSupplier) {
+              setSuppliers((prev) => [savedSupplier, ...prev]);
+              setSupplier(savedSupplier.id);
+            }
+            reloadSuppliers();
           }}
         />
       </SlideOver>

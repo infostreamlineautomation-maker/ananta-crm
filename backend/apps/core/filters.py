@@ -127,6 +127,10 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
             # -------------------------------------------------------------
             # 3. Model Fields (either col__<field> or direct <field>)
             # -------------------------------------------------------------
+            if raw_key in ("products", "product", "col__products", "col__product") and model._meta.model_name == "supplier":
+                q_object &= (Q(supplier_products__product__product_name__icontains=val) | Q(product_details__icontains=val))
+                continue
+
             field_expr = raw_key[5:] if raw_key.startswith("col__") else raw_key
             parts = field_expr.split("__")
 
@@ -201,14 +205,15 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
             "created_at": ["created_at"],
             "client_name": ["client__client_name", "client_name"],
             "client": ["client__client_name", "client_name", "client"],
-            "company_name": ["client__company__company_name", "company_name"],
-            "company": ["client__company__company_name", "company_name", "company"],
+            "company_name": ["company__company_name", "client__company__company_name", "company_name"],
+            "company": ["company__company_name", "client__company__company_name", "company_name", "company"],
             "supplier_name": ["supplier__supplier_name", "supplier_name"],
             "supplier": ["supplier__supplier_name", "supplier_name", "supplier"],
             "project_name": ["project__project_name", "project_name"],
             "project": ["project__project_name", "project_name", "project"],
-            "product_name": ["product__product_name", "product_name"],
-            "product": ["product__product_name", "product_name", "product"],
+            "product_name": ["supplier_products__product__product_name", "product__product_name", "product_name"],
+            "product": ["supplier_products__product__product_name", "product__product_name", "product_name", "product", "product_details"],
+            "products": ["supplier_products__product__product_name", "product__product_name", "product_name", "product_details"],
         }
         candidates = FIELD_MAP.get(base_name, [base_name])
         for c in candidates:

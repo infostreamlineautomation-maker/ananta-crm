@@ -611,6 +611,7 @@ export interface Supplier {
   id: number;
   supplier_name: string;
   rating?: SupplierRating;
+  company?: number | null;
   company_name?: string;
   owner_name_contact?: string;
   contact: string;

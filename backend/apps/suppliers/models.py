@@ -14,6 +14,7 @@ class Supplier(AuditedModel, SoftDeleteModel):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="suppliers")
     supplier_name = models.CharField(max_length=200)
     rating = models.CharField(max_length=1, choices=RATING_CHOICES, default=RATING_B, help_text="ABC Supplier rating / classification tier")
+    company = models.ForeignKey("clients.Company", null=True, blank=True, on_delete=models.SET_NULL, related_name="suppliers")
     company_name = models.CharField(max_length=200, blank=True)
     owner_name_contact = models.CharField(max_length=150, blank=True)
     contact = models.CharField(max_length=30, blank=True)
