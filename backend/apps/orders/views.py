@@ -27,7 +27,9 @@ class OrderImageViewSet(ModelViewSet):
 
 
 def can_view_all_orders(user) -> bool:
-    return user.is_superuser or (user.role_id and user.role.name == "Admin")
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    return bool(user.is_superuser or (getattr(user, "role_id", None) and user.role and user.role.name == "Admin"))
 
 
 class OrderFilter(django_filters.FilterSet):

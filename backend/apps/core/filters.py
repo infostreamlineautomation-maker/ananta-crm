@@ -106,7 +106,7 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
                 continue
 
             # -------------------------------------------------------------
-            # 2. Range shortcuts on model fields: *_min, *_max, *_from, *_to
+            # 2. Range shortcuts on model fields / annotations: *_min, *_max, *_from, *_to
             # -------------------------------------------------------------
             if raw_key.endswith(("_min", "_max", "_from", "_to")):
                 if raw_key.endswith(("_min", "_from")):
@@ -119,13 +119,13 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
                 if base_name.startswith("col__"):
                     base_name = base_name[5:]
 
-                target_field = self._resolve_target_field(model, base_name)
+                target_field = self._resolve_target_field(model, base_name, queryset=queryset)
                 if target_field:
                     q_object &= Q(**{f"{target_field}__{op}": val})
                     continue
 
             # -------------------------------------------------------------
-            # 3. Model Fields (either col__<field> or direct <field>)
+            # 3. Model Fields & Annotations (either col__<field> or direct <field>)
             # -------------------------------------------------------------
             if raw_key in ("products", "product", "col__products", "col__product") and model._meta.model_name == "supplier":
                 q_object &= (Q(supplier_products__product__product_name__icontains=val) | Q(product_details__icontains=val))
@@ -139,7 +139,15 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
                 lookup = parts.pop()
 
             field_path = "__".join(parts)
-            resolved_path = self._resolve_target_field(model, field_path) or field_path
+            resolved_path = self._resolve_target_field(model, field_path, queryset=queryset, val=val) or field_path
+
+            if queryset is not None and hasattr(queryset, "query") and resolved_path in queryset.query.annotations:
+                if lookup:
+                    q_object &= Q(**{f"{resolved_path}__{lookup}": val})
+                else:
+                    q_object &= Q(**{f"{resolved_path}": val})
+                continue
+
             field_obj = self._get_model_field(model, resolved_path)
 
             if field_obj is not None:
@@ -193,30 +201,49 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
                 return None
         return field
 
-    def _resolve_target_field(self, model, base_name: str) -> str | None:
-        """Resolves common filter shortcuts or exact field names to model fields."""
+    def _resolve_target_field(self, model, base_name: str, queryset=None, val: str = "") -> str | None:
+        """Resolves common filter shortcuts or exact field names to model fields or annotations."""
+        is_num = str(val).isdigit() or (str(val).startswith("-") and str(val)[1:].isdigit())
+        if is_num and self._get_model_field(model, base_name) is not None:
+            return base_name
+
         FIELD_MAP = {
             "date": ["date", "quotation_date", "costing_date", "created_at"],
-            "amount": ["grand_total", "subtotal", "supplier_cost", "client_revenue"],
+            "costing_date": ["costing_date"],
+            "amount": ["grand_total", "subtotal", "annotated_supplier_cost", "supplier_cost", "annotated_client_revenue", "client_revenue"],
             "grand_total": ["grand_total"],
             "subtotal": ["subtotal"],
-            "profit": ["profit"],
+            "supplier_rate": ["items__supplier_rate", "supplier_rate"],
+            "quantity": ["items__quantity", "quantity", "qty"],
+            "qty": ["items__quantity", "quantity", "qty"],
+            "client_rate": ["items__client_rate", "client_rate"],
+            "supplier_cost": ["annotated_supplier_cost", "items__supplier_rate", "supplier_cost"],
+            "client_revenue": ["annotated_client_revenue", "items__client_rate", "client_revenue"],
+            "profit": ["annotated_profit", "profit"],
+            "profit_percent": ["annotated_profit_percent", "profit_percent"],
             "created": ["created_at"],
             "created_at": ["created_at"],
+            "updated_at": ["updated_at"],
             "client_name": ["client__client_name", "client_name"],
-            "client": ["client__client_name", "client_name", "client"],
+            "client": ["client" if is_num else "client__client_name", "client_name", "client"],
             "company_name": ["company__company_name", "client__company__company_name", "company_name"],
-            "company": ["company__company_name", "client__company__company_name", "company_name", "company"],
+            "company": ["company" if is_num else "company__company_name", "client__company__company_name", "company_name", "company"],
             "supplier_name": ["supplier__supplier_name", "supplier_name"],
-            "supplier": ["supplier__supplier_name", "supplier_name", "supplier"],
-            "project_name": ["project__project_name", "project_name"],
-            "project": ["project__project_name", "project_name", "project"],
+            "supplier": ["supplier" if is_num else "supplier__supplier_name", "supplier_name", "supplier"],
+            "project_name": ["project__name", "project__project_name", "project_name", "name"],
+            "project": ["project" if is_num else "project__name", "project__project_name", "project_name", "project", "name"],
             "product_name": ["supplier_products__product__product_name", "product__product_name", "product_name"],
-            "product": ["supplier_products__product__product_name", "product__product_name", "product_name", "product", "product_details"],
-            "products": ["supplier_products__product__product_name", "product__product_name", "product_name", "product_details"],
+            "product": ["product" if is_num else "product__product_name", "supplier_products__product__product_name", "product_name", "product", "product_details"],
+            "products": ["product" if is_num else "product__product_name", "supplier_products__product__product_name", "product_name", "product_details"],
+            "file": ["files__file_name", "file_name"],
+            "file_name": ["files__file_name", "file_name"],
+            "description": ["description", "remarks", "remark"],
+            "remarks": ["description", "remarks", "remark"],
         }
         candidates = FIELD_MAP.get(base_name, [base_name])
         for c in candidates:
+            if queryset is not None and hasattr(queryset, "query") and c in queryset.query.annotations:
+                return c
             if self._get_model_field(model, c) is not None:
                 return c
         return None

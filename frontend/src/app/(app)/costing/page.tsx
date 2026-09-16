@@ -67,6 +67,11 @@ export default function CostingPage() {
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
       {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+      {
         key: "client",
         label: "Client",
         type: "text",
@@ -77,8 +82,23 @@ export default function CostingPage() {
         type: "text",
       },
       {
-        key: "amount",
-        label: "Supplier Cost",
+        key: "product",
+        label: "Product",
+        type: "text",
+      },
+      {
+        key: "supplier_rate",
+        label: "Supplier Rate",
+        type: "amount_range",
+      },
+      {
+        key: "quantity",
+        label: "Qty",
+        type: "amount_range",
+      },
+      {
+        key: "client_rate",
+        label: "Client Rate",
         type: "amount_range",
       },
       {
@@ -87,8 +107,43 @@ export default function CostingPage() {
         type: "amount_range",
       },
       {
-        key: "date",
-        label: "Date",
+        key: "profit_percent",
+        label: "Profit %",
+        type: "amount_range",
+      },
+      {
+        key: "supplier_cost",
+        label: "Supplier Total Cost",
+        type: "amount_range",
+      },
+      {
+        key: "client_revenue",
+        label: "Client Total Revenue",
+        type: "amount_range",
+      },
+      {
+        key: "project_name",
+        label: "Project Name",
+        type: "text",
+      },
+      {
+        key: "file",
+        label: "Attachment",
+        type: "text",
+      },
+      {
+        key: "description",
+        label: "Remarks / Notes",
+        type: "text",
+      },
+      {
+        key: "created_at",
+        label: "Created Date",
+        type: "date_range",
+      },
+      {
+        key: "updated_at",
+        label: "Updated Date",
         type: "date_range",
       },
     ],

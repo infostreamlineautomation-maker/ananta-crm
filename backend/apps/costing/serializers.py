@@ -193,9 +193,14 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
         items_data = validated_data.pop("items")
         files_data = validated_data.pop("files", None)
         raw_files = self.initial_data.get("files", [])
-        organization = validated_data["organization"]
+        organization = validated_data.get("organization") or getattr(self.context.get("request"), "organization", None)
+        validated_data["organization"] = organization
         if validated_data.get("file") == "__KEEP_EXISTING__":
             validated_data["file"] = None
+        if "file_name" in validated_data and validated_data["file_name"] is None:
+            validated_data["file_name"] = ""
+        if "description" in validated_data and validated_data["description"] is None:
+            validated_data["description"] = ""
         validated_data = self._resolve(validated_data, organization)
         costing = Costing.objects.create(**validated_data)
         for item_data in items_data:
@@ -210,6 +215,10 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
         raw_files = self.initial_data.get("files", [])
         if validated_data.get("file") == "__KEEP_EXISTING__":
             validated_data.pop("file", None)
+        if "file_name" in validated_data and validated_data["file_name"] is None:
+            validated_data["file_name"] = ""
+        if "description" in validated_data and validated_data["description"] is None:
+            validated_data["description"] = ""
         validated_data = self._resolve(validated_data, instance.organization)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

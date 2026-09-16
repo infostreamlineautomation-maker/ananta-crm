@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Eye, Layers, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
 import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
+import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -75,7 +76,7 @@ const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "company_name", label: "Company" },
   { key: "phone", label: "Phone" },
   { key: "email", label: "Email" },
-  { key: "country_name", label: "Country" },
+  { key: "country_name", label: "Country", defaultVisible: false },
   { key: "address", label: "Address", defaultVisible: false },
   { key: "groups", label: "Groups", defaultVisible: false },
   { key: "currency_code", label: "Currency", defaultVisible: false },
@@ -155,16 +156,29 @@ export default function ClientsPage() {
   const allColumns: ColumnDef[] = useMemo(() => {
     const base = [...CLIENTS_PAGE_COLUMNS];
     const actionCol = base.pop()!;
-    const dynamicCols: ColumnDef[] = (customFields || []).map((f) => ({
-      key: `extra_${f.field_key}`,
-      label: f.label,
-      defaultVisible: false,
-    }));
+    const baseKeys = new Set(base.map((c) => c.key.toLowerCase().trim()));
+    const baseLabels = new Set(base.map((c) => c.label.toLowerCase().trim()));
+
+    const dynamicCols: ColumnDef[] = (customFields || [])
+      .filter((f) => {
+        const key = f.field_key.toLowerCase().trim();
+        const label = f.label.toLowerCase().trim();
+        if (baseKeys.has(key) || baseKeys.has(`extra_${key}`)) return false;
+        if (baseLabels.has(label)) return false;
+        if (["client_name", "client_type", "client_tier", "company", "company_name", "country", "phone", "email", "address", "groups", "currency", "currency_code"].includes(key)) return false;
+        if (["client name", "client type", "type", "client tier", "client tier / classification", "tier", "company", "country", "phone", "email", "address", "currency"].includes(label)) return false;
+        return true;
+      })
+      .map((f) => ({
+        key: `extra_${f.field_key}`,
+        label: f.label,
+        defaultVisible: false,
+      }));
     return [...base, ...dynamicCols, actionCol];
   }, [customFields]);
 
   const grid = useTableGrid({
-    tableKey: "clients",
+    tableKey: "clients_v2",
     defaultColumns: allColumns,
     defaultVisibleKeys: [
       "select",
@@ -173,7 +187,6 @@ export default function ClientsPage() {
       "company_name",
       "phone",
       "email",
-      "country_name",
       "actions",
     ],
   });
@@ -191,6 +204,7 @@ export default function ClientsPage() {
 
   const [editing, setEditing] = useState<Client | "new" | null>(null);
   const [deleting, setDeleting] = useState<Client | null>(null);
+  const [notifyingClient, setNotifyingClient] = useState<Client | null>(null);
 
   const canAdd = can("clients", "add");
   const canEdit = can("clients", "edit");
@@ -562,6 +576,12 @@ export default function ClientsPage() {
                           return (
                             <td key="actions" className={`${TD} text-right`}>
                               <div className="flex justify-end gap-1">
+                                <RowActionButton
+                                  label="Send Notification (WhatsApp / Email)"
+                                  onClick={() => setNotifyingClient(c)}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                                </RowActionButton>
                                 <Link href={`/clients/${c.id}`}>
                                   <RowActionButton label="View" onClick={() => {}}>
                                     <Eye className="h-3.5 w-3.5" />
@@ -636,6 +656,24 @@ export default function ClientsPage() {
           reloadAllClients();
           reload();
         }}
+      />
+
+      <SendNotificationModal
+        open={notifyingClient !== null}
+        onClose={() => setNotifyingClient(null)}
+        target={
+          notifyingClient
+            ? {
+                type: "client",
+                id: notifyingClient.id,
+                title: notifyingClient.client_name,
+                clientName: notifyingClient.client_name,
+                clientPhone: notifyingClient.phone,
+                clientEmail: notifyingClient.email,
+                currency: notifyingClient.currency_code || "INR",
+              }
+            : null
+        }
       />
     </div>
   );

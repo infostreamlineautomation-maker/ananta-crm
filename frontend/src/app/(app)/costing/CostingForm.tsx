@@ -24,6 +24,7 @@ import {
   Client,
   CostingDetail,
   CostingFile,
+  Country,
   Product,
   QuotationColumn,
   Supplier,
@@ -32,10 +33,13 @@ import { formatCurrency, mediaUrl } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { SlideOver } from "@/components/ui/SlideOver";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
-import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { ClientForm } from "../clients/page";
+import { SupplierForm } from "../suppliers/page";
+import { ProductModal } from "@/components/products/ProductModal";
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -68,9 +72,10 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
   const router = useRouter();
   const toast = useToast();
 
-  const { items: rawSuppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
-  const { items: rawProducts } = useList<Product>("/api/products/?page_size=200");
-  const { items: rawClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: rawSuppliers, reload: reloadSuppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
+  const { items: rawProducts, reload: reloadProducts } = useList<Product>("/api/products/?page_size=200");
+  const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: countries } = useList<Country>("/api/countries/");
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -228,13 +233,13 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
         files: files.map((f) => ({
           id: f.id,
           file: f.file,
-          file_name: f.file_name,
+          file_name: f.file_name || "",
           file_size: f.file_size,
           category: f.category || "catalogue",
         })),
         file: files.length > 0 ? files[0].file : null,
-        file_name: files.length > 0 ? files[0].file_name : null,
-        description,
+        file_name: files.length > 0 ? files[0].file_name || "" : "",
+        description: description || "",
         columns_config: columns,
         items: [
           {
@@ -330,7 +335,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             <Field label="Supplier Rate (Cost per unit)" required>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={supplierRate}
                 onChange={(e) => setSupplierRate(e.target.value)}
@@ -341,7 +346,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             <Field label="Quantity" required>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0.01"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
@@ -352,7 +357,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             <Field label="Client Rate (Charge per unit)" required>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={clientRate}
                 onChange={(e) => setClientRate(e.target.value)}
@@ -704,40 +709,65 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
 
       {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
 
-      <QuickCreateModal
-        open={quickAdd === "supplier"}
-        onClose={() => setQuickAdd(null)}
-        title="Add Supplier"
-        label="Supplier Name"
-        onCreate={async (name) => {
-          const created = await apiFetch<Supplier>("/api/suppliers/", { method: "POST", body: JSON.stringify({ supplier_name: name }) });
-          setSuppliers((prev) => [...prev, created]);
-          setSupplier(created.id);
-          toast.success("Supplier added.");
-        }}
-      />
-      <QuickCreateModal
-        open={quickAdd === "product"}
-        onClose={() => setQuickAdd(null)}
-        title="Add Product"
-        label="Product Name"
-        onCreate={async (name) => {
-          const created = await apiFetch<Product>("/api/products/", { method: "POST", body: JSON.stringify({ product_name: name }) });
-          setProducts((prev) => [...prev, created]);
-          setProduct(created.id);
-          toast.success("Product added.");
-        }}
-      />
-      <QuickCreateModal
+      <SlideOver
         open={quickAdd === "client"}
         onClose={() => setQuickAdd(null)}
         title="Add Client"
-        label="Client Name"
-        onCreate={async (name) => {
-          const created = await apiFetch<Client>("/api/clients/", { method: "POST", body: JSON.stringify({ client_name: name }) });
-          setClients((prev) => [...prev, created]);
-          setClient(created.id);
-          toast.success("Client added.");
+      >
+        <ClientForm
+          client={null}
+          countries={countries}
+          onCancel={() => setQuickAdd(null)}
+          onSaved={(newClient) => {
+            setQuickAdd(null);
+            reloadClients();
+            if (newClient?.id) {
+              setClients((prev) => {
+                if (prev.some((c) => c.id === newClient.id)) return prev;
+                return [...prev, newClient];
+              });
+              setClient(newClient.id);
+            }
+          }}
+        />
+      </SlideOver>
+
+      <SlideOver
+        open={quickAdd === "supplier"}
+        onClose={() => setQuickAdd(null)}
+        title="Add Supplier"
+      >
+        <SupplierForm
+          supplier={null}
+          onCancel={() => setQuickAdd(null)}
+          onSaved={(newSupplier) => {
+            setQuickAdd(null);
+            reloadSuppliers();
+            if (newSupplier?.id) {
+              setSuppliers((prev) => {
+                if (prev.some((s) => s.id === newSupplier.id)) return prev;
+                return [...prev, newSupplier];
+              });
+              setSupplier(newSupplier.id);
+            }
+          }}
+        />
+      </SlideOver>
+
+      <ProductModal
+        open={quickAdd === "product"}
+        onClose={() => setQuickAdd(null)}
+        title="Add Product"
+        onSaved={(newProduct) => {
+          setQuickAdd(null);
+          reloadProducts();
+          if (newProduct?.id) {
+            setProducts((prev) => {
+              if (prev.some((p) => p.id === newProduct.id)) return prev;
+              return [...prev, newProduct];
+            });
+            setProduct(newProduct.id);
+          }
         }}
       />
 

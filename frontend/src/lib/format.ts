@@ -1,10 +1,17 @@
 import { getApiBaseUrl } from "./api";
 
-export function formatCurrency(value: string | number, currencyCode = "INR"): string {
+export function formatCurrency(value: string | number, currencyCode = "INR", minFractionDigits?: number): string {
   const n = typeof value === "string" ? parseFloat(value) : value;
   if (Number.isNaN(n)) return "—";
   try {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency: currencyCode, maximumFractionDigits: 0 }).format(n);
+    const hasDecimals = n % 1 !== 0;
+    const minDigits = minFractionDigits !== undefined ? minFractionDigits : (hasDecimals ? 2 : 0);
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: minDigits,
+      maximumFractionDigits: 2,
+    }).format(n);
   } catch {
     return `${currencyCode} ${n.toLocaleString("en-IN")}`;
   }

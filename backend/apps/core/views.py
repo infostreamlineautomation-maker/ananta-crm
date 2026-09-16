@@ -140,6 +140,12 @@ class CustomFieldFilterSet(filters.FilterSet):
         val_lower = str(value).lower().strip()
         canonical = MODULE_ALIASES.get(val_lower, val_lower)
         return queryset.filter(module__in=[value, val_lower, canonical])
+DUPLICATE_BUILTIN_KEYS = [
+    "client_name", "company", "company_name", "phone", "email", "address",
+    "country", "country_name", "currency_code", "client_type", "group_ids",
+    "order_no", "date", "supplier", "supplier_name", "grand_total", "subtotal",
+    "quotation_no", "quotation_date", "product_name", "item_name"
+]
 
 
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
@@ -153,7 +159,11 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         org = getattr(self.request, "organization", None)
         if not org:
             return CustomFieldDefinition.objects.none()
-        return CustomFieldDefinition.objects.filter(organization=org).order_by("sort_order", "id")
+        return (
+            CustomFieldDefinition.objects.filter(organization=org)
+            .exclude(field_key__in=DUPLICATE_BUILTIN_KEYS)
+            .order_by("sort_order", "id")
+        )
 
     def perform_create(self, serializer):
         org = getattr(self.request, "organization", None)

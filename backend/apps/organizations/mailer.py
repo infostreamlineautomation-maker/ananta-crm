@@ -101,10 +101,25 @@ def build_branded_html_email(org, title, content_html, action_url=None, action_l
 """
 
 
-def send_organization_email(org, recipient_list, subject, html_content, text_content=None, user=None, client=None, order=None, quotation=None):
+def send_organization_email(
+    org,
+    recipient_list,
+    subject,
+    html_content,
+    text_content=None,
+    user=None,
+    client=None,
+    order=None,
+    quotation=None,
+    order_id=None,
+    quotation_id=None,
+):
     """Sends an email via the organization's SMTP backend and creates a CommunicationLog entry."""
     if not isinstance(recipient_list, list):
         recipient_list = [recipient_list]
+
+    resolved_order_id = order_id or (order.id if order else None)
+    resolved_quotation_id = quotation_id or (quotation.id if quotation else None)
 
     if not org.smtp_host:
         err = "SMTP server is not configured for this organization. Please set up SMTP in Settings."
@@ -112,8 +127,8 @@ def send_organization_email(org, recipient_list, subject, html_content, text_con
             CommunicationLog.objects.create(
                 organization=org,
                 client=client,
-                order=order,
-                quotation=quotation,
+                order_id=resolved_order_id,
+                quotation_id=resolved_quotation_id,
                 channel="email",
                 recipient=r,
                 subject=subject,
@@ -172,8 +187,8 @@ def send_organization_email(org, recipient_list, subject, html_content, text_con
             CommunicationLog.objects.create(
                 organization=org,
                 client=client,
-                order=order,
-                quotation=quotation,
+                order_id=resolved_order_id,
+                quotation_id=resolved_quotation_id,
                 channel="email",
                 recipient=r,
                 subject=subject,
@@ -189,8 +204,8 @@ def send_organization_email(org, recipient_list, subject, html_content, text_con
             CommunicationLog.objects.create(
                 organization=org,
                 client=client,
-                order=order,
-                quotation=quotation,
+                order_id=resolved_order_id,
+                quotation_id=resolved_quotation_id,
                 channel="email",
                 recipient=r,
                 subject=subject,

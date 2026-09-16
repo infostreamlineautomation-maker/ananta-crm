@@ -158,12 +158,19 @@ class ClientViewSet(SoftDeleteModuleViewSet):
         from apps.organizations.mailer import build_branded_html_email, send_organization_email
         from apps.organizations.models import CommunicationLog
 
+        order_id = data.get("order_id") or data.get("order")
+        quotation_id = data.get("quotation_id") or data.get("quotation")
+        action_url = data.get("action_url")
+        action_label = data.get("action_label")
+
         if channel == "email":
             formatted_html = "".join(f"<p>{p.strip()}</p>" for p in message_body.split("\n\n") if p.strip()) or f"<p>{message_body}</p>"
             full_html = build_branded_html_email(
                 org=org,
                 title=subject,
                 content_html=formatted_html,
+                action_url=action_url,
+                action_label=action_label,
             )
             try:
                 send_organization_email(
@@ -174,6 +181,8 @@ class ClientViewSet(SoftDeleteModuleViewSet):
                     text_content=message_body,
                     user=request.user,
                     client=client,
+                    order_id=order_id,
+                    quotation_id=quotation_id,
                 )
                 return Response({"detail": f"Email sent to {recipient}."})
             except Exception as e:
@@ -183,6 +192,8 @@ class ClientViewSet(SoftDeleteModuleViewSet):
             CommunicationLog.objects.create(
                 organization=org,
                 client=client,
+                order_id=order_id,
+                quotation_id=quotation_id,
                 channel="whatsapp",
                 recipient=recipient,
                 subject=subject,
