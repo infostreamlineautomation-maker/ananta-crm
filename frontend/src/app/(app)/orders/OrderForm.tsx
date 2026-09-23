@@ -39,7 +39,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
   const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: rawSuppliers, reload: reloadSuppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
-  const { items: rawProducts, reload: reloadProducts } = useList<Product>("/api/products/?page_size=200");
+  const { items: rawProducts, reload: reloadProducts } = useList<Product>("/api/products/?page_size=500");
 
   const [clients, setClients] = useState<Client[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);

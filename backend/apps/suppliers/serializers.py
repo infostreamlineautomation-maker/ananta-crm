@@ -60,6 +60,32 @@ class SupplierFileSerializer(_SameOrgSupplierMixin, serializers.ModelSerializer)
         return value
 
 
+def _sync_supplier_products(supplier, product_ids=None):
+    from apps.catalog.models import Product
+    if product_ids is not None:
+        for pid in product_ids:
+            SupplierProduct.objects.get_or_create(supplier=supplier, product_id=pid)
+
+    if supplier.product_details:
+        names = [n.strip() for n in supplier.product_details.replace("\n", ",").split(",") if n.strip()]
+        for name in names:
+            prod = Product.objects.filter(
+                organization=supplier.organization,
+                product_name__iexact=name
+            ).first()
+            if not prod:
+                prod = Product.objects.create(
+                    organization=supplier.organization,
+                    product_name=name,
+                    is_deleted=False
+                )
+            elif prod.is_deleted:
+                prod.is_deleted = False
+                prod.save(update_fields=["is_deleted"])
+
+            SupplierProduct.objects.get_or_create(supplier=supplier, product=prod)
+
+
 class SupplierSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, read_only=True)
     supplier_products = SupplierProductSerializer(many=True, read_only=True)
@@ -92,9 +118,7 @@ class SupplierSerializer(SameOrganizationFieldsMixin, serializers.ModelSerialize
         if validated_data.get("company") and not validated_data.get("company_name"):
             validated_data["company_name"] = validated_data["company"].company_name
         supplier = super().create(validated_data)
-        if product_ids is not None:
-            for pid in product_ids:
-                SupplierProduct.objects.get_or_create(supplier=supplier, product_id=pid)
+        _sync_supplier_products(supplier=supplier, product_ids=product_ids)
         return supplier
 
     def update(self, instance, validated_data):
@@ -106,8 +130,7 @@ class SupplierSerializer(SameOrganizationFieldsMixin, serializers.ModelSerialize
             existing_pids = set(instance.supplier_products.values_list("product_id", flat=True))
             new_pids = set(product_ids)
             instance.supplier_products.filter(product_id__in=existing_pids - new_pids).delete()
-            for pid in new_pids - existing_pids:
-                SupplierProduct.objects.get_or_create(supplier=instance, product_id=pid)
+        _sync_supplier_products(supplier=instance, product_ids=product_ids)
         return supplier
 
     def validate(self, attrs):

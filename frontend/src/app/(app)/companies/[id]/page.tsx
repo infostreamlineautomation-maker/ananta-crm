@@ -888,7 +888,7 @@ export default function CompanyDetailPage() {
                       </div>
                     </th>
                   )}
-                  {orderCols.has("client") && (
+                  {(orderCols.has("client_name") || orderCols.has("client")) && (
                     <th className={TH}>
                       <div className="inline-flex items-center">
                         <span>Client</span>
@@ -905,7 +905,7 @@ export default function CompanyDetailPage() {
                       </div>
                     </th>
                   )}
-                  {orderCols.has("project") && <th className={TH}>Project</th>}
+                  {(orderCols.has("project_name") || orderCols.has("project")) && <th className={TH}>Project</th>}
                   {orderCols.has("grand_total") && (
                     <th className={`${TH} text-right`}>
                       <div className="inline-flex items-center justify-end">
@@ -962,14 +962,14 @@ export default function CompanyDetailPage() {
                       </td>
                     )}
                     {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                    {orderCols.has("client") && (
+                    {(orderCols.has("client_name") || orderCols.has("client")) && (
                       <td className={TD}>
                         <Link href={`/clients/${o.client}`} className="font-semibold text-ink hover:text-primary-600">
                           {o.client_name}
                         </Link>
                       </td>
                     )}
-                    {orderCols.has("project") && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
+                    {(orderCols.has("project_name") || orderCols.has("project")) && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
                     {orderCols.has("grand_total") && (
                       <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>
                         {formatCurrency(o.grand_total, o.currency_code)}
@@ -1080,8 +1080,8 @@ export default function CompanyDetailPage() {
                       </div>
                     </th>
                   )}
-                  {quoteCols.has("quotation_date") && <th className={TH}>Date</th>}
-                  {quoteCols.has("client_name") && <th className={TH}>Client</th>}
+                  {(quoteCols.has("quotation_date") || quoteCols.has("date")) && <th className={TH}>Date</th>}
+                  {(quoteCols.has("client_name") || quoteCols.has("client")) && <th className={TH}>Client</th>}
                   {quoteCols.has("subject") && <th className={TH}>Subject</th>}
                   {quoteCols.has("status") && (
                     <th className={TH}>
@@ -1095,7 +1095,7 @@ export default function CompanyDetailPage() {
                       </div>
                     </th>
                   )}
-                  {quoteCols.has("subtotal") && <th className={`${TH} text-right`}>Subtotal</th>}
+                  {(quoteCols.has("subtotal") || quoteCols.has("amount")) && <th className={`${TH} text-right`}>Subtotal</th>}
                   {quoteCols.has("actions") && <th className={TH}></th>}
                 </tr>
               </thead>
@@ -1115,15 +1115,15 @@ export default function CompanyDetailPage() {
                         </Link>
                       </td>
                     )}
-                    {quoteCols.has("quotation_date") && <td className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>}
-                    {quoteCols.has("client_name") && <td className={`${TD} font-medium text-ink`}>{q.client_name || "—"}</td>}
+                    {(quoteCols.has("quotation_date") || quoteCols.has("date")) && <td className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>}
+                    {(quoteCols.has("client_name") || quoteCols.has("client")) && <td className={`${TD} font-medium text-ink`}>{q.client_name || "—"}</td>}
                     {quoteCols.has("subject") && <td className={`${TD} text-ink-muted`}>{q.subject || "—"}</td>}
                     {quoteCols.has("status") && (
                       <td className={TD}>
                         <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
                       </td>
                     )}
-                    {quoteCols.has("subtotal") && (
+                    {(quoteCols.has("subtotal") || quoteCols.has("amount")) && (
                       <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(q.subtotal, q.currency_code)}</td>
                     )}
                     {quoteCols.has("actions") && (

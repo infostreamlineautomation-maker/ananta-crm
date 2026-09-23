@@ -810,6 +810,7 @@ export function SupplierForm({
 
   const [extraData, setExtraData] = useState<Record<string, any>>(supplier?.extra_data || {});
   const [customFields, setCustomFields] = useState<any[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [deletedFileIds, setDeletedFileIds] = useState<Set<number>>(new Set());
   const [catalogueFiles, setCatalogueFiles] = useState<File[]>([]);
   const [rateListFiles, setRateListFiles] = useState<File[]>([]);
@@ -829,6 +830,9 @@ export function SupplierForm({
         if (Array.isArray(res)) setCountries(res);
         else if ((res as any)?.results) setCountries((res as any).results);
       })
+      .catch(() => {});
+    apiFetch<Paginated<Product>>("/api/products/?page_size=300")
+      .then((res) => setCatalogProducts(res.results || []))
       .catch(() => {});
   }, [loadCompanies]);
 
@@ -1021,11 +1025,17 @@ export function SupplierForm({
           </div>
 
           <div className="flex flex-col gap-2">
+            <datalist id="catalog-products-suggestions">
+              {catalogProducts.map((p) => (
+                <option key={p.id} value={p.product_name} />
+              ))}
+            </datalist>
             {products.map((p, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <div className="flex-1">
                   <Input
                     value={p}
+                    list="catalog-products-suggestions"
                     onChange={(e) => {
                       const val = e.target.value;
                       setProducts((prev) => prev.map((item, i) => (i === idx ? val : item)));
