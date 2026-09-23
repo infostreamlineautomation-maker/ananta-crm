@@ -969,7 +969,11 @@ export default function CompanyDetailPage() {
                         </Link>
                       </td>
                     )}
-                    {(orderCols.has("project_name") || orderCols.has("project")) && <td className={`${TD} text-ink-muted`}>{o.project_name || "—"}</td>}
+                    {(orderCols.has("project_name") || orderCols.has("project")) && (
+                      <td className={`${TD} text-ink-muted font-medium max-w-[200px] truncate`} title={o.project_title || o.project_name || ""}>
+                        {o.project_title || o.project_name || "—"}
+                      </td>
+                    )}
                     {orderCols.has("grand_total") && (
                       <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>
                         {formatCurrency(o.grand_total, o.currency_code)}
