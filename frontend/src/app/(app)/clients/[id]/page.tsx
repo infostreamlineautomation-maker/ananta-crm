@@ -803,7 +803,7 @@ export default function ClientDetailPage() {
                     )}
                     {orderCols.has("actions") && (
                       <td className={`${TD} text-right`}>
-                        <Link href={`/orders/${o.id}`}>
+                        <Link href={`/orders/${o.id}?viewOnly=true`}>
                           <Button size="sm" variant="secondary">
                             <Eye className="h-3.5 w-3.5" /> View
                           </Button>

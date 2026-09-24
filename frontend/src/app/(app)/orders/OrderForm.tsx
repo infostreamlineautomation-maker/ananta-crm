@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, MessageSquare, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import { Client, Country, OrderDetail, OrderImage, OrderItemDetail, Product, QuotationColumn, Supplier } from "@/lib/types";
@@ -29,9 +30,25 @@ function newColumnKey() {
   return `custom_${Date.now()}_${columnCounter}`;
 }
 
-export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: number }) {
+export function OrderForm({
+  order,
+  initialProjectId,
+  readOnly: initialReadOnly = false,
+}: {
+  order?: OrderDetail;
+  initialProjectId?: number;
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
+  const { can } = useAuth();
+  const canEdit = can("orders", "edit");
+  const [readOnly, setReadOnly] = useState(initialReadOnly);
+
+  useEffect(() => {
+    setReadOnly(initialReadOnly);
+  }, [initialReadOnly]);
+
   const { activeOrganization } = useOrganization();
   const baseCurrency = activeOrganization?.default_currency_code || "INR";
   const { rates, getRate } = useForex();
@@ -295,7 +312,12 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
             <p className="text-sm font-semibold text-ink-muted mt-0.5">{projectTitle}</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {readOnly && (
+            <span className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+              Viewing Mode
+            </span>
+          )}
           {order && (
             <>
               <Button
@@ -306,9 +328,11 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               >
                 <MessageSquare className="h-4 w-4" /> Notify
               </Button>
-              <Button type="button" variant="secondary" onClick={handleCopy} loading={copying}>
-                <Copy className="h-4 w-4" /> Duplicate
-              </Button>
+              {!readOnly && (
+                <Button type="button" variant="secondary" onClick={handleCopy} loading={copying}>
+                  <Copy className="h-4 w-4" /> Duplicate
+                </Button>
+              )}
               <Link href={`/orders/${order.id}/print`} target="_blank" rel="noreferrer">
                 <Button type="button" variant="secondary">
                   <Printer className="h-4 w-4" /> Print
@@ -316,9 +340,28 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               </Link>
             </>
           )}
-          <Button type="submit" variant="primary" loading={saving}>
-            Save Project
-          </Button>
+          {readOnly ? (
+            canEdit && (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setReadOnly(false);
+                  if (order?.id) {
+                    window.history.replaceState(null, "", `/orders/${order.id}`);
+                  }
+                }}
+              >
+                <Pencil className="h-4 w-4" /> Edit Project
+              </Button>
+            )
+          ) : (
+            <Button type="submit" variant="primary" loading={saving}>
+              Save Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -358,6 +401,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="e.g. Diamond Standy"
                   required
+                  disabled={readOnly}
                 />
               </Field>
               <Field label="Client" required>
@@ -366,12 +410,13 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                   onChange={(v) => handleClientChange(Number(v))}
                   options={clientOptions}
                   placeholder="Select client..."
-                  onAddNew={() => setQuickAddClientOpen(true)}
+                  onAddNew={readOnly ? undefined : () => setQuickAddClientOpen(true)}
                   addNewLabel="Add new client"
+                  disabled={readOnly}
                 />
               </Field>
               <Field label="Date" required>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={readOnly} />
               </Field>
               <Field label="Currency" hint="Changing currency converts rates instantly.">
                 <div className="flex flex-wrap items-center gap-2">
@@ -379,6 +424,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     value={effectiveCurrency}
                     onChange={(e) => handleCurrencyChange(e.target.value)}
                     className="max-w-[160px] font-mono font-bold"
+                    disabled={readOnly}
                   >
                     <option value="INR">INR — Indian Rupee (₹)</option>
                     <option value="AED">AED — UAE Dirham (AED)</option>
@@ -411,13 +457,15 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                   <h2 className="text-base font-bold text-ink">Product & Specifications</h2>
                   <p className="text-xs text-ink-muted mt-0.5">Define the product, quantity, rate, and job specifications</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addColumn}
-                  className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add Custom Spec Field
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={addColumn}
+                    className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Custom Spec Field
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -428,8 +476,9 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                       onChange={(v) => setProductId(Number(v))}
                       options={productOptions}
                       placeholder="Select product..."
-                      onAddNew={() => setQuickAddProductOpen(true)}
+                      onAddNew={readOnly ? undefined : () => setQuickAddProductOpen(true)}
                       addNewLabel="Add new product"
+                      disabled={readOnly}
                     />
                   </Field>
                 </div>
@@ -443,6 +492,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     onChange={(e) => setQty(e.target.value)}
                     placeholder="e.g. 100"
                     required
+                    disabled={readOnly}
                   />
                 </Field>
 
@@ -455,6 +505,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     onChange={(e) => setRate(e.target.value)}
                     placeholder="e.g. 45"
                     required
+                    disabled={readOnly}
                   />
                 </Field>
 
@@ -477,6 +528,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="e.g. 350 gsm with matt / size details / finishing requirements..."
                     rows={2}
+                    disabled={readOnly}
                   />
                 </Field>
               </div>
@@ -494,21 +546,25 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                               prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
                             )
                           }
-                          className="border-b border-dashed border-border-strong bg-transparent pb-0.5 text-xs font-bold text-ink-muted focus:border-primary-400 focus:outline-hidden"
+                          disabled={readOnly}
+                          className="border-b border-dashed border-border-strong bg-transparent pb-0.5 text-xs font-bold text-ink-muted focus:border-primary-400 focus:outline-hidden disabled:opacity-80"
                         />
-                        <button
-                          type="button"
-                          onClick={() => removeColumn(col.key)}
-                          className="text-ink-faint hover:text-rose-600 cursor-pointer p-0.5"
-                          title="Remove custom field"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        {!readOnly && (
+                          <button
+                            type="button"
+                            onClick={() => removeColumn(col.key)}
+                            className="text-ink-faint hover:text-rose-600 cursor-pointer p-0.5"
+                            title="Remove custom field"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                       <Input
                         value={extraData[col.key] || ""}
                         onChange={(e) => updateExtraField(col.key, e.target.value)}
                         placeholder={`Enter ${col.label.toLowerCase()}...`}
+                        disabled={readOnly}
                       />
                     </div>
                   ))}
@@ -530,8 +586,9 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     onChange={(v) => setSupplier(Number(v))}
                     options={supplierOptions}
                     placeholder="Select vendor / supplier..."
-                    onAddNew={() => setQuickAddSupplierOpen(true)}
+                    onAddNew={readOnly ? undefined : () => setQuickAddSupplierOpen(true)}
                     addNewLabel="Add new supplier"
+                    disabled={readOnly}
                   />
                 </Field>
                 <Field label="Delivery Time / Instructions">
@@ -539,6 +596,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     value={deliveryTime}
                     onChange={(e) => setDeliveryTime(e.target.value)}
                     placeholder="e.g. Aje Joie chhe print thai ne / Urgent"
+                    disabled={readOnly}
                   />
                 </Field>
               </div>
@@ -560,12 +618,13 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
             <CardHeader title="Billing & Taxation" />
 
             {/* GST / Tax Checkbox */}
-            <label className="flex items-center gap-2 text-sm font-semibold text-ink cursor-pointer select-none bg-surface-sunken p-2.5 rounded-lg border border-border hover:bg-surface-elevated transition">
+            <label className={`flex items-center gap-2 text-sm font-semibold text-ink select-none bg-surface-sunken p-2.5 rounded-lg border border-border transition ${readOnly ? "opacity-90 cursor-default" : "cursor-pointer hover:bg-surface-elevated"}`}>
               <input
                 type="checkbox"
                 checked={includeGst}
                 onChange={(e) => setIncludeGst(e.target.checked)}
-                className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500/20 cursor-pointer"
+                disabled={readOnly}
+                className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500/20 cursor-pointer disabled:cursor-default"
               />
               <span>Include GST / Tax</span>
             </label>
@@ -586,6 +645,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     value={taxPercent}
                     onChange={(e) => setTaxPercent(e.target.value)}
                     placeholder="18"
+                    disabled={readOnly}
                   />
                 </Field>
 
@@ -625,7 +685,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
 
           <Card className="flex flex-col gap-4 p-5">
             <Field label="Delivery Status">
-              <Select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as typeof deliveryStatus)}>
+              <Select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as typeof deliveryStatus)} disabled={readOnly}>
                 <option value="pending">Pending</option>
                 <option value="in_process">In Process</option>
                 <option value="ready">Ready</option>
@@ -633,7 +693,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               </Select>
             </Field>
             <Field label="Payment Status">
-              <Select value={paymentStatus} onChange={(e) => handlePaymentStatusChange(e.target.value as typeof paymentStatus)}>
+              <Select value={paymentStatus} onChange={(e) => handlePaymentStatusChange(e.target.value as typeof paymentStatus)} disabled={readOnly}>
                 <option value="pending">Pending (Unpaid)</option>
                 <option value="advance">Advance (Advance Received)</option>
                 <option value="partial">Partial (Partial Payment)</option>
@@ -654,6 +714,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
                     max={totals.grandTotal}
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value)}
+                    disabled={readOnly}
                     className="font-mono font-bold bg-white text-emerald-700"
                   />
                 </Field>
@@ -703,6 +764,7 @@ export function OrderForm({ order }: { order?: OrderDetail; initialProjectId?: n
               onPendingFilesChange={setPendingFiles}
               onImageUploaded={(newImg) => setExistingImages((prev) => [...prev, newImg])}
               onImageDeleted={(delId) => setExistingImages((prev) => prev.filter((img) => img.id !== delId))}
+              readOnly={readOnly}
             />
           </Card>
         </div>

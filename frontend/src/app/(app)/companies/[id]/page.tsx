@@ -992,7 +992,7 @@ export default function CompanyDetailPage() {
                     {orderCols.has("actions") && (
                       <td className={`${TD} text-right`}>
                         <div className="flex justify-end gap-1">
-                          <Link href={`/orders/${o.id}`}>
+                          <Link href={`/orders/${o.id}?viewOnly=true`}>
                             <Button size="sm" variant="secondary">
                               <Eye className="h-3.5 w-3.5" /> View
                             </Button>

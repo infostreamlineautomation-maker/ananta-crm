@@ -14,6 +14,7 @@ interface ProjectImageUploaderProps {
   onPendingFilesChange: (files: File[]) => void;
   onImageUploaded?: (img: OrderImage) => void;
   onImageDeleted?: (id: number) => void;
+  readOnly?: boolean;
 }
 
 export function ProjectImageUploader({
@@ -23,6 +24,7 @@ export function ProjectImageUploader({
   onPendingFilesChange,
   onImageUploaded,
   onImageDeleted,
+  readOnly = false,
 }: ProjectImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -100,43 +102,53 @@ export function ProjectImageUploader({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Drop zone / Upload trigger */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          handleFiles(e.dataTransfer.files);
-        }}
-        onClick={() => fileInputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-all cursor-pointer ${
-          dragOver
-            ? "border-primary-500 bg-primary-50/60"
-            : "border-border-strong hover:border-primary-400 hover:bg-surface-sunken/50"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-          <UploadCloud className="h-5 w-5" />
+      {/* Drop zone / Upload trigger (only in edit mode) */}
+      {!readOnly && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFiles(e.dataTransfer.files);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-all cursor-pointer ${
+            dragOver
+              ? "border-primary-500 bg-primary-50/60"
+              : "border-border-strong hover:border-primary-400 hover:bg-surface-sunken/50"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+            <UploadCloud className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-ink">
+              {uploadingDirect ? "Uploading images..." : "Click or drag & drop project images"}
+            </p>
+            <p className="text-[11px] text-ink-faint">Supports multiple PNG, JPG, WebP, SVG files</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-semibold text-ink">
-            {uploadingDirect ? "Uploading images..." : "Click or drag & drop project images"}
-          </p>
-          <p className="text-[11px] text-ink-faint">Supports multiple PNG, JPG, WebP, SVG files</p>
+      )}
+
+      {/* Empty state in readOnly mode */}
+      {readOnly && totalCount === 0 && (
+        <div className="flex flex-col items-center justify-center py-6 text-center text-ink-muted">
+          <ImageIcon className="h-8 w-8 text-ink-faint mb-1.5" />
+          <p className="text-xs">No images or proofs attached to this project.</p>
         </div>
-      </div>
+      )}
 
       {/* Thumbnails grid */}
       {totalCount > 0 && (
@@ -145,7 +157,11 @@ export function ProjectImageUploader({
           {existingImages.map((img, idx) => (
             <div
               key={img.id}
-              className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-surface-sunken"
+              className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-surface-sunken cursor-pointer"
+              onClick={() => {
+                setLightboxIndex(idx);
+                setLightboxOpen(true);
+              }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -166,19 +182,21 @@ export function ProjectImageUploader({
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm("Delete this image?")) {
-                      deleteExistingImage(img);
-                    }
-                  }}
-                  className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/80 text-white hover:bg-rose-600 cursor-pointer"
-                  title="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm("Delete this image?")) {
+                        deleteExistingImage(img);
+                      }
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/80 text-white hover:bg-rose-600 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -211,17 +229,19 @@ export function ProjectImageUploader({
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removePendingFile(idx);
-                  }}
-                  className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/80 text-white hover:bg-rose-600 cursor-pointer"
-                  title="Remove"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removePendingFile(idx);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/80 text-white hover:bg-rose-600 cursor-pointer"
+                    title="Remove"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -234,7 +254,7 @@ export function ProjectImageUploader({
         onClose={() => setLightboxOpen(false)}
         images={allImages}
         initialIndex={lightboxIndex}
-        onDelete={deleteExistingImage}
+        onDelete={readOnly ? undefined : deleteExistingImage}
       />
     </div>
   );

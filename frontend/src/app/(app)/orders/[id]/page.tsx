@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { OrderDetail } from "@/lib/types";
@@ -11,6 +11,8 @@ import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function EditOrderPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const isViewOnly = searchParams.get("viewOnly") === "true" || searchParams.get("mode") === "view";
   const orderId = Number(params.id);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export default function EditOrderPage() {
           <LoadingState size="lg" label="Loading Project..." sublabel="Preparing project editor & custom columns" />
         </div>
       ) : order ? (
-        <OrderForm order={order} />
+        <OrderForm order={order} readOnly={isViewOnly} />
       ) : (
         <p className="text-sm text-ink-faint">Project not found.</p>
       )}
