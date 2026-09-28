@@ -85,8 +85,8 @@ export function DonutChart({
     <div className={clsx("flex flex-col gap-4", className)}>
       {title && <h4 className="text-[14px] font-bold text-ink">{title}</h4>}
 
-      <div className="flex flex-col sm:flex-row items-center gap-6">
-        <div className="relative flex-none" style={{ width: size, height: size }}>
+      <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
+        <div className="relative flex-none my-1" style={{ width: size, height: size }}>
           {totalValue === 0 ? (
             <div
               className="flex h-full w-full items-center justify-center rounded-full border-4 border-dashed border-border text-center text-xs font-medium text-ink-faint"
@@ -114,11 +114,11 @@ export function DonutChart({
               </svg>
 
               {/* Center text */}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center px-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-faint truncate max-w-full">
                   {activeSlice ? activeSlice.label : "Total"}
                 </span>
-                <span className="font-mono text-[14px] font-bold text-ink">
+                <span className="font-mono text-[13px] font-bold text-ink truncate max-w-full">
                   {activeSlice
                     ? valueType === "currency"
                       ? formatCurrency(activeSlice.value, currencyCode)
@@ -128,7 +128,7 @@ export function DonutChart({
                     : totalValue}
                 </span>
                 {activeSlice && (
-                  <span className="text-[10.5px] font-bold text-primary-600">
+                  <span className="text-[10px] font-bold text-primary-600">
                     {activeSlice.percentage.toFixed(1)}%
                   </span>
                 )}
@@ -138,7 +138,7 @@ export function DonutChart({
         </div>
 
         {/* Legend table */}
-        <div className="flex w-full flex-col divide-y divide-border/60">
+        <div className="flex flex-1 w-full min-w-0 flex-col divide-y divide-border/60">
           {data.map((item, idx) => {
             const val = valueType === "currency" ? item.amount : item.count;
             const pct = totalValue > 0 ? (val / totalValue) * 100 : 0;
@@ -150,18 +150,18 @@ export function DonutChart({
                 onMouseEnter={() => setHoverIndex(idx)}
                 onMouseLeave={() => setHoverIndex(null)}
                 className={clsx(
-                  "flex items-center justify-between py-2 px-2 rounded-md transition-colors cursor-pointer",
+                  "flex items-center justify-between py-1.5 px-1.5 rounded-md transition-colors cursor-pointer gap-2",
                   isHovered ? "bg-surface-hover" : "hover:bg-surface-hover/50",
                 )}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 shrink">
                   <span className="h-2.5 w-2.5 rounded-full flex-none" style={{ backgroundColor: item.color }} />
-                  <span className="text-[13px] font-medium text-ink">{item.label}</span>
+                  <span className="text-[12.5px] font-medium text-ink truncate">{item.label}</span>
                 </div>
-                <div className="flex items-center gap-3 text-right font-mono text-[12.5px]">
-                  <span className="text-ink-muted">{pct.toFixed(0)}%</span>
-                  <span className="font-semibold text-ink">
-                    {valueType === "currency" ? formatCurrency(item.amount, currencyCode) : `${item.count} orders`}
+                <div className="flex items-center gap-2 text-right font-mono text-[12px] shrink-0">
+                  <span className="text-ink-muted text-[11px]">{pct.toFixed(0)}%</span>
+                  <span className="font-semibold text-ink whitespace-nowrap">
+                    {valueType === "currency" ? formatCurrency(item.amount, currencyCode) : `${item.count}`}
                   </span>
                 </div>
               </div>

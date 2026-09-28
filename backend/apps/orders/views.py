@@ -39,6 +39,8 @@ class OrderFilter(django_filters.FilterSet):
     date_to = django_filters.DateFilter(field_name="date", lookup_expr="lte")
     country = django_filters.NumberFilter(field_name="client__country_id")
     client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
+    product = django_filters.CharFilter(field_name="items__product__product_name", lookup_expr="icontains", distinct=True)
+    product_name = django_filters.CharFilter(field_name="items__product__product_name", lookup_expr="icontains", distinct=True)
 
     class Meta:
         model = Order
@@ -49,6 +51,8 @@ class OrderFilter(django_filters.FilterSet):
             "client__company",
             "supplier",
             "project",
+            "product",
+            "product_name",
             "min_amount",
             "max_amount",
             "date_from",
@@ -63,7 +67,7 @@ class OrderViewSet(ModuleViewSet):
     module_name = ORDERS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_class = OrderFilter
-    search_fields = ["order_no", "description", "client__client_name", "client__company__company_name"]
+    search_fields = ["order_no", "description", "client__client_name", "client__company__company_name", "items__product__product_name", "project_title"]
 
     def get_queryset(self):
         qs = Order.objects.filter(organization=self.request.organization).select_related(

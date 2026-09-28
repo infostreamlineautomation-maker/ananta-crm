@@ -56,6 +56,7 @@ export interface OrderDetail {
   project?: number | null;
   project_name?: string | null;
   project_title?: string;
+  product_names?: string;
   supplier: number | null;
   supplier_name: string | null;
   delivery_time?: string;
@@ -353,10 +354,12 @@ export interface OrderSummary {
   project?: number | null;
   project_name?: string | null;
   project_title?: string;
+  product_names?: string;
   supplier: number | null;
   supplier_name: string | null;
   delivery_time?: string;
   description?: string;
+  items?: OrderItemDetail[];
   subtotal?: string;
   tax_percent?: string;
   tax_amount?: string;

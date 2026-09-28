@@ -47,13 +47,14 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True)
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     due_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    product_names = serializers.SerializerMethodField()
     same_organization_fields = ["client", "project", "supplier"]
 
     class Meta:
         model = Order
         fields = [
             "id", "order_no", "date", "client", "client_name", "company_name", "project", "project_name",
-            "project_title", "supplier", "supplier_name", "delivery_time",
+            "project_title", "product_names", "supplier", "supplier_name", "delivery_time",
             "description", "columns_config", "tax_percent", "subtotal", "tax_amount", "grand_total",
             "currency_code", "exchange_rate", "base_currency_code",
             "delivery_status", "payment_status", "paid_amount", "due_amount", "is_visible_to_staff",
@@ -63,6 +64,10 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
             "order_no", "subtotal", "tax_amount", "grand_total", "due_amount",
             "copied_from", "created_by", "created_at", "updated_at",
         ]
+
+    def get_product_names(self, obj):
+        names = [item.product.product_name for item in obj.items.all() if item.product]
+        return ", ".join(names) if names else (obj.project_title or "")
 
 
     def validate_items(self, value):

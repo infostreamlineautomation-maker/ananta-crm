@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import clsx from "clsx";
 import { ArrowLeft, Eye, Loader2, Plus, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, Paginated } from "@/lib/api";
@@ -275,23 +276,33 @@ function OrdersTab({ projectId }: { projectId: number }) {
           </thead>
           <tbody>
             <TableState loading={loading} empty={!loading && filteredOrders.length === 0} colSpan={5} emptyLabel="No orders linked to this project yet." />
-            {filteredOrders.map((o) => (
-              <tr key={o.id} className={TR}>
-                <td className={TD}>
-                  <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
-                    {o.order_no}
-                  </Link>
-                </td>
-                <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>
-                <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
-                <td className={TD}>
-                  <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
-                </td>
-                <td className={TD}>
-                  <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
-                </td>
-              </tr>
-            ))}
+            {filteredOrders.map((o) => {
+              const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
+              return (
+                <tr
+                  key={o.id}
+                  className={clsx(
+                    TR,
+                    "transition-colors",
+                    isFullPaid ? "bg-emerald-50/70 hover:bg-emerald-100/60" : "hover:bg-surface-hover"
+                  )}
+                >
+                  <td className={TD}>
+                    <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
+                      {o.order_no}
+                    </Link>
+                  </td>
+                  <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>
+                  <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
+                  <td className={TD}>
+                    <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                  </td>
+                  <td className={TD}>
+                    <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

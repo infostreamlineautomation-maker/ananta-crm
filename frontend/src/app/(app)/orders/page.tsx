@@ -32,6 +32,7 @@ import { ExportColumn } from "@/lib/export-utils";
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
   { header: "Project No", accessor: (o: any) => o.order_no, category: "Basic Info", defaultSelected: true },
   { header: "Project Name / Title", accessor: (o: any) => o.project_title || o.project_name || "", category: "Basic Info", defaultSelected: true },
+  { header: "Product", accessor: (o: any) => o.product_names || (o.items?.map((it: any) => it.product_name).filter(Boolean).join(", ") || ""), category: "Basic Info", defaultSelected: true },
   { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info", defaultSelected: true },
   { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor", defaultSelected: true },
   { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor", defaultSelected: false },
@@ -81,6 +82,7 @@ const ORDERS_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Checkbox", required: true },
   { key: "order_no", label: "Project No", required: true },
   { key: "project_title", label: "Project Name / Title", defaultVisible: false },
+  { key: "product_name", label: "Product", defaultVisible: false },
   { key: "images", label: "Images" },
   { key: "date", label: "Date" },
   { key: "client_name", label: "Client" },
@@ -160,6 +162,11 @@ export default function OrdersPage() {
       {
         key: "order_no",
         label: "Project No",
+        type: "text",
+      },
+      {
+        key: "product_name",
+        label: "Product",
         type: "text",
       },
       {
@@ -483,9 +490,18 @@ export default function OrdersPage() {
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No projects found matching criteria."
               />
-              {data?.results.map((o) => (
-                <tr key={o.id} className={`${TR} hover:bg-surface-hover transition-colors`}>
-                  {grid.columns
+              {data?.results.map((o) => {
+                const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
+                return (
+                  <tr
+                    key={o.id}
+                    className={clsx(
+                      TR,
+                      "transition-colors",
+                      isFullPaid ? "bg-emerald-50/70 hover:bg-emerald-100/60" : "hover:bg-surface-hover"
+                    )}
+                  >
+                    {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
                     .map((col) => {
                       switch (col.key) {
@@ -517,6 +533,12 @@ export default function OrdersPage() {
                           return (
                             <td key="project_title" className={`${TD} font-medium text-ink max-w-[200px] truncate`} title={o.project_title || ""}>
                               {o.project_title || "—"}
+                            </td>
+                          );
+                        case "product_name":
+                          return (
+                            <td key="product_name" className={`${TD} font-medium text-ink max-w-[200px] truncate`} title={o.product_names || (o.items?.map((it: any) => it.product_name).filter(Boolean).join(", ") || "")}>
+                              {o.product_names || (o.items?.map((it: any) => it.product_name).filter(Boolean).join(", ") || "—")}
                             </td>
                           );
                         case "images":
@@ -606,9 +628,16 @@ export default function OrdersPage() {
                               <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
                             </td>
                           );
-                        case "payment_status":
+                        case "payment_status": {
+                          const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
                           return (
-                            <td key="payment_status" className={TD}>
+                            <td
+                              key="payment_status"
+                              className={clsx(
+                                TD,
+                                isFullPaid && "bg-emerald-50/90 font-medium transition-colors"
+                              )}
+                            >
                               <StatusPill
                                 label={
                                   o.payment_status === "partial" && o.due_amount
@@ -619,6 +648,7 @@ export default function OrdersPage() {
                               />
                             </td>
                           );
+                        }
                         case "created_at":
                           return <td key="created_at" className={`${TD} text-xs text-ink-muted`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>;
                         case "updated_at":
@@ -661,8 +691,9 @@ export default function OrdersPage() {
                           return null;
                       }
                     })}
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

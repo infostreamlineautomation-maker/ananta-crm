@@ -778,40 +778,50 @@ export default function ClientDetailPage() {
                   colSpan={orderCols.size}
                   emptyLabel={orders.length === 0 ? "No orders placed by this client yet." : "No orders match filter criteria."}
                 />
-                {filteredOrders.map((o) => (
-                  <tr key={o.id} className={TR}>
-                    {orderCols.has("order_no") && (
-                      <td className={TD}>
-                        <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-600">
-                          {o.order_no}
-                        </Link>
-                      </td>
-                    )}
-                    {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
-                    {orderCols.has("grand_total") && (
-                      <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(o.grand_total, o.currency_code || client.currency_code || undefined)}</td>
-                    )}
-                    {orderCols.has("delivery_status") && (
-                      <td className={TD}>
-                        <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
-                      </td>
-                    )}
-                    {orderCols.has("payment_status") && (
-                      <td className={TD}>
-                        <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
-                      </td>
-                    )}
-                    {orderCols.has("actions") && (
-                      <td className={`${TD} text-right`}>
-                        <Link href={`/orders/${o.id}?viewOnly=true`}>
-                          <Button size="sm" variant="secondary">
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </Button>
-                        </Link>
-                      </td>
-                    )}
-                  </tr>
-                ))}
+                {filteredOrders.map((o) => {
+                  const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
+                  return (
+                    <tr
+                      key={o.id}
+                      className={clsx(
+                        TR,
+                        "transition-colors",
+                        isFullPaid ? "bg-emerald-50/70 hover:bg-emerald-100/60" : "hover:bg-surface-hover"
+                      )}
+                    >
+                      {orderCols.has("order_no") && (
+                        <td className={TD}>
+                          <Link href={`/orders/${o.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-600">
+                            {o.order_no}
+                          </Link>
+                        </td>
+                      )}
+                      {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
+                      {orderCols.has("grand_total") && (
+                        <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(o.grand_total, o.currency_code || client.currency_code || undefined)}</td>
+                      )}
+                      {orderCols.has("delivery_status") && (
+                        <td className={TD}>
+                          <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                        </td>
+                      )}
+                      {orderCols.has("payment_status") && (
+                        <td className={TD}>
+                          <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                        </td>
+                      )}
+                      {orderCols.has("actions") && (
+                        <td className={`${TD} text-right`}>
+                          <Link href={`/orders/${o.id}?viewOnly=true`}>
+                            <Button size="sm" variant="secondary">
+                              <Eye className="h-3.5 w-3.5" /> View
+                            </Button>
+                          </Link>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

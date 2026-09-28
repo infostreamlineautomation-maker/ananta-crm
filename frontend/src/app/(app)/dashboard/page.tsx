@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import clsx from "clsx";
 import {
   TrendingUp,
   TrendingDown,
@@ -307,33 +308,42 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   )}
-                  {recentOrders.map((o) => (
-                    <tr key={o.id} className="border-b border-border last:border-b-0 hover:bg-surface-hover transition-colors">
-                      <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">
-                        <Link href={`/orders/${o.id}`} className="hover:text-primary-500">
-                          {o.order_no}
-                        </Link>
-                      </td>
-                      <td className="px-5 py-3 font-medium text-ink">{o.client_name}</td>
-                      <td className="px-5 py-3">
-                        <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <StatusPill label={labelize(o.payment_status || "pending")} tone={PAYMENT_STATUS_TONE[o.payment_status || "pending"]} />
-                      </td>
-                      <td className="tnum px-5 py-3 text-right">
-                        <div className="font-mono font-bold text-ink">
-                          {formatCurrency(o.grand_total, o.currency_code || baseCurr)}
-                        </div>
-                        {o.payment_status === "partial" && o.paid_amount && (
-                          <div className="text-[11px] text-amber-600 font-mono">
-                            Paid: {formatCurrency(o.paid_amount, o.currency_code || baseCurr)}
-                          </div>
+                  {recentOrders.map((o) => {
+                    const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
+                    return (
+                      <tr
+                        key={o.id}
+                        className={clsx(
+                          "border-b border-border last:border-b-0 transition-colors",
+                          isFullPaid ? "bg-emerald-50/70 hover:bg-emerald-100/60" : "hover:bg-surface-hover"
                         )}
-                      </td>
-                      <td className="px-5 py-3 text-ink-muted text-[13px]">{formatDate(o.date)}</td>
-                    </tr>
-                  ))}
+                      >
+                        <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">
+                          <Link href={`/orders/${o.id}`} className="hover:text-primary-500">
+                            {o.order_no}
+                          </Link>
+                        </td>
+                        <td className="px-5 py-3 font-medium text-ink">{o.client_name}</td>
+                        <td className="px-5 py-3">
+                          <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                        </td>
+                        <td className="px-5 py-3">
+                          <StatusPill label={labelize(o.payment_status || "pending")} tone={PAYMENT_STATUS_TONE[o.payment_status || "pending"]} />
+                        </td>
+                        <td className="tnum px-5 py-3 text-right">
+                          <div className="font-mono font-bold text-ink">
+                            {formatCurrency(o.grand_total, o.currency_code || baseCurr)}
+                          </div>
+                          {o.payment_status === "partial" && o.paid_amount && (
+                            <div className="text-[11px] text-amber-600 font-mono">
+                              Paid: {formatCurrency(o.paid_amount, o.currency_code || baseCurr)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-ink-muted text-[13px]">{formatDate(o.date)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
