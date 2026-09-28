@@ -13,6 +13,7 @@ interface DonutChartProps {
   valueType?: "currency" | "count";
   currencyCode?: string;
   className?: string;
+  layout?: "vertical" | "horizontal" | "auto";
 }
 
 export function DonutChart({
@@ -23,6 +24,7 @@ export function DonutChart({
   valueType = "currency",
   currencyCode = "INR",
   className,
+  layout = "auto",
 }: DonutChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -82,11 +84,20 @@ export function DonutChart({
   const activeSlice = hoverIndex !== null ? slices[hoverIndex] : null;
 
   return (
-    <div className={clsx("flex flex-col gap-4", className)}>
+    <div className={clsx("flex flex-col gap-3", className)}>
       {title && <h4 className="text-[14px] font-bold text-ink">{title}</h4>}
 
-      <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
-        <div className="relative flex-none my-1" style={{ width: size, height: size }}>
+      <div
+        className={clsx(
+          "w-full items-center gap-4",
+          layout === "vertical"
+            ? "flex flex-col"
+            : layout === "horizontal"
+            ? "flex flex-row"
+            : "flex flex-col sm:flex-row"
+        )}
+      >
+        <div className="relative flex-none my-1 mx-auto" style={{ width: size, height: size }}>
           {totalValue === 0 ? (
             <div
               className="flex h-full w-full items-center justify-center rounded-full border-4 border-dashed border-border text-center text-xs font-medium text-ink-faint"
@@ -150,17 +161,19 @@ export function DonutChart({
                 onMouseEnter={() => setHoverIndex(idx)}
                 onMouseLeave={() => setHoverIndex(null)}
                 className={clsx(
-                  "flex items-center justify-between py-1.5 px-1.5 rounded-md transition-colors cursor-pointer gap-2",
+                  "flex items-center justify-between py-1.5 px-2 rounded-md transition-colors cursor-pointer gap-2",
                   isHovered ? "bg-surface-hover" : "hover:bg-surface-hover/50",
                 )}
               >
-                <div className="flex items-center gap-1.5 min-w-0 shrink">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="h-2.5 w-2.5 rounded-full flex-none" style={{ backgroundColor: item.color }} />
-                  <span className="text-[12.5px] font-medium text-ink truncate">{item.label}</span>
+                  <span className="text-[13px] font-medium text-ink whitespace-nowrap">{item.label}</span>
                 </div>
-                <div className="flex items-center gap-2 text-right font-mono text-[12px] shrink-0">
-                  <span className="text-ink-muted text-[11px]">{pct.toFixed(0)}%</span>
-                  <span className="font-semibold text-ink whitespace-nowrap">
+                <div className="flex items-center gap-2.5 text-right font-mono text-[12.5px] shrink-0">
+                  <span className="text-ink-muted text-[11px] bg-surface-sunken/60 px-1.5 py-0.5 rounded font-medium">
+                    {pct.toFixed(0)}%
+                  </span>
+                  <span className="font-bold text-ink whitespace-nowrap">
                     {valueType === "currency" ? formatCurrency(item.amount, currencyCode) : `${item.count}`}
                   </span>
                 </div>

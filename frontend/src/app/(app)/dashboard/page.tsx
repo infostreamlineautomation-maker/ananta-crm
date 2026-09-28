@@ -265,7 +265,7 @@ export default function DashboardPage() {
                 <h3 className="text-[15px] font-extrabold text-ink">Collections Breakdown</h3>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">By Payment</span>
               </div>
-              <DonutChart data={analytics.payment_breakdown} size={150} thickness={18} currencyCode={baseCurr} />
+              <DonutChart data={analytics.payment_breakdown} size={140} thickness={18} currencyCode={baseCurr} layout="vertical" />
             </div>
 
             <div className="mt-4 pt-4 border-t border-border/80 flex items-center justify-between text-[12.5px]">
