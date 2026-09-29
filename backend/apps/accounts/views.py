@@ -115,6 +115,17 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return UserCreateSerializer if self.request.method == "POST" else UserSerializer
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        from apps.organizations.models import Organization, OrganizationMembership
+
+        active_org = getattr(self.request, "organization", None)
+        if active_org:
+            OrganizationMembership.objects.get_or_create(user=user, organization=active_org)
+        for org in Organization.objects.all():
+            OrganizationMembership.objects.get_or_create(user=user, organization=org)
+        return user
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.id == request.user.id:
