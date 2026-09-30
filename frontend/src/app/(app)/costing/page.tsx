@@ -6,7 +6,7 @@ import { Download, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList } from "@/lib/hooks";
 import { Client, CostingDetail, Supplier } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
@@ -51,7 +51,6 @@ const COSTING_PAGE_COLUMNS: ColumnDef[] = [
 export default function CostingPage() {
   const { can } = useAuth();
   const toast = useToast();
-  const [page, setPage] = useState(1);
   const [viewingCosting, setViewingCosting] = useState<CostingDetail | null>(null);
   const [deleting, setDeleting] = useState<CostingDetail | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -161,25 +160,31 @@ export default function CostingPage() {
     baseColumns: baseFilterColumns,
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/costings/?${params.toString()}`;
-  }, [appendQueryParams, page]);
+  }, [appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<CostingDetail>(path);
+  const {
+    items: costings,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<CostingDetail>(basePath);
 
   const canAdd = can("costing", "add");
   const canEdit = can("costing", "edit");
   const canDelete = can("costing", "delete");
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === costings.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((c) => c.id)));
+      setSelected(new Set(costings.map((c) => c.id)));
     }
   };
 
@@ -381,16 +386,14 @@ export default function CostingPage() {
         activeFilters={activeFilters}
         onFilterChange={(k, v) => {
           setFilter(k, v);
-          setPage(1);
         }}
         onReset={() => {
           resetFilters();
-          setPage(1);
         }}
         actions={
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={costings}
               selectedIds={selected}
               filename="costings_export"
               title="Costing Report"
@@ -427,7 +430,7 @@ export default function CostingPage() {
           </div>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={costings}
               selectedIds={selected}
               filename="costings_export"
               title="Costing Report"
@@ -462,7 +465,7 @@ export default function CostingPage() {
                         <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(costings.length && selected.size === costings.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -489,7 +492,6 @@ export default function CostingPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -502,11 +504,11 @@ export default function CostingPage() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && costings.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No costing sheets yet."
               />
-              {data?.results.map((c) => (
+              {costings.map((c) => (
                 <tr key={c.id} className={TR}>
                   {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
@@ -516,7 +518,14 @@ export default function CostingPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={costings.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="costings"
+        />
       </Card>
 
       {viewingCosting && (

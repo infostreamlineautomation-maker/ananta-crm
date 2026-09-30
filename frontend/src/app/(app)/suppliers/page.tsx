@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
-import { usePaginatedList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useDebouncedValue } from "@/lib/hooks";
 import { Company, Country, CustomFieldDefinition, Product, Supplier } from "@/lib/types";
 import { CompanyForm } from "@/app/(app)/companies/CompanyForm";
 import { useToast } from "@/components/ui/Toast";
@@ -29,7 +29,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
@@ -89,7 +89,6 @@ export default function SuppliersPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [copiedContact, setCopiedContact] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
@@ -194,15 +193,22 @@ export default function SuppliersPage() {
     ],
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/suppliers/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams, page]);
+  }, [debouncedSearch, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<Supplier>(path);
+  const {
+    items: suppliers,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<Supplier>(basePath);
 
   const [editing, setEditing] = useState<Supplier | "new" | null>(null);
   const [deleting, setDeleting] = useState<Supplier | null>(null);
@@ -214,11 +220,10 @@ export default function SuppliersPage() {
   const canDelete = can("suppliers", "delete");
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === suppliers.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((s) => s.id)));
+      setSelected(new Set(suppliers.map((s) => s.id)));
     }
   };
 
@@ -306,24 +311,21 @@ export default function SuppliersPage() {
         search={search}
         onSearchChange={(val) => {
           setSearch(val);
-          setPage(1);
         }}
         searchPlaceholder="Search suppliers by name, company, email..."
         filters={filterColumns}
         activeFilters={activeFilters}
         onFilterChange={(k, v) => {
           setFilter(k, v);
-          setPage(1);
         }}
         onReset={() => {
           resetFilters();
           setSearch("");
-          setPage(1);
         }}
         actions={
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={suppliers}
               selectedIds={selected}
               filename="suppliers_export"
               title="Suppliers Directory"
@@ -358,7 +360,7 @@ export default function SuppliersPage() {
           </div>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={suppliers}
               selectedIds={selected}
               filename="suppliers_export"
               title="Suppliers Directory"
@@ -400,7 +402,7 @@ export default function SuppliersPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(suppliers.length && selected.size === suppliers.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -455,7 +457,6 @@ export default function SuppliersPage() {
                                 activeFilters={activeFilters}
                                 onFilterChange={(k, v) => {
                                   setFilter(k, v);
-                                  setPage(1);
                                 }}
                               />
                             )}
@@ -484,7 +485,6 @@ export default function SuppliersPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -497,12 +497,12 @@ export default function SuppliersPage() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && suppliers.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No suppliers yet."
               />
-              {data?.results.map((s, idx) => {
-                const srNo = (page - 1) * 20 + idx + 1;
+              {suppliers.map((s, idx) => {
+                const srNo = idx + 1;
                 const totalDocs = s.files?.length || 0;
                 const productsCount = s.supplier_products?.length || 0;
 
@@ -716,7 +716,14 @@ export default function SuppliersPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={suppliers.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="suppliers"
+        />
       </Card>
 
       {confirmBulkDelete && (

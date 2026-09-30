@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Building2, Download, Eye, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Company, Country } from "@/lib/types";
 import { formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { CompanyForm } from "./CompanyForm";
 import { FilterBar } from "@/components/ui/FilterBar";
@@ -80,7 +80,6 @@ export default function CompaniesPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
@@ -173,15 +172,22 @@ export default function CompaniesPage() {
     ],
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/companies/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams, page]);
+  }, [debouncedSearch, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<Company>(path);
+  const {
+    items: companies,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<Company>(basePath);
 
   const [editing, setEditing] = useState<Company | "new" | null>(null);
   const [deleting, setDeleting] = useState<Company | null>(null);
@@ -193,11 +199,10 @@ export default function CompaniesPage() {
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === companies.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((c) => c.id)));
+      setSelected(new Set(companies.map((c) => c.id)));
     }
   };
 
@@ -332,7 +337,7 @@ export default function CompaniesPage() {
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={companies}
               selectedIds={selected}
               filename="companies_export"
               title="Companies Directory"
@@ -355,24 +360,21 @@ export default function CompaniesPage() {
           search={search}
           onSearchChange={(val) => {
             setSearch(val);
-            setPage(1);
           }}
           searchPlaceholder="Search companies by name, email, phone..."
           filters={filterColumns}
           activeFilters={activeFilters}
           onFilterChange={(k, v) => {
             setFilter(k, v);
-            setPage(1);
           }}
           onReset={() => {
             resetFilters();
             setSearch("");
-            setPage(1);
           }}
           actions={
             <div className="flex items-center gap-2">
               <ExportDropdown
-                data={data?.results || []}
+                data={companies}
                 selectedIds={selected}
                 filename="companies_export"
                 title="Companies Directory"
@@ -408,7 +410,7 @@ export default function CompaniesPage() {
                         <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(companies.length && selected.size === companies.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -446,7 +448,6 @@ export default function CompaniesPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -459,11 +460,11 @@ export default function CompaniesPage() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && companies.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No companies yet."
               />
-              {data?.results.map((c) => (
+              {companies.map((c) => (
                 <tr key={c.id} className={TR}>
                   {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
@@ -473,7 +474,14 @@ export default function CompaniesPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={companies.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="companies"
+        />
       </Card>
 
       <SlideOver open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Add Company" : "Edit Company"}>

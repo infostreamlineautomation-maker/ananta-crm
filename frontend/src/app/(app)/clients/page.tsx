@@ -6,7 +6,7 @@ import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Search, Trash2 } fr
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ClientGroup, ClientType, Company, Country, CustomFieldDefinition } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -24,7 +24,7 @@ import { Combobox } from "@/components/ui/Combobox";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 import { CompanyForm } from "../companies/CompanyForm";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
@@ -88,7 +88,6 @@ export default function ClientsPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
@@ -191,16 +190,23 @@ export default function ClientsPage() {
     ],
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (selectedGroup !== "all") params.set("groups", String(selectedGroup));
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/clients/?${params.toString()}`;
-  }, [debouncedSearch, selectedGroup, appendQueryParams, page]);
+  }, [debouncedSearch, selectedGroup, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<Client>(path);
+  const {
+    items: clients,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<Client>(basePath);
 
   const [editing, setEditing] = useState<Client | "new" | null>(null);
   const [deleting, setDeleting] = useState<Client | null>(null);
@@ -213,11 +219,10 @@ export default function ClientsPage() {
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === clients.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((c) => c.id)));
+      setSelected(new Set(clients.map((c) => c.id)));
     }
   };
 
@@ -267,7 +272,7 @@ export default function ClientsPage() {
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={clients}
               selectedIds={selected}
               filename="clients_export"
               title="Clients Directory"
@@ -290,24 +295,21 @@ export default function ClientsPage() {
           search={search}
           onSearchChange={(val) => {
             setSearch(val);
-            setPage(1);
           }}
           searchPlaceholder="Search clients by name, email, phone..."
           filters={filterColumns}
           activeFilters={activeFilters}
           onFilterChange={(k, v) => {
             setFilter(k, v);
-            setPage(1);
           }}
           onReset={() => {
             resetFilters();
             setSearch("");
-            setPage(1);
           }}
           actions={
             <div className="flex items-center gap-2">
               <ExportDropdown
-                data={data?.results || []}
+                data={clients}
                 selectedIds={selected}
                 filename="clients_export"
                 title="Clients Directory"
@@ -341,7 +343,6 @@ export default function ClientsPage() {
             type="button"
             onClick={() => {
               setSelectedGroup("all");
-              setPage(1);
             }}
             className={clsx(
               "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
@@ -361,7 +362,6 @@ export default function ClientsPage() {
                 type="button"
                 onClick={() => {
                   setSelectedGroup(grp.id);
-                  setPage(1);
                 }}
                 className={clsx(
                   "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
@@ -422,7 +422,7 @@ export default function ClientsPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(clients.length && selected.size === clients.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -467,7 +467,6 @@ export default function ClientsPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -480,11 +479,11 @@ export default function ClientsPage() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && clients.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No clients yet."
               />
-              {data?.results.map((c) => (
+              {clients.map((c) => (
                 <tr key={c.id} className={TR}>
                   {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
@@ -609,7 +608,14 @@ export default function ClientsPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={clients.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="clients"
+        />
       </Card>
 
       <SlideOver open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Add Client" : "Edit Client"}>

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, Company, Country, QuotationDetail, QuotationSummary } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusPill, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
@@ -107,7 +107,6 @@ export default function QuotationsPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const grid = useTableGrid({
     tableKey: "quotations",
     defaultColumns: QUOTATIONS_PAGE_COLUMNS,
@@ -142,11 +141,10 @@ export default function QuotationsPage() {
   };
 
   const toggleExpandAll = () => {
-    if (!data?.results) return;
-    if (expandedIds.size === data.results.length) {
+    if (expandedIds.size === quotations.length) {
       setExpandedIds(new Set());
     } else {
-      setExpandedIds(new Set(data.results.map((q) => q.id)));
+      setExpandedIds(new Set(quotations.map((q) => q.id)));
     }
   };
 
@@ -227,15 +225,22 @@ export default function QuotationsPage() {
     baseColumns: baseFilterColumns,
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/quotations/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams, page]);
+  }, [debouncedSearch, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<QuotationSummary>(path);
+  const {
+    items: quotations,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<QuotationSummary>(basePath);
 
   const canAdd = can("quotations", "add");
   const canEdit = can("quotations", "edit");
@@ -244,11 +249,10 @@ export default function QuotationsPage() {
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === quotations.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((q) => q.id)));
+      setSelected(new Set(quotations.map((q) => q.id)));
     }
   };
 
@@ -284,7 +288,7 @@ export default function QuotationsPage() {
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={quotations}
               selectedIds={selected}
               filename="quotations_export"
               title="Quotations Report"
@@ -307,24 +311,21 @@ export default function QuotationsPage() {
           search={search}
           onSearchChange={(val) => {
             setSearch(val);
-            setPage(1);
           }}
           searchPlaceholder="Search quotation no, client, subject..."
           filters={filterColumns}
           activeFilters={activeFilters}
           onFilterChange={(k, v) => {
             setFilter(k, v);
-            setPage(1);
           }}
           onReset={() => {
             resetFilters();
             setSearch("");
-            setPage(1);
           }}
           actions={
             <div className="flex items-center gap-2">
               <ExportDropdown
-                data={data?.results || []}
+                data={quotations}
                 selectedIds={selected}
                 filename="quotations_export"
                 title="Quotations Report"
@@ -358,10 +359,10 @@ export default function QuotationsPage() {
                   <button
                     type="button"
                     onClick={toggleExpandAll}
-                    title={expandedIds.size === (data?.results?.length || 0) ? "Collapse All" : "Expand All"}
+                    title={expandedIds.size === quotations.length ? "Collapse All" : "Expand All"}
                     className="flex h-6 w-6 items-center justify-center rounded text-ink-muted hover:bg-surface-hover hover:text-ink cursor-pointer transition-colors mx-auto"
                   >
-                    {expandedIds.size > 0 && expandedIds.size === (data?.results?.length || 0) ? (
+                    {expandedIds.size > 0 && expandedIds.size === quotations.length ? (
                       <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
                       <ChevronRight className="h-3.5 w-3.5" />
@@ -384,7 +385,7 @@ export default function QuotationsPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(quotations.length && selected.size === quotations.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -424,7 +425,6 @@ export default function QuotationsPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -437,11 +437,11 @@ export default function QuotationsPage() {
             <tbody className="divide-y divide-border/60">
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && quotations.length === 0}
                 colSpan={grid.visibleColumns.size + 1}
                 emptyLabel="No quotations yet."
               />
-              {data?.results.map((q) => {
+              {quotations.map((q) => {
                 const isExpanded = expandedIds.has(q.id);
                 const itemCount = q.items?.length || 0;
                 return (
@@ -718,7 +718,14 @@ export default function QuotationsPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={quotations.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="quotations"
+        />
       </Card>
 
       {activeLightboxImages && activeLightboxImages.length > 0 && (

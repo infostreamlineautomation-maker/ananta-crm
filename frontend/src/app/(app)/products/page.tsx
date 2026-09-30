@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, ApiError, Paginated } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { apiFetch, ApiError } from "@/lib/api";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { CustomFieldDefinition, Product } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
@@ -14,7 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { DynamicFormFields } from "@/components/custom-fields/DynamicFormFields";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
@@ -40,7 +40,6 @@ export default function ProductsPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
@@ -103,15 +102,22 @@ export default function ProductsPage() {
     defaultVisibleKeys: ["select", "product_name", "description", "actions"],
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/products/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams, page]);
+  }, [debouncedSearch, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<Product>(path);
+  const {
+    items: products,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<Product>(basePath);
 
   const [editing, setEditing] = useState<Product | "new" | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
@@ -121,11 +127,10 @@ export default function ProductsPage() {
   const canDelete = can("catalog", "delete");
 
   const toggleSelectAll = () => {
-    if (!data?.results) return;
-    if (selected.size === data.results.length) {
+    if (selected.size === products.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.results.map((p) => p.id)));
+      setSelected(new Set(products.map((p) => p.id)));
     }
   };
 
@@ -248,19 +253,16 @@ export default function ProductsPage() {
         search={search}
         onSearchChange={(val) => {
           setSearch(val);
-          setPage(1);
         }}
         searchPlaceholder="Search products..."
         filters={filterColumns}
         activeFilters={activeFilters}
         onFilterChange={(k, v) => {
           setFilter(k, v);
-          setPage(1);
         }}
         onReset={() => {
           resetFilters();
           setSearch("");
-          setPage(1);
         }}
         actions={
           <div className="flex items-center gap-2">
@@ -272,7 +274,7 @@ export default function ProductsPage() {
               onReset={grid.resetGrid}
             />
             <ExportDropdown
-              data={data?.results || []}
+              data={products}
               selectedIds={selected}
               filename="products_export"
               title="Product Catalog"
@@ -300,7 +302,7 @@ export default function ProductsPage() {
           </div>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={products}
               selectedIds={selected}
               filename="products_export"
               title="Product Catalog"
@@ -335,7 +337,7 @@ export default function ProductsPage() {
                         <ResizableTh key="select" columnKey="select" grid={grid} isDraggable={false} isResizable={false} align="center" className="w-10 px-3 text-center">
                           <input
                             type="checkbox"
-                            checked={Boolean(data?.results?.length && selected.size === data.results.length)}
+                            checked={Boolean(products.length && selected.size === products.length)}
                             onChange={toggleSelectAll}
                             className="h-3.5 w-3.5 rounded border-border-strong text-primary-500 focus:ring-primary-500/20"
                           />
@@ -364,7 +366,6 @@ export default function ProductsPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -377,11 +378,11 @@ export default function ProductsPage() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && products.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No products yet."
               />
-              {data?.results.map((p) => (
+              {products.map((p) => (
                 <tr key={p.id} className={TR}>
                   {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
@@ -391,7 +392,14 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={products.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="products"
+        />
       </Card>
 
       <ProductModal

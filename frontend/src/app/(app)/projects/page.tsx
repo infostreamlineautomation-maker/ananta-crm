@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Download, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ProjectSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -19,7 +19,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { StatusPill, PROJECT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
@@ -37,7 +37,6 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
 export default function ProjectsPage() {
   const { can } = useAuth();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -79,15 +78,22 @@ export default function ProjectsPage() {
     baseColumns: baseFilterColumns,
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/projects/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams, page]);
+  }, [debouncedSearch, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<ProjectSummary>(path);
+  const {
+    items: projects,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<ProjectSummary>(basePath);
   const canAdd = can("orders", "add");
 
   return (
@@ -96,24 +102,21 @@ export default function ProjectsPage() {
         search={search}
         onSearchChange={(val) => {
           setSearch(val);
-          setPage(1);
         }}
         searchPlaceholder="Search projects by name, client..."
         filters={filterColumns}
         activeFilters={activeFilters}
         onFilterChange={(k, v) => {
           setFilter(k, v);
-          setPage(1);
         }}
         onReset={() => {
           resetFilters();
           setSearch("");
-          setPage(1);
         }}
         actions={
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={projects}
               filename="projects_export"
               title="Projects Report"
               columns={PROJECTS_EXPORT_COLUMNS}
@@ -128,12 +131,12 @@ export default function ProjectsPage() {
       />
 
       {loading && <p className="text-sm text-ink-faint">Loading...</p>}
-      {!loading && (data?.results.length ?? 0) === 0 && (
+      {!loading && projects.length === 0 && (
         <Card className="px-5 py-12 text-center text-sm text-ink-faint">No projects yet.</Card>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data?.results.map((p) => (
+        {projects.map((p) => (
           <Link key={p.id} href={`/projects/${p.id}`}>
             <Card className="flex h-full flex-col gap-2 p-5 transition-shadow hover:shadow-[var(--shadow-pop)]">
               <div className="flex items-start justify-between gap-2">
@@ -153,11 +156,16 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      {data && data.count > 0 && (
-        <Card>
-          <Pagination count={data.count} page={page} onPageChange={setPage} />
-        </Card>
-      )}
+      <Card>
+        <LoadMorePagination
+          loadedCount={projects.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="projects"
+        />
+      </Card>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="New Project">
         <ProjectForm onCancel={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); reload(); }} />

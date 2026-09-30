@@ -7,7 +7,7 @@ import { KeyRound, Pencil, Plus, Shield, ShieldCheck, Trash2, UserCheck, UserPlu
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList } from "@/lib/hooks";
 import { AppUser, Role } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
@@ -18,7 +18,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { formatDate } from "@/lib/format";
 import { useTableGrid } from "@/lib/useTableGrid";
@@ -52,7 +52,6 @@ function UsersPageContent() {
   const roleParam = searchParams.get("role");
   const newParam = searchParams.get("new");
 
-  const [page, setPage] = useState(1);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>(roleParam || "");
 
   const grid = useTableGrid({
@@ -62,14 +61,22 @@ function UsersPageContent() {
   });
 
   const queryUrl = useMemo(() => {
-    let url = `/api/auth/users/?page=${page}`;
+    let url = `/api/auth/users/`;
     if (selectedRoleFilter) {
-      url += `&role=${selectedRoleFilter}`;
+      url += `?role=${selectedRoleFilter}`;
     }
     return url;
-  }, [page, selectedRoleFilter]);
+  }, [selectedRoleFilter]);
 
-  const { data, loading, reload } = usePaginatedList<AppUser>(queryUrl);
+  const {
+    items: users,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<AppUser>(queryUrl);
   const { items: roles, reload: reloadRoles } = useList<Role>("/api/auth/roles/?page_size=100");
 
   const [editing, setEditing] = useState<AppUser | "new" | null>(null);
@@ -168,7 +175,7 @@ function UsersPageContent() {
                   : "text-ink-muted hover:text-ink hover:bg-white/50"
               )}
             >
-              All Roles ({data?.count ?? "..."})
+              All Roles ({totalCount ?? "..."})
             </button>
             {roles.map((r) => (
               <button
@@ -251,11 +258,11 @@ function UsersPageContent() {
             <tbody>
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && users.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No users found."
               />
-              {data?.results.map((u) => (
+              {users.map((u) => (
                 <tr key={u.id} className={TR}>
                   {grid.columns
                     .filter((col) => grid.visibleColumns.has(col.key))
@@ -265,7 +272,14 @@ function UsersPageContent() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={users.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="users"
+        />
       </Card>
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Add User" : "Edit User"}>
