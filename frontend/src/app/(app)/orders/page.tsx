@@ -6,7 +6,7 @@ import { Copy, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Sear
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { usePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
+import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ClientGroup, Company, Country, OrderDetail, OrderImage, OrderSummary } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { Pagination } from "@/components/ui/Pagination";
+import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
@@ -108,7 +108,6 @@ export default function OrdersPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const grid = useTableGrid({
     tableKey: "orders",
@@ -221,16 +220,23 @@ export default function OrdersPage() {
     baseColumns: baseFilterColumns,
   });
 
-  const path = useMemo(() => {
+  const basePath = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (selectedGroup !== "all") params.set("client_group", String(selectedGroup));
     appendQueryParams(params);
-    params.set("page", String(page));
     return `/api/orders/?${params.toString()}`;
-  }, [debouncedSearch, selectedGroup, appendQueryParams, page]);
+  }, [debouncedSearch, selectedGroup, appendQueryParams]);
 
-  const { data, loading, reload } = usePaginatedList<OrderSummary>(path);
+  const {
+    items: orders,
+    count: totalCount,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfinitePaginatedList<OrderSummary>(basePath);
 
   const canAdd = can("orders", "add");
   const canEdit = can("orders", "edit");
@@ -246,8 +252,7 @@ export default function OrdersPage() {
   }
 
   function toggleAll() {
-    if (!data) return;
-    setSelected((prev) => (prev.size === data.results.length ? new Set() : new Set(data.results.map((o) => o.id))));
+    setSelected((prev) => (prev.size === orders.length ? new Set() : new Set(orders.map((o) => o.id))));
   }
 
   async function bulkDelete() {
@@ -273,7 +278,7 @@ export default function OrdersPage() {
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <ExportDropdown
-              data={data?.results || []}
+              data={orders}
               selectedIds={selected}
               filename="projects_export"
               title="Projects Report"
@@ -296,24 +301,21 @@ export default function OrdersPage() {
           search={search}
           onSearchChange={(val) => {
             setSearch(val);
-            setPage(1);
           }}
           searchPlaceholder="Search project no, description..."
           filters={filterColumns}
           activeFilters={activeFilters}
           onFilterChange={(k, v) => {
             setFilter(k, v);
-            setPage(1);
           }}
           onReset={() => {
             resetFilters();
             setSearch("");
-            setPage(1);
           }}
           actions={
             <div className="flex items-center gap-2">
               <ExportDropdown
-                data={data?.results || []}
+                data={orders}
                 selectedIds={selected}
                 filename="projects_export"
                 title="Projects Report"
@@ -351,7 +353,6 @@ export default function OrdersPage() {
             type="button"
             onClick={() => {
               setSelectedGroup("all");
-              setPage(1);
             }}
             className={clsx(
               "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
@@ -371,7 +372,6 @@ export default function OrdersPage() {
                 type="button"
                 onClick={() => {
                   setSelectedGroup(grp.id);
-                  setPage(1);
                 }}
                 className={clsx(
                   "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
@@ -432,7 +432,7 @@ export default function OrdersPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={!!data && data.results.length > 0 && selected.size === data.results.length}
+                            checked={orders.length > 0 && selected.size === orders.length}
                             onChange={toggleAll}
                             aria-label="Select all"
                             className="h-4 w-4 rounded border-border-strong accent-[var(--color-primary-500)] cursor-pointer"
@@ -473,7 +473,6 @@ export default function OrdersPage() {
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
-                                setPage(1);
                               }}
                             />
                           )}
@@ -486,11 +485,11 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-border/60">
               <TableState
                 loading={loading}
-                empty={!loading && (data?.results.length ?? 0) === 0}
+                empty={!loading && orders.length === 0}
                 colSpan={grid.visibleColumns.size}
                 emptyLabel="No projects found matching criteria."
               />
-              {data?.results.map((o) => {
+              {orders.map((o) => {
                 const isFullPaid = o.payment_status === "paid" || (Number(o.due_amount) <= 0 && Number(o.grand_total) > 0);
                 return (
                   <tr
@@ -697,7 +696,14 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
-        {data && <Pagination count={data.count} page={page} onPageChange={setPage} />}
+        <LoadMorePagination
+          loadedCount={orders.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          itemName="projects"
+        />
       </Card>
 
       {activeLightboxImages && (

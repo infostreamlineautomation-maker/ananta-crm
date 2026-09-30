@@ -117,6 +117,123 @@ export function OrderForm({
   const [copying, setCopying] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+
+  const draftKey = `ananta_project_draft_${activeOrganization?.id || "default"}`;
+
+  // Restore draft on mount if creating a new project
+  useEffect(() => {
+    if (order) return;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.date) setDate(d.date);
+        if (d.client) setClient(d.client);
+        if (d.projectTitle) setProjectTitle(d.projectTitle);
+        if (d.currencyCode) setCurrencyCode(d.currencyCode);
+        if (d.supplier) setSupplier(d.supplier);
+        if (d.deliveryTime) setDeliveryTime(d.deliveryTime);
+        if (d.productId) setProductId(d.productId);
+        if (d.qty) setQty(d.qty);
+        if (d.rate) setRate(d.rate);
+        if (d.description) setDescription(d.description);
+        if (d.extraData) setExtraData(d.extraData);
+        if (d.columns && Array.isArray(d.columns)) setColumns(d.columns);
+        if (d.includeGst !== undefined) setIncludeGst(d.includeGst);
+        if (d.taxPercent) setTaxPercent(d.taxPercent);
+        if (d.deliveryStatus) setDeliveryStatus(d.deliveryStatus);
+        if (d.paymentStatus) setPaymentStatus(d.paymentStatus);
+        if (d.paidAmount) setPaidAmount(d.paidAmount);
+        setRestoredDraft(true);
+      }
+    } catch (err) {
+      console.warn("Could not restore draft:", err);
+    }
+  }, [order, draftKey]);
+
+  // Auto-save draft on changes when creating a new project
+  useEffect(() => {
+    if (order) return;
+    const hasContent = client || projectTitle || productId || description || (parseFloat(rate) > 0) || (parseFloat(qty) > 1);
+    if (!hasContent) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const draftObj = {
+          date,
+          client,
+          projectTitle,
+          currencyCode,
+          supplier,
+          deliveryTime,
+          productId,
+          qty,
+          rate,
+          description,
+          extraData,
+          columns,
+          includeGst,
+          taxPercent,
+          deliveryStatus,
+          paymentStatus,
+          paidAmount,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draftObj));
+      } catch (err) {
+        console.warn("Failed to auto-save draft:", err);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    order,
+    draftKey,
+    date,
+    client,
+    projectTitle,
+    currencyCode,
+    supplier,
+    deliveryTime,
+    productId,
+    qty,
+    rate,
+    description,
+    extraData,
+    columns,
+    includeGst,
+    taxPercent,
+    deliveryStatus,
+    paymentStatus,
+    paidAmount,
+  ]);
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {}
+    setRestoredDraft(false);
+    setDate(new Date().toISOString().slice(0, 10));
+    setClient("");
+    setProjectTitle("");
+    setCurrencyCode("");
+    setSupplier("");
+    setDeliveryTime("");
+    setProductId("");
+    setQty("1");
+    setRate("0");
+    setDescription("");
+    setExtraData({});
+    setColumns([]);
+    setIncludeGst(false);
+    setTaxPercent("18");
+    setDeliveryStatus("pending");
+    setPaymentStatus("pending");
+    setPaidAmount("0");
+    setPendingFiles([]);
+    toast.success("Draft discarded.");
+  };
 
   const clientOptions = clients.map((c) => ({
     value: c.id,
@@ -260,23 +377,47 @@ export function OrderForm({
         savedOrder = await apiFetch<OrderDetail>("/api/orders/", { method: "POST", body: JSON.stringify(payload) });
       }
 
+      // Successfully saved order - remove the draft
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {}
+
       // Upload pending images
+      let imageUploadFailed = false;
       if (pendingFiles.length > 0) {
         for (const file of pendingFiles) {
-          const fd = new FormData();
-          fd.append("order", String(savedOrder.id));
-          fd.append("image", file);
-          await apiFetch<OrderImage>("/api/order-images/", {
-            method: "POST",
-            body: fd,
-          });
+          try {
+            const fd = new FormData();
+            fd.append("order", String(savedOrder.id));
+            fd.append("image", file);
+            await apiFetch<OrderImage>("/api/order-images/", {
+              method: "POST",
+              body: fd,
+            });
+          } catch (imgErr) {
+            console.error("Image upload failed:", imgErr);
+            imageUploadFailed = true;
+          }
         }
       }
 
-      toast.success(order ? "Project updated." : "Project created.");
+      if (imageUploadFailed) {
+        toast.error(order ? "Project updated, but some images failed to upload." : "Project created, but some images failed to upload. You can re-upload them on the project detail page.");
+      } else {
+        toast.success(order ? "Project updated." : "Project created.");
+      }
       router.push("/orders");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't save this project.");
+      if (e instanceof ApiError && e.data && typeof e.data === "object") {
+        const errorMessages: string[] = [];
+        for (const [field, val] of Object.entries(e.data)) {
+          const msg = Array.isArray(val) ? val.join(", ") : typeof val === "object" ? JSON.stringify(val) : String(val);
+          errorMessages.push(`${field}: ${msg}`);
+        }
+        setError(errorMessages.join(" | ") || e.message);
+      } else {
+        setError(e instanceof ApiError ? e.message : "Couldn't save this project.");
+      }
     } finally {
       setSaving(false);
     }
@@ -340,6 +481,11 @@ export function OrderForm({
               </Link>
             </>
           )}
+          {!order && (
+            <Button type="button" variant="secondary" onClick={clearDraft} title="Reset all form fields">
+              <RefreshCw className="h-4 w-4" /> Reset
+            </Button>
+          )}
           {readOnly ? (
             canEdit && (
               <Button
@@ -364,6 +510,37 @@ export function OrderForm({
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-800 flex items-start justify-between gap-3 shadow-xs">
+          <div className="flex flex-col gap-1">
+            <span className="font-bold">Cannot Save Project:</span>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {restoredDraft && !order && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-2.5 text-xs text-emerald-900 shadow-xs">
+          <span className="font-medium">
+            Restored your unsaved project draft from this device. All your entered details are safe.
+          </span>
+          <button
+            type="button"
+            onClick={clearDraft}
+            className="ml-3 font-bold underline hover:text-emerald-950 cursor-pointer"
+          >
+            Discard Draft
+          </button>
+        </div>
+      )}
 
       {order && (
         <SendNotificationModal

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError, Paginated } from "./api";
 
 function isPaginated<T>(res: T[] | Paginated<T>): res is Paginated<T> {
@@ -39,6 +39,77 @@ export function usePaginatedList<T>(path: string) {
 
   const reload = () => setReloadKey((k) => k + 1);
   return { data, loading, error, reload };
+}
+
+/** Fetches a DRF paginated list endpoint with 'Load More' continuous pagination.
+ * Resets and loads page 1 whenever `basePath` (filters, search) changes.
+ * Calling `loadMore()` fetches the next page and appends new results to the list. */
+export function useInfinitePaginatedList<T>(basePath: string) {
+  const [items, setItems] = useState<T[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setPage(1);
+
+    const separator = basePath.includes("?") ? "&" : "?";
+    const fullPath = `${basePath}${separator}page=1`;
+
+    apiFetch<Paginated<T>>(fullPath)
+      .then((res) => {
+        if (!cancelled) {
+          setItems(res.results);
+          setCount(res.count);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof ApiError ? e.message : "Couldn't load this list. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [basePath, reloadKey]);
+
+  const loadMore = useCallback(() => {
+    if (loading || loadingMore || items.length >= count) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    const separator = basePath.includes("?") ? "&" : "?";
+    const fullPath = `${basePath}${separator}page=${nextPage}`;
+
+    apiFetch<Paginated<T>>(fullPath)
+      .then((res) => {
+        setItems((prev) => {
+          const existingIds = new Set(prev.map((it: any) => it.id));
+          const newUnique = res.results.filter((it: any) => !existingIds.has(it.id));
+          return [...prev, ...newUnique];
+        });
+        setCount(res.count);
+        setPage(nextPage);
+      })
+      .catch((e) => {
+        setError(e instanceof ApiError ? e.message : "Failed to load more records.");
+      })
+      .finally(() => {
+        setLoadingMore(false);
+      });
+  }, [basePath, loading, loadingMore, items.length, count, page]);
+
+  const hasMore = items.length < count;
+  const reload = () => setReloadKey((k) => k + 1);
+
+  return { items, count, page, loading, loadingMore, hasMore, loadMore, reload, error };
 }
 
 /** Fetches a list once and unwraps it into a flat array, whether the endpoint

@@ -8,7 +8,11 @@ from .models import NumberSequence
 
 
 def next_number(organization, prefix: str = None, doc_type: str = "order", width: int = 3) -> str:
-    """Generate next document number in format PREFIX/001-YY (e.g. AG/001-26)."""
+    """Generate next document number in format PREFIX/001-YY (e.g. AG/001-26).
+    Guarantees uniqueness by advancing past any existing numbers in the database."""
+    from apps.orders.models import Order
+    from apps.quotations.models import Quotation
+
     year_2digit = date.today().strftime("%y")
 
     clean_prefix = (prefix or getattr(organization, f"{doc_type}_prefix", None) or "AG/").strip()
@@ -22,7 +26,17 @@ def next_number(organization, prefix: str = None, doc_type: str = "order", width
         seq, _ = NumberSequence.objects.select_for_update().get_or_create(
             organization=organization, key=key
         )
-        seq.last_value += 1
-        seq.save(update_fields=["last_value"])
-        seq_str = str(seq.last_value).zfill(width)
-        return f"{clean_prefix}{seq_str}-{year_2digit}"
+        while True:
+            seq.last_value += 1
+            seq_str = str(seq.last_value).zfill(width)
+            candidate = f"{clean_prefix}{seq_str}-{year_2digit}"
+
+            exists = False
+            if doc_type == "order":
+                exists = Order.objects.filter(organization=organization, order_no=candidate).exists()
+            elif doc_type == "quotation":
+                exists = Quotation.objects.filter(organization=organization, quotation_no=candidate).exists()
+
+            if not exists:
+                seq.save(update_fields=["last_value"])
+                return candidate

@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.core.serializers import SameOrganizationFieldsMixin
@@ -82,6 +83,7 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
                 return country.currency_code
         return organization.default_currency_code
 
+    @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop("items")
         organization = validated_data["organization"]
@@ -104,17 +106,21 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
             OrderItem.objects.create(order=order, sort_order=i, **item_data)
         order.recalc_totals()
 
-        from apps.notifications.models import Notification
+        try:
+            from apps.notifications.models import Notification
 
-        Notification.objects.create(
-            organization=order.organization,
-            event_type=Notification.ORDER_CREATED,
-            title=f"New order {order.order_no}",
-            message=f"{order.client.client_name} — {order.currency_code} {order.grand_total:,.2f}",
-            order=order,
-        )
+            Notification.objects.create(
+                organization=order.organization,
+                event_type=Notification.ORDER_CREATED,
+                title=f"New order {order.order_no}",
+                message=f"{order.client.client_name if order.client else 'Client'} — {order.currency_code} {order.grand_total:,.2f}",
+                order=order,
+            )
+        except Exception:
+            pass
         return order
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         items_data = validated_data.pop("items", None)
         organization = instance.organization
