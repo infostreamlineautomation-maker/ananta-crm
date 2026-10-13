@@ -175,7 +175,7 @@ export default function ProjectPrintPage() {
           {/* Main Printable Content Container */}
           <div
             className={`flex flex-col justify-between ${
-              hasBackground ? "pt-[160px] px-12 pb-[115px]" : "px-10 py-6"
+              hasBackground ? "pt-[220px] px-12 pb-[115px]" : "px-10 py-6"
             }`}
             style={{ minHeight: hasBackground ? "1120px" : "auto" }}
           >

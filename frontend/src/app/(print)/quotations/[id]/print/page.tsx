@@ -107,6 +107,13 @@ export default function QuotationPrintPage() {
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
   const designation = settings?.quotation_designation || "Proprietor";
   const logoImage = getReportLogo(companyName, settings?.report_logo, settings?.logo || settings?.app_logo);
+  const currency = quotation.currency_code || clientData?.currency_code || settings?.default_currency_code || "INR";
+  const computedSubtotal = (quotation.items || []).reduce((sum, it) => {
+    const q = parseFloat(it.qty) || 0;
+    const r = parseFloat(it.rate) || 0;
+    return sum + q * r;
+  }, 0);
+  const subtotalValue = parseFloat(quotation.subtotal) || computedSubtotal;
 
   // Recipient details
   const toCompanyOrClient =
@@ -237,7 +244,7 @@ export default function QuotationPrintPage() {
           {/* Main Printable Content Container */}
           <div
             className={`flex flex-col justify-between ${
-              hasBackground ? "pt-[160px] px-12 pb-[115px]" : "px-10 py-6"
+              hasBackground ? "pt-[220px] px-12 pb-[115px]" : "px-10 py-6"
             }`}
             style={{ minHeight: hasBackground ? "1120px" : "auto" }}
           >
@@ -298,78 +305,103 @@ export default function QuotationPrintPage() {
                           {col.label.toUpperCase()}
                         </th>
                       ))}
-                      <th className="border-r border-black w-20 px-2 py-2 text-center">
-                        {quotation.col_qty_label?.toUpperCase() || "QTY."}
-                      </th>
-                      <th className={`${hasAnyItemImage ? "border-r border-black" : ""} w-36 px-3 py-2 text-center`}>
-                        {quotation.col_rate_label?.toUpperCase() || "RATE (PER PIECE)"}
-                      </th>
                       {hasAnyItemImage && (
-                        <th className="w-28 px-2 py-2 text-center">
+                        <th className="border-r border-black w-24 px-2 py-2 text-center">
                           REFERENCE
                         </th>
                       )}
+                      <th className="border-r border-black w-20 px-2 py-2 text-center">
+                        {quotation.col_qty_label?.toUpperCase() || "QTY."}
+                      </th>
+                      <th className="border-r border-black w-32 px-3 py-2 text-center">
+                        {quotation.col_rate_label?.toUpperCase() || "RATE (PER PIECE)"}
+                      </th>
+                      <th className="w-32 px-3 py-2 text-right">
+                        AMOUNT
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {quotation.items.map((it, idx) => (
-                      <tr key={idx} className="border-b border-black last:border-b-0">
-                        <td className="border-r border-black px-2 py-2.5 text-center font-medium">
-                          {idx + 1}
-                        </td>
-                        <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                          {it.description}
-                        </td>
-                        {columns.map((col) => (
-                          <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">
-                            {it.extra_data?.[col.key] ?? "—"}
+                    {quotation.items.map((it, idx) => {
+                      const itemQty = parseFloat(it.qty) || 0;
+                      const itemRate = parseFloat(it.rate) || 0;
+                      const itemAmount = itemQty * itemRate;
+
+                      return (
+                        <tr key={idx} className="border-b border-black">
+                          <td className="border-r border-black px-2 py-2.5 text-center font-medium">
+                            {idx + 1}
                           </td>
-                        ))}
-                        <td className="border-r border-black px-2 py-2.5 text-center font-medium">
-                          {it.qty}
-                        </td>
-                        <td className={`${hasAnyItemImage ? "border-r border-black" : ""} px-3 py-2.5 text-center font-medium`}>
-                          {it.rate}
-                        </td>
-                        {hasAnyItemImage && (
-                          <td className="px-2 py-2 text-center align-middle">
-                            {it.image ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const validImages = quotation.items
-                                    .filter((item) => Boolean(item.image))
-                                    .map((item) => ({
-                                      image: mediaUrl(item.image!) || item.image!,
-                                      caption: item.description || `Item #${idx + 1}`,
-                                    }));
-                                  const currentImgUrl = mediaUrl(it.image) || it.image;
-                                  const targetIdx = validImages.findIndex((img) => img.image === currentImgUrl);
-                                  setLightboxImages(validImages);
-                                  setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
-                                  setLightboxOpen(true);
-                                }}
-                                className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-400 bg-white p-1 hover:border-black transition-all shadow-xs"
-                                title="Click to view full image"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={mediaUrl(it.image) || it.image}
-                                  alt={it.description || "Reference image"}
-                                  className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded mx-auto"
-                                />
-                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
-                                  <ZoomIn className="h-4 w-4" />
-                                </span>
-                              </button>
-                            ) : (
-                              <span className="text-black font-semibold text-sm">—</span>
-                            )}
+                          <td className="border-r border-black px-3 py-2.5 text-left font-medium">
+                            {it.description}
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          {columns.map((col) => (
+                            <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">
+                              {it.extra_data?.[col.key] ?? "—"}
+                            </td>
+                          ))}
+                          {hasAnyItemImage && (
+                            <td className="border-r border-black px-2 py-2 text-center align-middle">
+                              {it.image ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const validImages = quotation.items
+                                      .filter((item) => Boolean(item.image))
+                                      .map((item) => ({
+                                        image: mediaUrl(item.image!) || item.image!,
+                                        caption: item.description || `Item #${idx + 1}`,
+                                      }));
+                                    const currentImgUrl = mediaUrl(it.image) || it.image;
+                                    const targetIdx = validImages.findIndex((img) => img.image === currentImgUrl);
+                                    setLightboxImages(validImages);
+                                    setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
+                                    setLightboxOpen(true);
+                                  }}
+                                  className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-400 bg-white p-1 hover:border-black transition-all shadow-xs"
+                                  title="Click to view full image"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={mediaUrl(it.image) || it.image}
+                                    alt={it.description || "Reference image"}
+                                    className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded mx-auto"
+                                  />
+                                  <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
+                                    <ZoomIn className="h-4 w-4" />
+                                  </span>
+                                </button>
+                              ) : (
+                                <span className="text-black font-semibold text-sm">—</span>
+                              )}
+                            </td>
+                          )}
+                          <td className="border-r border-black px-2 py-2.5 text-center font-medium">
+                            {it.qty}
+                          </td>
+                          <td className="border-r border-black px-3 py-2.5 text-center font-medium">
+                            {it.rate}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium tnum">
+                            {itemAmount > 0 ? formatCurrency(itemAmount, currency) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-black font-bold">
+                      <td
+                        colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
+                        className="border-r border-black px-3 py-2 text-right uppercase tracking-wider font-bold"
+                      >
+                        SUBTOTAL
+                      </td>
+                      <td className="px-3 py-2 text-right font-black tnum">
+                        {formatCurrency(subtotalValue, currency)}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
 
