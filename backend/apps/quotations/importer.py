@@ -1,5 +1,6 @@
 import io
 import re
+import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 import openpyxl
@@ -165,58 +166,83 @@ class PDFQuotationExtractor:
 
     def _extract_ocr_lines(self) -> list[str]:
         """
-        Renders PDF pages to high-resolution images and uses native OCR to extract
+        Renders PDF pages to high-resolution images and uses OCR to extract
         text from scanned documents or PDFs where fonts were converted to vector paths.
+        Supports winocr on Windows and pytesseract on Linux/any platform.
         """
+        reconstructed_lines = []
         try:
             import pypdfium2 as pdfium
-            import winocr
-
             pdf = pdfium.PdfDocument(io.BytesIO(self.file_bytes))
-            reconstructed_lines = []
+        except Exception:
+            return []
+
+        # 1. On Windows, try native Windows Media OCR if winocr is installed
+        if sys.platform == "win32":
+            try:
+                import winocr
+
+                for page in pdf:
+                    pil_img = page.render(scale=2).to_pil()
+                    result = winocr.recognize_pil_sync(pil_img, lang="en")
+                    if not result or "lines" not in result:
+                        continue
+
+                    all_words = []
+                    for line in result["lines"]:
+                        for w in line.get("words", []):
+                            rect = w.get("bounding_rect", {})
+                            all_words.append({
+                                "text": w["text"],
+                                "x": rect.get("x", 0),
+                                "y": rect.get("y", 0),
+                                "w": rect.get("width", 0),
+                                "h": rect.get("height", 0),
+                            })
+
+                    all_words.sort(key=lambda w: (w["y"], w["x"]))
+                    rows = []
+                    for w in all_words:
+                        placed = False
+                        for r in rows:
+                            avg_y = sum(item["y"] for item in r) / len(r)
+                            if abs(w["y"] - avg_y) <= 12:
+                                r.append(w)
+                                placed = True
+                                break
+                        if not placed:
+                            rows.append([w])
+
+                    rows.sort(key=lambda r: sum(item["y"] for item in r) / len(r))
+                    for r in rows:
+                        r.sort(key=lambda item: item["x"])
+                        line_str = " ".join(item["text"] for item in r).strip()
+                        if line_str:
+                            reconstructed_lines.append(line_str)
+
+                if reconstructed_lines:
+                    return reconstructed_lines
+            except Exception:
+                pass
+
+        # 2. Cross-platform / Linux fallback using pytesseract if available
+        try:
+            import pytesseract
 
             for page in pdf:
                 pil_img = page.render(scale=2).to_pil()
-                result = winocr.recognize_pil_sync(pil_img, lang="en")
-                if not result or "lines" not in result:
-                    continue
+                text = pytesseract.image_to_string(pil_img)
+                if text:
+                    for l in text.splitlines():
+                        cl = l.strip()
+                        if cl:
+                            reconstructed_lines.append(cl)
+            if reconstructed_lines:
+                return reconstructed_lines
+        except Exception:
+            pass
 
-                all_words = []
-                for line in result["lines"]:
-                    for w in line.get("words", []):
-                        rect = w.get("bounding_rect", {})
-                        all_words.append({
-                            "text": w["text"],
-                            "x": rect.get("x", 0),
-                            "y": rect.get("y", 0),
-                            "w": rect.get("width", 0),
-                            "h": rect.get("height", 0),
-                        })
-
-                # Cluster words into horizontal rows based on y-coordinate
-                all_words.sort(key=lambda w: (w["y"], w["x"]))
-                rows = []
-                for w in all_words:
-                    placed = False
-                    for r in rows:
-                        avg_y = sum(item["y"] for item in r) / len(r)
-                        if abs(w["y"] - avg_y) <= 12:
-                            r.append(w)
-                            placed = True
-                            break
-                    if not placed:
-                        rows.append([w])
-
-                rows.sort(key=lambda r: sum(item["y"] for item in r) / len(r))
-                for r in rows:
-                    r.sort(key=lambda item: item["x"])
-                    line_str = " ".join(item["text"] for item in r).strip()
-                    if line_str:
-                        reconstructed_lines.append(line_str)
-
-            return reconstructed_lines
-        except Exception as e:
-            return []
+        return reconstructed_lines
 
     def extract(self) -> dict:
         full_text = ""
