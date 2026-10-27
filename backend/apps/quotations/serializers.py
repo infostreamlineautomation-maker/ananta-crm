@@ -30,11 +30,16 @@ class Base64OrURLImageField(serializers.ImageField):
 
 class QuotationItemSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    product_name = serializers.CharField(source="product.product_name", read_only=True, default=None)
     image = Base64OrURLImageField(required=False, allow_null=True)
 
     class Meta:
         model = QuotationItem
-        fields = ["id", "description", "qty", "rate", "amount", "image", "extra_data", "sort_order"]
+        fields = [
+            "id", "product", "product_name", "description", "qty", "rate",
+            "supplier_rate", "profit", "margin_percent", "total_profit",
+            "amount", "image", "extra_data", "sort_order"
+        ]
 
 
 class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -43,15 +48,20 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
     company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
     client_address = serializers.CharField(source="client.address", read_only=True, default="")
     project_name = serializers.CharField(source="project.name", read_only=True)
+    supplier_name = serializers.CharField(source="supplier.company_name", read_only=True, default=None)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    same_organization_fields = ["client", "project"]
+    total_supplier_cost = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_profit = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    same_organization_fields = ["client", "project", "supplier"]
 
     class Meta:
         model = Quotation
         fields = [
-            "id", "quotation_no", "quotation_date", "client", "client_name", "company_name", "client_address", "project", "project_name", "to_name", "to_address",
-            "subject", "intro_text", "notes", "footer_content", "col_qty_label", "col_rate_label",
-            "columns_config", "currency_code", "exchange_rate", "base_currency_code", "status", "subtotal", "items",
+            "id", "quotation_no", "quotation_date", "client", "client_name", "company_name", "client_address",
+            "project", "project_name", "supplier", "supplier_name", "to_name", "to_address",
+            "subject", "intro_text", "notes", "footer_content", "whatsapp_message", "col_qty_label", "col_rate_label",
+            "columns_config", "currency_code", "exchange_rate", "base_currency_code", "status",
+            "subtotal", "total_supplier_cost", "total_profit", "items",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
         read_only_fields = ["quotation_no", "is_deleted", "created_by", "created_at", "updated_at"]

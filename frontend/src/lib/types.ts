@@ -231,9 +231,15 @@ export interface QuotationColumn {
 
 export interface QuotationItemDetail {
   id?: number;
+  product?: number | null;
+  product_name?: string | null;
   description: string;
   qty: string;
   rate: string;
+  supplier_rate?: string;
+  profit?: string;
+  margin_percent?: string;
+  total_profit?: string;
   amount?: string;
   image?: string | null;
   extra_data: Record<string, string>;
@@ -252,18 +258,23 @@ export interface QuotationDetail {
   client_address?: string | null;
   project: number | null;
   project_name: string | null;
+  supplier?: number | null;
+  supplier_name?: string | null;
   to_name: string;
   to_address: string;
   subject: string;
   intro_text: string;
   notes: string;
   footer_content: string;
+  whatsapp_message?: string;
   col_qty_label: string;
   col_rate_label: string;
   columns_config: QuotationColumn[];
   currency_code: string;
   status: QuotationStatus;
   subtotal: string;
+  total_supplier_cost?: string;
+  total_profit?: string;
   items: QuotationItemDetail[];
   is_deleted: boolean;
   created_by: number | null;
@@ -281,6 +292,8 @@ export interface QuotationSummary {
   client_address?: string | null;
   project: number | null;
   project_name?: string | null;
+  supplier?: number | null;
+  supplier_name?: string | null;
   to_name?: string | null;
   to_address?: string | null;
   subject: string;

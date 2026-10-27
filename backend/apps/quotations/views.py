@@ -1,7 +1,9 @@
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
 from apps.accounts.permissions import has_permission
@@ -12,8 +14,10 @@ from apps.core.viewsets import SoftDeleteModuleViewSet
 from apps.orders.models import Order, OrderItem
 from apps.orders.serializers import OrderSerializer
 
+from .importer import ExcelQuotationExtractor, PDFQuotationExtractor
 from .models import Quotation
 from .serializers import QuotationSerializer, QuotationToOrderSerializer
+
 
 
 class QuotationFilter(django_filters.FilterSet):
@@ -23,6 +27,7 @@ class QuotationFilter(django_filters.FilterSet):
     date_to = django_filters.DateFilter(field_name="quotation_date", lookup_expr="lte")
     country = django_filters.NumberFilter(field_name="client__country_id")
     client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
+    supplier = django_filters.NumberFilter(field_name="supplier_id")
 
     class Meta:
         model = Quotation
@@ -30,6 +35,7 @@ class QuotationFilter(django_filters.FilterSet):
             "status",
             "client",
             "project",
+            "supplier",
             "min_amount",
             "max_amount",
             "date_from",
@@ -40,7 +46,7 @@ class QuotationFilter(django_filters.FilterSet):
 
 
 class QuotationViewSet(SoftDeleteModuleViewSet):
-    queryset = Quotation.objects.select_related("client", "project").prefetch_related("items")
+    queryset = Quotation.objects.select_related("client", "project", "supplier").prefetch_related("items")
     serializer_class = QuotationSerializer
     module_name = QUOTATIONS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
@@ -199,12 +205,14 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             quotation_date=copy_date,
             client=source.client,
             project=source.project,
+            supplier=source.supplier,
             to_name=source.to_name,
             to_address=source.to_address,
             subject=copied_subject,
             intro_text=source.intro_text,
             notes=source.notes,
             footer_content=source.footer_content,
+            whatsapp_message=source.whatsapp_message,
             col_qty_label=source.col_qty_label,
             col_rate_label=source.col_rate_label,
             columns_config=source.columns_config or [],
@@ -218,9 +226,14 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
         for i, item in enumerate(source.items.all()):
             QuotationItem.objects.create(
                 quotation=new_quotation,
+                product=item.product,
                 description=item.description,
                 qty=item.qty,
                 rate=item.rate,
+                supplier_rate=item.supplier_rate,
+                profit=item.profit,
+                margin_percent=item.margin_percent,
+                total_profit=item.total_profit,
                 image=item.image,
                 extra_data=item.extra_data or {},
                 sort_order=i,
@@ -268,6 +281,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             date=input_serializer.validated_data["date"],
             client=quotation.client,
             project=quotation.project,
+            supplier=quotation.supplier,
             currency_code=quotation.currency_code,
             exchange_rate=quotation.exchange_rate,
             base_currency_code=quotation.base_currency_code,
@@ -279,8 +293,11 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
         )
 
         for i, item in enumerate(quotation.items.all()):
-            product_name = (item.description or f"Item {i + 1}")[:200]
-            product, _ = Product.objects.get_or_create(product_name=product_name, organization=quotation.organization)
+            if item.product:
+                product = item.product
+            else:
+                product_name = (item.description or f"Item {i + 1}")[:200]
+                product, _ = Product.objects.get_or_create(product_name=product_name, organization=quotation.organization)
             OrderItem.objects.create(
                 order=order,
                 product=product,
@@ -465,3 +482,42 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             return Response({"detail": "WhatsApp communication logged."})
 
         return Response({"detail": "Invalid channel."}, status=400)
+
+    @action(detail=False, methods=["post"], url_path="parse-import", parser_classes=[MultiPartParser, FormParser])
+    def parse_import(self, request):
+        """
+        Parses an uploaded Quotation PDF or Excel sheet and returns extracted structured
+        data along with matched entities and missing fields that need user confirmation.
+        """
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response({"detail": "No file uploaded. Please upload a PDF or Excel document."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 20MB max file size check
+        if uploaded_file.size > 20 * 1024 * 1024:
+            return Response({"detail": "File size exceeds 20MB limit."}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = uploaded_file.name.lower()
+        file_bytes = uploaded_file.read()
+        org = getattr(request, "organization", None)
+
+        try:
+            if filename.endswith(".pdf"):
+                extractor = PDFQuotationExtractor(file_bytes, organization=org)
+                result = extractor.extract()
+            elif filename.endswith((".xlsx", ".xls", ".csv")):
+                extractor = ExcelQuotationExtractor(file_bytes, organization=org)
+                result = extractor.extract()
+            else:
+                return Response(
+                    {"detail": "Unsupported file format. Please upload a PDF (.pdf) or Excel (.xlsx, .xls, .csv) file."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"detail": f"Failed to extract quotation data: {str(e)}"},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+

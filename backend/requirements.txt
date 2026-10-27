@@ -14,3 +14,8 @@ gunicorn==23.0.0
 whitenoise==6.9.0
 cloudinary==1.42.2
 django-cloudinary-storage==0.3.0
+pypdf==6.21.2
+openpyxl==3.1.5
+pypdfium2==5.14.0
+winocr==0.0.15
+

@@ -25,12 +25,16 @@ class Quotation(AuditedModel, SoftDeleteModel):
     project = models.ForeignKey(
         "projects.Project", null=True, blank=True, on_delete=models.SET_NULL, related_name="quotations"
     )
+    supplier = models.ForeignKey(
+        "suppliers.Supplier", null=True, blank=True, on_delete=models.SET_NULL, related_name="quotations"
+    )
     to_name = models.CharField(max_length=200, blank=True)
     to_address = models.TextField(blank=True)
     subject = models.CharField(max_length=250, blank=True)
     intro_text = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     footer_content = models.TextField(blank=True)
+    whatsapp_message = models.TextField(blank=True)
 
     col_qty_label = models.CharField(max_length=50, default="Qty")
     col_rate_label = models.CharField(max_length=50, default="Rate")
@@ -68,12 +72,27 @@ class Quotation(AuditedModel, SoftDeleteModel):
     def subtotal(self):
         return sum((item.qty * item.rate for item in self.items.all()), 0)
 
+    @property
+    def total_supplier_cost(self):
+        return sum((item.supplier_rate * item.qty for item in self.items.all()), 0)
+
+    @property
+    def total_profit(self):
+        return sum(((item.profit or (item.rate - item.supplier_rate)) * item.qty for item in self.items.all()), 0)
+
 
 class QuotationItem(models.Model):
     quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        "catalog.Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="quotation_items"
+    )
     description = models.TextField(blank=True)
     qty = models.DecimalField(max_digits=10, decimal_places=2)
-    rate = models.DecimalField(max_digits=12, decimal_places=2)
+    rate = models.DecimalField(max_digits=12, decimal_places=2, help_text="Client Rate")
+    supplier_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0, blank=True)
+    profit = models.DecimalField(max_digits=12, decimal_places=2, default=0, blank=True)
+    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, blank=True)
+    total_profit = models.DecimalField(max_digits=14, decimal_places=2, default=0, blank=True)
     image = models.ImageField(
         upload_to="quotations/items/",
         null=True,

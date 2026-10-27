@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   ChevronDown,
@@ -9,6 +10,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileUp,
   Image as ImageIcon,
   Layers,
   Loader2,
@@ -23,11 +25,12 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, Company, Country, QuotationDetail, QuotationSummary } from "@/lib/types";
+import { Client, Company, Country, QuotationDetail, QuotationSummary, Supplier } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -129,6 +132,10 @@ export default function QuotationsPage() {
   const [activeLightboxImages, setActiveLightboxImages] = useState<{ id?: number; image: string; caption?: string }[] | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [notifyingQuotation, setNotifyingQuotation] = useState<QuotationSummary | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const router = useRouter();
+  const { items: allClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: allSuppliers } = useList<Supplier>("/api/suppliers/?page_size=300");
   const debouncedSearch = useDebouncedValue(search);
 
   const toggleExpand = (id: number) => {
@@ -339,11 +346,20 @@ export default function QuotationsPage() {
                 onReset={grid.resetGrid}
               />
               {canAdd && (
-                <Link href="/quotations/new">
-                  <Button variant="primary">
-                    <Plus className="h-4 w-4" /> New Quotation
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setImportModalOpen(true)}
+                    className="gap-1.5"
+                  >
+                    <FileUp className="h-4 w-4 text-primary-600" /> Import PDF / Excel
                   </Button>
-                </Link>
+                  <Link href="/quotations/new">
+                    <Button variant="primary">
+                      <Plus className="h-4 w-4" /> New Quotation
+                    </Button>
+                  </Link>
+                </div>
               )}
             </div>
           }
@@ -773,6 +789,23 @@ export default function QuotationsPage() {
           }}
         />
       )}
+
+      {/* PDF & Excel Quotation Import Modal */}
+      <QuotationImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImportSuccess={(data) => {
+          try {
+            sessionStorage.setItem("imported_quotation", JSON.stringify(data));
+          } catch (e) {
+            // ignore
+          }
+          router.push("/quotations/new");
+        }}
+        clients={allClients}
+        suppliers={allSuppliers}
+      />
     </div>
   );
 }
+
