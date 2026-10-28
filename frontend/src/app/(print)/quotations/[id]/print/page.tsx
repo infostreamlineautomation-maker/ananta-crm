@@ -333,7 +333,15 @@ export default function QuotationPrintPage() {
                             {idx + 1}
                           </td>
                           <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                            {it.description}
+                            {it.product_name && (
+                              <div className="font-bold text-black">{it.product_name}</div>
+                            )}
+                            {it.description && (
+                              <div className={it.product_name ? "text-xs text-neutral-800 whitespace-pre-wrap mt-0.5" : "whitespace-pre-wrap"}>
+                                {it.description}
+                              </div>
+                            )}
+                            {!it.product_name && !it.description && "—"}
                           </td>
                           {columns.map((col) => (
                             <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">

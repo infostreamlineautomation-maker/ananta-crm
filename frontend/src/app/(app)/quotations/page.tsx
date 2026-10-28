@@ -723,7 +723,15 @@ export default function QuotationsPage() {
                                               </td>
                                               <td className="px-3 py-2.5">
                                                 <div className="font-medium text-ink whitespace-pre-line leading-relaxed">
-                                                  {item.description || "—"}
+                                                  {item.product_name && (
+                                                    <div className="font-bold text-ink">{item.product_name}</div>
+                                                  )}
+                                                  {item.description && (
+                                                    <div className={clsx("text-xs", item.product_name ? "italic text-ink-muted mt-0.5" : "text-ink")}>
+                                                      {item.description}
+                                                    </div>
+                                                  )}
+                                                  {!item.product_name && !item.description && "—"}
                                                 </div>
                                               </td>
                                               {q.columns_config?.map((col) => (

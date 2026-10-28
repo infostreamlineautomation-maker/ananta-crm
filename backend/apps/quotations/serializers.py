@@ -30,7 +30,7 @@ class Base64OrURLImageField(serializers.ImageField):
 
 class QuotationItemSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    product_name = serializers.CharField(source="product.product_name", read_only=True, default=None)
+    product_name = serializers.CharField(required=False, allow_blank=True, allow_null=True, default=None)
     image = Base64OrURLImageField(required=False, allow_null=True)
 
     class Meta:
@@ -40,6 +40,12 @@ class QuotationItemSerializer(serializers.ModelSerializer):
             "supplier_rate", "profit", "margin_percent", "total_profit",
             "amount", "image", "extra_data", "sort_order"
         ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.product:
+            ret["product_name"] = instance.product.product_name
+        return ret
 
 
 class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -98,6 +104,14 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
         for i, item_data in enumerate(items_data):
             if item_data.get("image") == "__KEEP_EXISTING__":
                 item_data["image"] = None
+            prod_name = item_data.pop("product_name", None)
+            if not item_data.get("product") and prod_name:
+                from apps.catalog.models import Product
+                prod, _ = Product.objects.get_or_create(
+                    organization=organization,
+                    product_name=prod_name.strip(),
+                )
+                item_data["product"] = prod
             QuotationItem.objects.create(quotation=quotation, sort_order=i, **item_data)
         return quotation
 
@@ -123,6 +137,14 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
                         item_data["image"] = existing_items[i].image
                     else:
                         item_data["image"] = None
+                prod_name = item_data.pop("product_name", None)
+                if not item_data.get("product") and prod_name:
+                    from apps.catalog.models import Product
+                    prod, _ = Product.objects.get_or_create(
+                        organization=organization,
+                        product_name=prod_name.strip(),
+                    )
+                    item_data["product"] = prod
                 QuotationItem.objects.create(quotation=instance, sort_order=i, **item_data)
         return instance
 

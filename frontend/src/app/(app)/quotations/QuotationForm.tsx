@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   Calculator,
   Check,
+  ChevronDown,
   Copy,
   ExternalLink,
   FileText,
@@ -15,6 +17,7 @@ import {
   Printer,
   RefreshCw,
   RotateCcw,
+  Search,
   Send,
   Trash2,
   Upload,
@@ -47,12 +50,15 @@ import { Combobox } from "@/components/ui/Combobox";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { ClientForm } from "../clients/page";
 import { SupplierForm } from "../suppliers/page";
+import { ProductModal } from "@/components/products/ProductModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
 
 function blankItem(): QuotationItemDetail {
   return {
+    product: null,
+    product_name: null,
     description: "",
     qty: "1000",
     supplier_rate: "0",
@@ -64,6 +70,70 @@ function blankItem(): QuotationItemDetail {
     image: null,
     extra_data: {},
   };
+}
+
+function InlineItemCell({
+  item,
+  index,
+  products,
+  datalistId,
+  onProductNameChange,
+  onDescriptionChange,
+  onOpenProductModal,
+}: {
+  item: QuotationItemDetail;
+  index: number;
+  products: Product[];
+  datalistId: string;
+  onProductNameChange: (index: number, name: string) => void;
+  onDescriptionChange: (index: number, desc: string) => void;
+  onOpenProductModal: (index: number) => void;
+}) {
+  const currentName =
+    item.product_name ??
+    (item.product ? products.find((p) => p.id === item.product)?.product_name : "") ??
+    "";
+
+  return (
+    <div className="flex flex-col gap-1.5 py-1">
+      {/* Top Row: Direct input for item / product name with datalist suggestions + Quick Add (+) Button */}
+      <div className="flex items-center gap-1.5">
+        <div className="relative flex-1 min-w-0">
+          <Input
+            value={currentName}
+            onChange={(e) => onProductNameChange(index, e.target.value)}
+            placeholder="Select item *"
+            list={datalistId}
+            className="font-medium text-ink h-8.5 text-xs"
+          />
+          <datalist id={datalistId}>
+            {products.map((p) => (
+              <option key={p.id} value={p.product_name} />
+            ))}
+          </datalist>
+        </div>
+
+        {/* Quick Add Product Button */}
+        <button
+          type="button"
+          onClick={() => onOpenProductModal(index)}
+          className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-md border border-border bg-surface-sunken hover:bg-surface-hover hover:border-primary-400 text-ink-muted hover:text-primary-700 transition shadow-2xs cursor-pointer"
+          title="Add new item / product to catalog"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Bottom Row: Additional Description For Item (Textarea) */}
+      <textarea
+        value={item.description}
+        onChange={(e) => onDescriptionChange(index, e.target.value)}
+        rows={2}
+        placeholder="Additional Description For Item"
+        className="w-full resize-y rounded-md border border-border/80 bg-white px-2.5 py-1.5 text-xs text-ink placeholder:italic placeholder:text-ink-faint/80 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-100 transition-colors shadow-2xs"
+      />
+    </div>
+  );
 }
 
 let columnCounter = 0;
@@ -92,7 +162,7 @@ export function QuotationForm({
   const { items: companies } = useList<Company>("/api/companies/?page_size=200");
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: rawSuppliers, reload: reloadSuppliers } = useList<Supplier>("/api/suppliers/?page_size=300");
-  const { items: products } = useList<Product>("/api/products/?page_size=500");
+  const { items: products, reload: reloadProducts } = useList<Product>("/api/products/?page_size=500");
   const { items: projects } = useList<ProjectSummary>("/api/projects/?page_size=200");
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -107,6 +177,8 @@ export function QuotationForm({
 
   const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
   const [quickAddSupplierOpen, setQuickAddSupplierOpen] = useState(false);
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [activeProductRowIndex, setActiveProductRowIndex] = useState<number | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | "">("");
   const [previewLightboxImage, setPreviewLightboxImage] = useState<string | null>(null);
 
@@ -143,8 +215,26 @@ export function QuotationForm({
           (sRate > 0 ? Number(((profit / sRate) * 100).toFixed(2)) : 0);
         let totalProfit = parseFloat(it.total_profit ?? "0") || q * profit;
         let amount = parseFloat(it.amount ?? "0") || q * cRate;
+
+        // Backward compatibility: If legacy item has no product or product_name, use description as product_name
+        let pName = it.product_name ?? null;
+        let desc = it.description ?? "";
+        if (!pName && !it.product && desc) {
+          const lines = desc.split("\n");
+          if (lines.length > 1) {
+            pName = lines[0].trim();
+            desc = lines.slice(1).join("\n").trim();
+          } else {
+            pName = desc.trim();
+            desc = "";
+          }
+        }
+
         return {
           ...it,
+          product: it.product ?? null,
+          product_name: pName,
+          description: desc,
           supplier_rate: String(sRate || "0"),
           profit: String(profit || "0"),
           margin_percent: String(marginPct || "0"),
@@ -424,6 +514,38 @@ export function QuotationForm({
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
 
+  const handleProductNameChange = (index: number, val: string) => {
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it;
+        const matchingProduct = products.find(
+          (p) => p.product_name.toLowerCase() === val.trim().toLowerCase()
+        );
+        if (matchingProduct) {
+          return {
+            ...it,
+            product: matchingProduct.id,
+            product_name: matchingProduct.product_name,
+            description: it.description || matchingProduct.description || "",
+          };
+        }
+        return {
+          ...it,
+          product: null,
+          product_name: val,
+        };
+      })
+    );
+  };
+
+  const handleProductSelect = (index: number, product: Product | null) => {
+    if (!product) {
+      handleProductNameChange(index, "");
+    } else {
+      handleProductNameChange(index, product.product_name);
+    }
+  };
+
   function updateItemExtra(index: number, key: string, value: string) {
     setItems((prev) =>
       prev.map((it, i) => (i === index ? { ...it, extra_data: { ...it.extra_data, [key]: value } } : it))
@@ -488,10 +610,12 @@ export function QuotationForm({
     }
 
     items.forEach((it, idx) => {
-      const desc = it.description ? it.description.trim() : `Item ${idx + 1}`;
+      const prodName = it.product ? products.find((p) => p.id === it.product)?.product_name || it.product_name : it.product_name;
+      const desc = it.description ? it.description.trim() : "";
+      const itemTitle = prodName && desc ? `${prodName} (${desc})` : (prodName || desc || `Item ${idx + 1}`);
       const qty = it.qty || "1";
       const clientRate = it.rate || "0";
-      lines.push(`*${desc}*`);
+      lines.push(`*${itemTitle}*`);
       lines.push(`Qty. ${qty}`);
       lines.push(`Rs. ${clientRate}/- + GST`);
       lines.push("");
@@ -576,7 +700,11 @@ export function QuotationForm({
         status,
         items: items.map((it) => ({
           product: it.product || null,
-          description: it.description,
+          product_name:
+            it.product_name ||
+            (it.product ? products.find((p) => p.id === it.product)?.product_name : "") ||
+            "",
+          description: it.description || "",
           qty: it.qty,
           rate: it.rate,
           supplier_rate: it.supplier_rate || "0",
@@ -917,7 +1045,7 @@ export function QuotationForm({
               <thead>
                 <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                   <th className="w-12 px-3 py-2.5 text-center border-r border-border">Sr. No.</th>
-                  <th className="min-w-[260px] px-4 py-2.5 text-left border-r border-border">Product / Description</th>
+                  <th className="min-w-[280px] sm:min-w-[340px] px-4 py-2.5 text-left border-r border-border">Item &amp; Description</th>
                   <th className="w-24 px-2 py-2.5 text-center border-r border-border">Reference</th>
                   {columns.map((col) => (
                     <th key={col.key} className="w-28 px-3 py-2.5 text-left border-r border-border">
@@ -976,20 +1104,18 @@ export function QuotationForm({
                         {i + 1}
                       </td>
                       <td className="px-3 py-2 border-r border-border">
-                        <div className="relative">
-                          <Input
-                            value={it.description}
-                            onChange={(e) => handleItemChange(i, "description", e.target.value)}
-                            placeholder="e.g. Visiting Card / Calendar / Brochure"
-                            list={`product-list-std-${i}`}
-                            className="font-medium text-ink"
-                          />
-                          <datalist id={`product-list-std-${i}`}>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.product_name} />
-                            ))}
-                          </datalist>
-                        </div>
+                        <InlineItemCell
+                          item={it}
+                          index={i}
+                          products={products}
+                          datalistId={`standard-product-datalist-${i}`}
+                          onProductNameChange={handleProductNameChange}
+                          onDescriptionChange={(idx, val) => handleItemChange(idx, "description", val)}
+                          onOpenProductModal={(idx) => {
+                            setActiveProductRowIndex(idx);
+                            setProductModalOpen(true);
+                          }}
+                        />
                       </td>
                       {/* Reference Image */}
                       <td className="px-2 py-2 text-center align-middle border-r border-border">
@@ -1101,8 +1227,8 @@ export function QuotationForm({
                   <th rowSpan={2} className="w-12 px-3 py-2 text-center border-r border-border">
                     Sr. No.
                   </th>
-                  <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left border-r border-border">
-                    Product / Description
+                  <th rowSpan={2} className="min-w-[280px] sm:min-w-[340px] px-4 py-2 text-left border-r border-border">
+                    Item &amp; Description
                   </th>
                   <th rowSpan={2} className="w-24 px-2 py-2 text-center border-r border-border">
                     Reference
@@ -1188,20 +1314,18 @@ export function QuotationForm({
 
                       {/* Product / Description with Product suggestions */}
                       <td className="px-3 py-2 border-r border-border">
-                        <div className="relative">
-                          <Input
-                            value={it.description}
-                            onChange={(e) => handleItemChange(i, "description", e.target.value)}
-                            placeholder="e.g. Corrugated Box / Shubh Store Kit"
-                            list={`product-list-${i}`}
-                            className="font-medium text-ink"
-                          />
-                          <datalist id={`product-list-${i}`}>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.product_name} />
-                            ))}
-                          </datalist>
-                        </div>
+                        <InlineItemCell
+                          item={it}
+                          index={i}
+                          products={products}
+                          datalistId={`costing-product-datalist-${i}`}
+                          onProductNameChange={handleProductNameChange}
+                          onDescriptionChange={(idx, val) => handleItemChange(idx, "description", val)}
+                          onOpenProductModal={(idx) => {
+                            setActiveProductRowIndex(idx);
+                            setProductModalOpen(true);
+                          }}
+                        />
                       </td>
 
                       {/* Reference Image */}
@@ -1363,16 +1487,18 @@ export function QuotationForm({
 
         {/* Section 1 Footer Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-border px-5 py-3 gap-3 bg-surface-sunken/40">
-          <button
-            type="button"
-            onClick={() => setItems((prev) => [...prev, blankItem()])}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer w-fit"
-          >
-            <Plus className="h-4 w-4" /> {quoteFormat === "standard" ? "Add Line Item" : "Add Item / Tier Row"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setItems((prev) => [...prev, blankItem()])}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer w-fit"
+            >
+              <Plus className="h-4 w-4" /> {quoteFormat === "standard" ? "Add Line Item" : "Add Item / Tier Row"}
+            </button>
+          </div>
 
-          {/* Financial Totals */}
-          <div className="flex flex-wrap items-center gap-4 text-xs">
+          {/* Financial Totals + Inline Save Button */}
+          <div className="flex flex-wrap items-center gap-3 text-xs sm:justify-end">
             {quoteFormat === "costing" && (
               <>
                 <div className="flex items-center gap-1.5">
@@ -1399,6 +1525,15 @@ export function QuotationForm({
                 ≈ <strong className="font-mono text-ink">{formatCurrency(subtotal * getRate(effectiveCurrency, baseCurrency, baseCurrency), baseCurrency)}</strong>
               </span>
             )}
+
+            <Button
+              variant="primary"
+              type="submit"
+              loading={saving}
+              className="gap-1.5 px-4 h-8.5 text-xs font-bold shrink-0 shadow-2xs ml-auto sm:ml-2"
+            >
+              <Check className="h-3.5 w-3.5" /> Save Quotation
+            </Button>
           </div>
         </div>
       </Card>
@@ -1537,6 +1672,32 @@ export function QuotationForm({
 
       {error && <p className="text-[13px] font-medium text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-200">{error}</p>}
 
+      {/* Bottom Page Actions Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 pb-8 border-t border-border">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => router.push("/quotations")}
+        >
+          Cancel
+        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {quotation && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => router.push(`/quotations/${quotation.id}/print`)}
+              className="gap-1.5"
+            >
+              <Printer className="h-4 w-4" /> Print / PDF
+            </Button>
+          )}
+          <Button variant="primary" type="submit" loading={saving} className="px-6 gap-1.5 shadow-sm font-bold">
+            <Check className="h-4 w-4" /> Save Quotation
+          </Button>
+        </div>
+      </div>
+
       {/* SlideOver for fast-track Add Client */}
       <SlideOver
         open={quickAddClientOpen}
@@ -1598,6 +1759,23 @@ export function QuotationForm({
         suppliers={suppliers}
         onQuickAddClient={() => setQuickAddClientOpen(true)}
         onQuickAddSupplier={() => setQuickAddSupplierOpen(true)}
+      />
+
+      {/* Quick Add Product Modal */}
+      <ProductModal
+        open={productModalOpen}
+        onClose={() => {
+          setProductModalOpen(false);
+          setActiveProductRowIndex(null);
+        }}
+        onSaved={(newProduct) => {
+          reloadProducts();
+          if (activeProductRowIndex !== null) {
+            handleProductSelect(activeProductRowIndex, newProduct);
+          }
+          setProductModalOpen(false);
+          setActiveProductRowIndex(null);
+        }}
       />
     </form>
   );
