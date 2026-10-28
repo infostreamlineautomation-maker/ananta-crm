@@ -164,14 +164,86 @@ export default function OrdersPage() {
         type: "text",
       },
       {
+        key: "project_title",
+        label: "Project Name / Title",
+        type: "text",
+      },
+      {
         key: "product_name",
         label: "Product",
         type: "text",
       },
       {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+      {
         key: "client_name",
         label: "Client",
         type: "text",
+      },
+      {
+        key: "company_name",
+        label: "Company",
+        type: "text",
+      },
+      {
+        key: "supplier_name",
+        label: "Supplier / Vendor",
+        type: "text",
+      },
+      {
+        key: "delivery_time",
+        label: "Delivery Deadline / Time",
+        type: "text",
+      },
+      {
+        key: "description",
+        label: "Remarks / Notes",
+        type: "text",
+      },
+      {
+        key: "currency_code",
+        label: "Currency",
+        type: "select",
+        options: [
+          { value: "INR", label: "INR (₹)" },
+          { value: "USD", label: "USD ($)" },
+          { value: "EUR", label: "EUR (€)" },
+          { value: "GBP", label: "GBP (£)" },
+          { value: "AED", label: "AED (د.إ)" },
+        ],
+      },
+      {
+        key: "subtotal",
+        label: "Total (Without GST)",
+        type: "amount_range",
+      },
+      {
+        key: "tax_percent",
+        label: "GST %",
+        type: "amount_range",
+      },
+      {
+        key: "tax_amount",
+        label: "GST Tax Amount",
+        type: "amount_range",
+      },
+      {
+        key: "grand_total",
+        label: "Total Amount",
+        type: "amount_range",
+      },
+      {
+        key: "paid_amount",
+        label: "Paid Amount",
+        type: "amount_range",
+      },
+      {
+        key: "due_amount",
+        label: "Balance Due",
+        type: "amount_range",
       },
       {
         key: "delivery_status",
@@ -196,13 +268,13 @@ export default function OrdersPage() {
         ],
       },
       {
-        key: "amount",
-        label: "Total Amount",
-        type: "amount_range",
+        key: "created_at",
+        label: "Created Date",
+        type: "date_range",
       },
       {
-        key: "date",
-        label: "Date",
+        key: "updated_at",
+        label: "Updated Date",
         type: "date_range",
       },
     ],
@@ -456,7 +528,7 @@ export default function OrdersPage() {
                     }
 
                     const isRight = ["subtotal", "tax_percent", "tax_amount", "grand_total", "paid_amount", "due_amount"].includes(col.key);
-                    const colFilter = getColFilter(col.key === "grand_total" ? "amount" : col.key);
+                    const colFilter = getColFilter(col.key) || (col.key === "grand_total" ? getColFilter("amount") : undefined) || (col.key === "amount" ? getColFilter("grand_total") : undefined);
 
                     return (
                       <ResizableTh

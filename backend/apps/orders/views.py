@@ -39,10 +39,54 @@ def can_view_all_orders(user) -> bool:
 
 
 class OrderFilter(django_filters.FilterSet):
+    order_no = django_filters.CharFilter(field_name="order_no", lookup_expr="icontains")
+    project_title = django_filters.CharFilter(field_name="project_title", lookup_expr="icontains")
+    client_name = django_filters.CharFilter(field_name="client__client_name", lookup_expr="icontains")
+    company_name = django_filters.CharFilter(field_name="client__company__company_name", lookup_expr="icontains")
+    supplier_name = django_filters.CharFilter(field_name="supplier__supplier_name", lookup_expr="icontains")
+    delivery_time = django_filters.CharFilter(field_name="delivery_time", lookup_expr="icontains")
+    description = django_filters.CharFilter(field_name="description", lookup_expr="icontains")
+    currency_code = django_filters.CharFilter(field_name="currency_code", lookup_expr="iexact")
+
+    min_subtotal = django_filters.NumberFilter(field_name="subtotal", lookup_expr="gte")
+    max_subtotal = django_filters.NumberFilter(field_name="subtotal", lookup_expr="lte")
+    subtotal_min = django_filters.NumberFilter(field_name="subtotal", lookup_expr="gte")
+    subtotal_max = django_filters.NumberFilter(field_name="subtotal", lookup_expr="lte")
+
+    min_tax_percent = django_filters.NumberFilter(field_name="tax_percent", lookup_expr="gte")
+    max_tax_percent = django_filters.NumberFilter(field_name="tax_percent", lookup_expr="lte")
+    tax_percent_min = django_filters.NumberFilter(field_name="tax_percent", lookup_expr="gte")
+    tax_percent_max = django_filters.NumberFilter(field_name="tax_percent", lookup_expr="lte")
+
+    min_tax_amount = django_filters.NumberFilter(field_name="tax_amount", lookup_expr="gte")
+    max_tax_amount = django_filters.NumberFilter(field_name="tax_amount", lookup_expr="lte")
+    tax_amount_min = django_filters.NumberFilter(field_name="tax_amount", lookup_expr="gte")
+    tax_amount_max = django_filters.NumberFilter(field_name="tax_amount", lookup_expr="lte")
+
     min_amount = django_filters.NumberFilter(field_name="grand_total", lookup_expr="gte")
     max_amount = django_filters.NumberFilter(field_name="grand_total", lookup_expr="lte")
+    amount_min = django_filters.NumberFilter(field_name="grand_total", lookup_expr="gte")
+    amount_max = django_filters.NumberFilter(field_name="grand_total", lookup_expr="lte")
+    grand_total_min = django_filters.NumberFilter(field_name="grand_total", lookup_expr="gte")
+    grand_total_max = django_filters.NumberFilter(field_name="grand_total", lookup_expr="lte")
+
+    min_paid_amount = django_filters.NumberFilter(field_name="paid_amount", lookup_expr="gte")
+    max_paid_amount = django_filters.NumberFilter(field_name="paid_amount", lookup_expr="lte")
+    paid_amount_min = django_filters.NumberFilter(field_name="paid_amount", lookup_expr="gte")
+    paid_amount_max = django_filters.NumberFilter(field_name="paid_amount", lookup_expr="lte")
+
+    min_due_amount = django_filters.NumberFilter(field_name="annotated_due_amount", lookup_expr="gte")
+    max_due_amount = django_filters.NumberFilter(field_name="annotated_due_amount", lookup_expr="lte")
+    due_amount_min = django_filters.NumberFilter(field_name="annotated_due_amount", lookup_expr="gte")
+    due_amount_max = django_filters.NumberFilter(field_name="annotated_due_amount", lookup_expr="lte")
+
     date_from = django_filters.DateFilter(field_name="date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="date", lookup_expr="lte")
+    created_at_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
+    created_at_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
+    updated_at_from = django_filters.DateFilter(field_name="updated_at__date", lookup_expr="gte")
+    updated_at_to = django_filters.DateFilter(field_name="updated_at__date", lookup_expr="lte")
+
     country = django_filters.NumberFilter(field_name="client__country_id")
     client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
     product = django_filters.CharFilter(field_name="items__product__product_name", lookup_expr="icontains", distinct=True)
@@ -51,6 +95,14 @@ class OrderFilter(django_filters.FilterSet):
     class Meta:
         model = Order
         fields = [
+            "order_no",
+            "project_title",
+            "client_name",
+            "company_name",
+            "supplier_name",
+            "delivery_time",
+            "description",
+            "currency_code",
             "delivery_status",
             "payment_status",
             "client",
@@ -59,10 +111,38 @@ class OrderFilter(django_filters.FilterSet):
             "project",
             "product",
             "product_name",
+            "min_subtotal",
+            "max_subtotal",
+            "subtotal_min",
+            "subtotal_max",
+            "min_tax_percent",
+            "max_tax_percent",
+            "tax_percent_min",
+            "tax_percent_max",
+            "min_tax_amount",
+            "max_tax_amount",
+            "tax_amount_min",
+            "tax_amount_max",
             "min_amount",
             "max_amount",
+            "amount_min",
+            "amount_max",
+            "grand_total_min",
+            "grand_total_max",
+            "min_paid_amount",
+            "max_paid_amount",
+            "paid_amount_min",
+            "paid_amount_max",
+            "min_due_amount",
+            "max_due_amount",
+            "due_amount_min",
+            "due_amount_max",
             "date_from",
             "date_to",
+            "created_at_from",
+            "created_at_to",
+            "updated_at_from",
+            "updated_at_to",
             "country",
             "client_group",
         ]
@@ -76,7 +156,14 @@ class OrderViewSet(ModuleViewSet):
     search_fields = ["order_no", "description", "client__client_name", "client__company__company_name", "items__product__product_name", "project_title"]
 
     def get_queryset(self):
-        qs = Order.objects.filter(organization=self.request.organization).select_related(
+        due_expr = db_models.functions.Greatest(
+            db_models.F("grand_total") - db_models.functions.Coalesce(db_models.F("paid_amount"), db_models.Value(0, output_field=db_models.DecimalField())),
+            db_models.Value(0, output_field=db_models.DecimalField()),
+            output_field=db_models.DecimalField(max_digits=12, decimal_places=2),
+        )
+        qs = Order.objects.filter(organization=self.request.organization).annotate(
+            annotated_due_amount=due_expr,
+        ).select_related(
             "client", "client__company", "supplier", "project", "created_by"
         ).prefetch_related("items__product", "images")
         has_project = self.request.query_params.get("has_project")

@@ -239,6 +239,13 @@ class DynamicQueryFilterBackend(BaseFilterBackend):
             "file_name": ["files__file_name", "file_name"],
             "description": ["description", "remarks", "remark"],
             "remarks": ["description", "remarks", "remark"],
+            "tax_percent": ["tax_percent"],
+            "tax_amount": ["tax_amount"],
+            "paid_amount": ["paid_amount"],
+            "due_amount": ["annotated_due_amount", "due_amount"],
+            "currency_code": ["currency_code"],
+            "delivery_time": ["delivery_time"],
+            "project_title": ["project_title"],
         }
         candidates = FIELD_MAP.get(base_name, [base_name])
         for c in candidates:
