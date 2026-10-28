@@ -16,9 +16,22 @@ class Quotation(AuditedModel, SoftDeleteModel):
         (REJECTED, "Rejected"),
     ]
 
+    FORMAT_STANDARD = "standard"
+    FORMAT_COSTING = "costing"
+    FORMAT_CHOICES = [
+        (FORMAT_STANDARD, "Standard Quotation"),
+        (FORMAT_COSTING, "Costing & Profit Calculator"),
+    ]
+
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="quotations")
     quotation_no = models.CharField(max_length=30, editable=False)
     quotation_date = models.DateField()
+    quote_format = models.CharField(
+        max_length=20,
+        choices=FORMAT_CHOICES,
+        default=FORMAT_STANDARD,
+        help_text="Determines the active inline editor format (Standard Direct Rate vs Supplier Costing & Margin).",
+    )
     client = models.ForeignKey(
         "clients.Client", null=True, blank=True, on_delete=models.SET_NULL, related_name="quotations"
     )

@@ -160,9 +160,10 @@ def clean_number_str(s: str) -> str:
 
 
 class PDFQuotationExtractor:
-    def __init__(self, file_bytes: bytes, organization=None):
+    def __init__(self, file_bytes: bytes, organization=None, target_format: str = "standard"):
         self.file_bytes = file_bytes
         self.organization = organization
+        self.target_format = target_format or "standard"
 
     def _extract_ocr_lines(self) -> list[str]:
         """
@@ -428,16 +429,17 @@ class PDFQuotationExtractor:
                 "label": "Client Selection",
                 "reason": f"Recipient '{to_name}' not automatically matched in CRM database",
             })
-        missing_fields.append({
-            "field": "supplier",
-            "label": "Supplier Name",
-            "reason": "Not specified in customer PDF quotation",
-        })
-        missing_fields.append({
-            "field": "supplier_rate",
-            "label": "Supplier Cost Rate",
-            "reason": "PDF only specifies Customer Selling Rate. Enter Supplier Cost or Margin % to calculate profit.",
-        })
+        if self.target_format == "costing":
+            missing_fields.append({
+                "field": "supplier",
+                "label": "Supplier Name",
+                "reason": "Not specified in customer PDF quotation",
+            })
+            missing_fields.append({
+                "field": "supplier_rate",
+                "label": "Supplier Cost Rate",
+                "reason": "PDF only specifies Customer Selling Rate. Enter Supplier Cost or Margin % to calculate profit.",
+            })
 
         return {
             "source_type": "pdf",
@@ -452,6 +454,7 @@ class PDFQuotationExtractor:
                 "client_id": matched_client["id"] if matched_client else None,
                 "client_name": matched_client["client_name"] if matched_client else to_name,
                 "supplier_id": None,
+                "quote_format": self.target_format,
                 "items": items,
             },
             "missing_fields": missing_fields,
@@ -459,9 +462,10 @@ class PDFQuotationExtractor:
 
 
 class ExcelQuotationExtractor:
-    def __init__(self, file_bytes: bytes, organization=None):
+    def __init__(self, file_bytes: bytes, organization=None, target_format: str = "costing"):
         self.file_bytes = file_bytes
         self.organization = organization
+        self.target_format = target_format or "costing"
         self.wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
         self.ws = self.wb.active
 
@@ -560,6 +564,7 @@ class ExcelQuotationExtractor:
                     "client_id": None,
                     "client_name": "",
                     "supplier_id": None,
+                    "quote_format": "costing",
                     "items": [item_obj],
                 },
                 "missing_fields": [
@@ -816,6 +821,7 @@ class ExcelQuotationExtractor:
                 "client_name": matched_client["client_name"] if matched_client else extracted_client_name,
                 "supplier_id": matched_supplier["id"] if matched_supplier else None,
                 "supplier_name": matched_supplier["supplier_name"] if matched_supplier else extracted_supplier_name,
+                "quote_format": self.target_format,
                 "items": items,
             },
             "missing_fields": missing_fields,

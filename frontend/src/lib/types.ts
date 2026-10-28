@@ -270,6 +270,7 @@ export interface QuotationDetail {
   col_qty_label: string;
   col_rate_label: string;
   columns_config: QuotationColumn[];
+  quote_format?: "standard" | "costing";
   currency_code: string;
   status: QuotationStatus;
   subtotal: string;
@@ -286,6 +287,7 @@ export interface QuotationSummary {
   id: number;
   quotation_no: string;
   quotation_date: string;
+  quote_format?: "standard" | "costing";
   client: number | null;
   client_name: string | null;
   company_name?: string | null;
@@ -303,6 +305,8 @@ export interface QuotationSummary {
   status: QuotationStatus;
   currency_code: string;
   subtotal: string;
+  total_supplier_cost?: string;
+  total_profit?: string;
   col_qty_label?: string;
   col_rate_label?: string;
   columns_config?: QuotationColumn[];

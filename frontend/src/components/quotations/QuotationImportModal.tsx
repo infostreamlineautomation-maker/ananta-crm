@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
+  Calculator,
   Check,
   CheckCircle2,
   FileSpreadsheet,
@@ -43,6 +44,7 @@ export interface ParsedImportResult {
   document_profile: "customer_quotation" | "costing_breakdown" | "quotation_sheet";
   data: {
     quotation_date: string;
+    quote_format?: "standard" | "costing";
     to_name?: string;
     to_address?: string;
     subject?: string;
@@ -100,6 +102,7 @@ export function QuotationImportModal({
   const [items, setItems] = useState<ParsedQuotationItem[]>([]);
   const [missingAlerts, setMissingAlerts] = useState<Array<{ field: string; label: string; reason: string }>>([]);
   const [bulkMargin, setBulkMargin] = useState("25");
+  const [quoteFormat, setQuoteFormat] = useState<"standard" | "costing">("standard");
 
   const clientOptions = useMemo(
     () =>
@@ -138,6 +141,7 @@ export function QuotationImportModal({
     setItems([]);
     setMissingAlerts([]);
     setBulkMargin("25");
+    setQuoteFormat("standard");
   }
 
   function handleModalClose() {
@@ -165,6 +169,7 @@ export function QuotationImportModal({
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("quote_format", quoteFormat);
 
     try {
       const res = await apiFetch<ParsedImportResult>("/api/quotations/parse-import/", {
@@ -184,6 +189,7 @@ export function QuotationImportModal({
       setSelectedSupplierId(res.data.supplier_id || "");
       setItems(res.data.items || []);
       setMissingAlerts(res.missing_fields || []);
+      setQuoteFormat(quoteFormat || res.data.quote_format || (res.source_type === "excel" ? "costing" : "standard"));
 
       setStep("review");
       toast.success(`Extracted ${res.data.items?.length || 0} line items from ${file.name}`);
@@ -194,6 +200,13 @@ export function QuotationImportModal({
       setIsUploading(false);
     }
   }
+
+  const activeMissingAlerts = useMemo(() => {
+    if (quoteFormat === "standard") {
+      return missingAlerts.filter((m) => m.field !== "supplier" && m.field !== "supplier_rate");
+    }
+    return missingAlerts;
+  }, [missingAlerts, quoteFormat]);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -332,6 +345,7 @@ export function QuotationImportModal({
 
     const payload: ParsedImportResult["data"] = {
       quotation_date: quotationDate,
+      quote_format: quoteFormat,
       subject,
       to_name: clientObj?.client_name || toName,
       to_address: clientObj?.address || toAddress,
@@ -368,9 +382,85 @@ export function QuotationImportModal({
               <strong className="text-ink font-semibold block text-[13px] mb-0.5">
                 Smart PDF &amp; Excel Quotation Extractor
               </strong>
-              Upload existing customer quotation PDFs (like customer proposals) or internal Excel costing sheets
-              (such as multi-tier matrices or job cost breakdowns). The system extracts quantities, rates, and specifications,
-              and lets you confirm missing clients, fulfilling suppliers, and profit margins.
+              Upload existing customer quotation PDFs or internal Excel costing sheets. The system extracts items, quantities, and rates into your chosen format.
+            </div>
+          </div>
+
+          {/* Target Quotation Format Selector */}
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface-sunken/40 p-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+              Select Quotation Format Target:
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("standard")}
+                className={clsx(
+                  "flex items-start gap-3 rounded-lg border p-3.5 text-left transition-all cursor-pointer",
+                  quoteFormat === "standard"
+                    ? "border-primary-500 bg-primary-50/70 text-primary-950 shadow-xs ring-1 ring-primary-500/30"
+                    : "border-border bg-surface hover:border-border-strong hover:bg-surface-hover/50 text-ink"
+                )}
+              >
+                <div
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                    quoteFormat === "standard"
+                      ? "border-primary-300 bg-primary-100/80 text-primary-700"
+                      : "border-border bg-surface-sunken text-ink-muted"
+                  )}
+                >
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold">Standard Format</span>
+                    {quoteFormat === "standard" && (
+                      <span className="rounded-full bg-primary-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-snug">
+                    Direct client quote (Qty, Rate, Amount). Clean &amp; direct format without supplier costing.
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("costing")}
+                className={clsx(
+                  "flex items-start gap-3 rounded-lg border p-3.5 text-left transition-all cursor-pointer",
+                  quoteFormat === "costing"
+                    ? "border-amber-500 bg-amber-50/70 text-amber-950 shadow-xs ring-1 ring-amber-500/30"
+                    : "border-border bg-surface hover:border-border-strong hover:bg-surface-hover/50 text-ink"
+                )}
+              >
+                <div
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                    quoteFormat === "costing"
+                      ? "border-amber-300 bg-amber-100/80 text-amber-700"
+                      : "border-border bg-surface-sunken text-ink-muted"
+                  )}
+                >
+                  <Calculator className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold">Calculation Format</span>
+                    {quoteFormat === "costing" && (
+                      <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-snug">
+                    Costing &amp; calculation format (Supplier Rate, Margin %, Unit Profit &amp; Total Profit).
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -504,15 +594,53 @@ export function QuotationImportModal({
             </Button>
           </div>
 
+          {/* Review Target Format Switcher */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+                Import Target Format:
+              </span>
+            </div>
+            <div className="inline-flex rounded-lg border border-border bg-surface-sunken p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("standard")}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
+                  quoteFormat === "standard"
+                    ? "bg-surface text-primary-700 shadow-xs border border-border font-bold"
+                    : "text-ink-muted hover:text-ink"
+                )}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Standard Format
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("costing")}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
+                  quoteFormat === "costing"
+                    ? "bg-surface text-amber-700 shadow-xs border border-border font-bold"
+                    : "text-ink-muted hover:text-ink"
+                )}
+              >
+                <Calculator className="h-3.5 w-3.5" />
+                Calculation Format (Costing &amp; Margin)
+              </button>
+            </div>
+          </div>
+
           {/* Missing / Required Fields Prompt Panel */}
-          {missingAlerts.length > 0 && (
+          {activeMissingAlerts.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900 mb-2">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
                 Information Confirmation &amp; Resolution
               </div>
               <ul className="space-y-1.5 text-xs text-amber-950">
-                {missingAlerts.map((m, idx) => (
+                {activeMissingAlerts.map((m, idx) => (
                   <li key={idx} className="flex items-start gap-2">
                     <span className="font-semibold text-amber-800 shrink-0">• {m.label}:</span>
                     <span>{m.reason}</span>
@@ -563,7 +691,7 @@ export function QuotationImportModal({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-wider text-ink-muted">
-                  Fulfilling Supplier / Vendor <span className="text-primary-600">*</span>
+                  Fulfilling Supplier / Vendor {quoteFormat === "costing" && <span className="text-primary-600">*</span>}
                 </label>
                 {selectedSupplier && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-success-700">
@@ -575,12 +703,14 @@ export function QuotationImportModal({
                 value={selectedSupplierId || null}
                 onChange={(val) => setSelectedSupplierId(Number(val))}
                 options={supplierOptions}
-                placeholder="Search and select fulfilling supplier..."
+                placeholder={quoteFormat === "costing" ? "Search and select fulfilling supplier..." : "Optional: select supplier..."}
                 onAddNew={onQuickAddSupplier}
                 addNewLabel="+ Add new supplier"
               />
               <p className="text-[11px] text-ink-faint">
-                Internal production vendor who manufactures or supplies this order.
+                {quoteFormat === "costing"
+                  ? "Internal production vendor who manufactures or supplies this order."
+                  : "Optional supplier linkage for this quotation."}
               </p>
             </div>
 
@@ -609,40 +739,42 @@ export function QuotationImportModal({
             </div>
           </div>
 
-          {/* Quick Bulk Margin Utility */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50/40 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary-600" />
-              <div>
-                <span className="text-xs font-bold text-ink">Two-Way Profit Margin Calculator</span>
-                <p className="text-[11px] text-ink-muted">
-                  Calculate supplier cost from customer selling rate, or calculate selling rate from supplier cost.
-                </p>
+          {/* Quick Bulk Margin Utility (Only in Costing/Calculation mode) */}
+          {quoteFormat === "costing" && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary-600" />
+                <div>
+                  <span className="text-xs font-bold text-ink">Two-Way Profit Margin Calculator</span>
+                  <p className="text-[11px] text-ink-muted">
+                    Calculate supplier cost from customer selling rate, or calculate selling rate from supplier cost.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-surface rounded-md border border-border px-2 py-1">
-                <span className="text-xs font-medium text-ink-muted">Margin:</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={bulkMargin}
-                  onChange={(e) => setBulkMargin(e.target.value)}
-                  className="w-14 text-xs font-bold text-ink focus:outline-none"
-                />
-                <span className="text-xs font-medium text-ink-muted">%</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-surface rounded-md border border-border px-2 py-1">
+                  <span className="text-xs font-medium text-ink-muted">Margin:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={bulkMargin}
+                    onChange={(e) => setBulkMargin(e.target.value)}
+                    className="w-14 text-xs font-bold text-ink focus:outline-none"
+                  />
+                  <span className="text-xs font-medium text-ink-muted">%</span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleApplyBulkMargin}
+                  className="text-xs font-semibold"
+                >
+                  Apply to All Items
+                </Button>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleApplyBulkMargin}
-                className="text-xs font-semibold"
-              >
-                Apply to All Items
-              </Button>
             </div>
-          </div>
+          )}
 
           {/* Extracted Line Items Review Table */}
           <div className="rounded-lg border border-border overflow-hidden bg-surface">
@@ -662,15 +794,26 @@ export function QuotationImportModal({
                     <th className="px-3 py-2 w-10 text-center">#</th>
                     <th className="px-3 py-2 min-w-[200px]">Description</th>
                     <th className="px-3 py-2 w-24 text-right">Qty</th>
-                    <th className="px-3 py-2 w-28 text-right bg-amber-50/40 text-amber-900">
-                      Supplier Rate (₹)
-                    </th>
-                    <th className="px-3 py-2 w-20 text-right">Margin %</th>
-                    <th className="px-3 py-2 w-24 text-right">Unit Profit (₹)</th>
-                    <th className="px-3 py-2 w-28 text-right bg-primary-50/40 text-primary-900 font-bold">
-                      Client Rate (₹)
-                    </th>
-                    <th className="px-3 py-2 w-28 text-right font-bold">Total Amount (₹)</th>
+                    {quoteFormat === "costing" ? (
+                      <>
+                        <th className="px-3 py-2 w-28 text-right bg-amber-50/40 text-amber-900">
+                          Supplier Rate (₹)
+                        </th>
+                        <th className="px-3 py-2 w-20 text-right">Margin %</th>
+                        <th className="px-3 py-2 w-24 text-right">Unit Profit (₹)</th>
+                        <th className="px-3 py-2 w-28 text-right bg-primary-50/40 text-primary-900 font-bold">
+                          Client Rate (₹)
+                        </th>
+                        <th className="px-3 py-2 w-28 text-right font-bold">Total Amount (₹)</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-3 py-2 w-32 text-right bg-primary-50/40 text-primary-900 font-bold">
+                          Rate (₹)
+                        </th>
+                        <th className="px-3 py-2 w-32 text-right font-bold">Total Amount (₹)</th>
+                      </>
+                    )}
                     <th className="px-3 py-2 w-10 text-center"></th>
                   </tr>
                 </thead>
@@ -694,39 +837,58 @@ export function QuotationImportModal({
                           className="w-full rounded border border-border bg-surface px-2 py-1 text-right text-xs font-medium text-ink focus:border-primary-500 focus:outline-none"
                         />
                       </td>
-                      <td className="px-3 py-2 text-right bg-amber-50/20">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={it.supplier_rate}
-                          onChange={(e) => handleItemChange(idx, { supplier_rate: e.target.value })}
-                          className="w-full rounded border border-amber-300 bg-surface px-2 py-1 text-right text-xs font-semibold text-amber-950 focus:border-primary-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={it.margin_percent}
-                          onChange={(e) => handleItemChange(idx, { margin_percent: e.target.value })}
-                          className="w-full rounded border border-border bg-surface px-2 py-1 text-right text-xs font-medium text-ink focus:border-primary-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold text-success-700">
-                        ₹{parseFloat(it.profit || "0").toFixed(2)}
-                      </td>
-                      <td className="px-3 py-2 text-right bg-primary-50/20">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={it.rate}
-                          onChange={(e) => handleItemChange(idx, { rate: e.target.value })}
-                          className="w-full rounded border border-primary-300 bg-surface px-2 py-1 text-right text-xs font-bold text-primary-700 focus:border-primary-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right font-bold text-ink">
-                        ₹{parseFloat(it.amount || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </td>
+                      {quoteFormat === "costing" ? (
+                        <>
+                          <td className="px-3 py-2 text-right bg-amber-50/20">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={it.supplier_rate}
+                              onChange={(e) => handleItemChange(idx, { supplier_rate: e.target.value })}
+                              className="w-full rounded border border-amber-300 bg-surface px-2 py-1 text-right text-xs font-semibold text-amber-950 focus:border-primary-500 focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={it.margin_percent}
+                              onChange={(e) => handleItemChange(idx, { margin_percent: e.target.value })}
+                              className="w-full rounded border border-border bg-surface px-2 py-1 text-right text-xs font-medium text-ink focus:border-primary-500 focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-success-700">
+                            ₹{parseFloat(it.profit || "0").toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right bg-primary-50/20">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={it.rate}
+                              onChange={(e) => handleItemChange(idx, { rate: e.target.value })}
+                              className="w-full rounded border border-primary-300 bg-surface px-2 py-1 text-right text-xs font-bold text-primary-700 focus:border-primary-500 focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-ink">
+                            ₹{parseFloat(it.amount || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2 text-right bg-primary-50/20">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={it.rate}
+                              onChange={(e) => handleItemChange(idx, { rate: e.target.value })}
+                              className="w-full rounded border border-primary-300 bg-surface px-2 py-1 text-right text-xs font-bold text-primary-700 focus:border-primary-500 focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-ink">
+                            ₹{parseFloat(it.amount || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                        </>
+                      )}
                       <td className="px-3 py-2 text-center">
                         <button
                           type="button"
@@ -745,17 +907,27 @@ export function QuotationImportModal({
                       Totals:
                     </td>
                     <td className="px-3 py-2.5 text-right">{totals.totalQty.toLocaleString("en-IN")}</td>
-                    <td className="px-3 py-2.5 text-right text-amber-900">
-                      ₹{totals.totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">—</td>
-                    <td className="px-3 py-2.5 text-right text-success-700">
-                      ₹{totals.totalProfit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">—</td>
-                    <td className="px-3 py-2.5 text-right text-primary-700 text-sm">
-                      ₹{totals.totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
+                    {quoteFormat === "costing" ? (
+                      <>
+                        <td className="px-3 py-2.5 text-right text-amber-900">
+                          ₹{totals.totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">—</td>
+                        <td className="px-3 py-2.5 text-right text-success-700">
+                          ₹{totals.totalProfit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">—</td>
+                        <td className="px-3 py-2.5 text-right text-primary-700 text-sm">
+                          ₹{totals.totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2.5 text-right text-primary-700 text-sm">
+                          ₹{totals.totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                      </>
+                    )}
                     <td></td>
                   </tr>
                 </tfoot>

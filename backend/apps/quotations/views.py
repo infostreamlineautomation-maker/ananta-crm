@@ -28,11 +28,13 @@ class QuotationFilter(django_filters.FilterSet):
     country = django_filters.NumberFilter(field_name="client__country_id")
     client_group = django_filters.NumberFilter(field_name="client__groups__id", distinct=True)
     supplier = django_filters.NumberFilter(field_name="supplier_id")
+    quote_format = django_filters.ChoiceFilter(choices=Quotation.FORMAT_CHOICES)
 
     class Meta:
         model = Quotation
         fields = [
             "status",
+            "quote_format",
             "client",
             "project",
             "supplier",
@@ -203,6 +205,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             organization=source.organization,
             quotation_no=next_number(source.organization, getattr(source.organization, "quotation_prefix", "Q-"), doc_type="quotation"),
             quotation_date=copy_date,
+            quote_format=source.quote_format,
             client=source.client,
             project=source.project,
             supplier=source.supplier,
@@ -367,65 +370,6 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
 
         return Response(OrderSerializer(order).data, status=201)
 
-    @action(detail=True, methods=["post"])
-    def copy(self, request, pk=None):
-        """Clone an existing quotation into a fresh draft — creating a new quotation
-        with the next quotation number, preserving client, project, line items,
-        images, specifications, and tagging the subject with (Copy)."""
-        source = self.get_object()
-        organization = source.organization
-
-        copied_subject = f"{source.subject} (Copy)".strip() if source.subject else "(Copy)"
-        import datetime
-        from apps.quotations.models import QuotationItem
-
-        new_quote = Quotation.objects.create(
-            organization=organization,
-            quotation_no=next_number(organization, organization.quotation_prefix, doc_type="quotation"),
-            quotation_date=datetime.date.today(),
-            client=source.client,
-            project=source.project,
-            to_name=source.to_name,
-            to_address=source.to_address,
-            subject=copied_subject,
-            intro_text=source.intro_text,
-            notes=source.notes,
-            footer_content=source.footer_content,
-            col_qty_label=source.col_qty_label,
-            col_rate_label=source.col_rate_label,
-            columns_config=source.columns_config or [],
-            currency_code=source.currency_code,
-            exchange_rate=source.exchange_rate,
-            base_currency_code=source.base_currency_code,
-            status=Quotation.DRAFT,
-            created_by=request.user,
-        )
-
-        for i, item in enumerate(source.items.all()):
-            QuotationItem.objects.create(
-                quotation=new_quote,
-                description=item.description,
-                qty=item.qty,
-                rate=item.rate,
-                image=item.image,
-                extra_data=item.extra_data or {},
-                sort_order=i,
-            )
-
-        from apps.core.models import ActivityLog
-        try:
-            ActivityLog.objects.create(
-                user=request.user,
-                module="quotations",
-                object_id=str(new_quote.id),
-                action="created",
-                details=f"Quotation {new_quote.quotation_no} cloned from {source.quotation_no}",
-            )
-        except Exception:
-            pass
-
-        return Response(QuotationSerializer(new_quote).data, status=201)
-
     @action(detail=True, methods=["post"], url_path="send-notification")
     def send_notification(self, request, pk=None):
         quotation = self.get_object()
@@ -500,13 +444,14 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
         filename = uploaded_file.name.lower()
         file_bytes = uploaded_file.read()
         org = getattr(request, "organization", None)
+        target_format = request.data.get("quote_format") or request.POST.get("quote_format")
 
         try:
             if filename.endswith(".pdf"):
-                extractor = PDFQuotationExtractor(file_bytes, organization=org)
+                extractor = PDFQuotationExtractor(file_bytes, organization=org, target_format=target_format or "standard")
                 result = extractor.extract()
             elif filename.endswith((".xlsx", ".xls", ".csv")):
-                extractor = ExcelQuotationExtractor(file_bytes, organization=org)
+                extractor = ExcelQuotationExtractor(file_bytes, organization=org, target_format=target_format or "costing")
                 result = extractor.extract()
             else:
                 return Response(

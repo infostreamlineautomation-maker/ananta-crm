@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import clsx from "clsx";
 import {
+  Calculator,
   Check,
   Copy,
   ExternalLink,
+  FileText,
   FileUp,
   MessageSquare,
   Plus,
@@ -72,9 +75,11 @@ function newColumnKey() {
 export function QuotationForm({
   quotation,
   initialProjectId,
+  initialFormat,
 }: {
   quotation?: QuotationDetail;
   initialProjectId?: number;
+  initialFormat?: "standard" | "costing";
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -117,6 +122,9 @@ export function QuotationForm({
   const [toAddress, setToAddress] = useState(quotation?.to_address ?? "");
   const [currencyCode, setCurrencyCode] = useState(quotation?.currency_code ?? "");
   const [status, setStatus] = useState<QuotationStatus>(quotation?.status ?? "draft");
+  const [quoteFormat, setQuoteFormat] = useState<"standard" | "costing">(
+    quotation?.quote_format || initialFormat || "standard"
+  );
 
   // Section 1: Line Items / Supplier Costing Table
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
@@ -177,6 +185,7 @@ export function QuotationForm({
   function applyImportedData(data: any) {
     if (!data) return;
     if (data.quotation_date) setQuotationDate(data.quotation_date);
+    if (data.quote_format) setQuoteFormat(data.quote_format);
     if (data.client_id) setClient(data.client_id);
     if (data.to_name) setToName(data.to_name);
     if (data.to_address) setToAddress(data.to_address);
@@ -550,6 +559,7 @@ export function QuotationForm({
     try {
       const payload: Record<string, unknown> = {
         quotation_date: quotationDate,
+        quote_format: quoteFormat,
         client,
         project: project || null,
         supplier: supplierId || null,
@@ -801,16 +811,56 @@ export function QuotationForm({
         </div>
       </Card>
 
-      {/* Supplier Costing & Margin Table Card */}
+      {/* Line Items Card with Dual Format Switcher */}
       <Card className="flex flex-col overflow-hidden">
-        {/* Header Title & Subtitle */}
-        <div className="border-b border-border p-5">
-          <h2 className="text-base font-bold text-ink">
-            Supplier Costing &amp; Profit Calculator
-          </h2>
-          <p className="text-xs text-ink-muted mt-0.5">
-            Internal margin calculator. Enter supplier cost and profit margin % or per-unit profit to compute Client Rate.
-          </p>
+        {/* Header Title & Format Switcher */}
+        <div className="border-b border-border p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <span>
+                {quoteFormat === "standard"
+                  ? "Line Items & Rates"
+                  : "Supplier Costing & Profit Calculator"}
+              </span>
+            </h2>
+            <p className="text-xs text-ink-muted mt-0.5">
+              {quoteFormat === "standard"
+                ? "Standard direct client quote. Enter item description, quantity, and client selling rate directly."
+                : "Internal margin calculator. Enter supplier cost and profit margin % or per-unit profit to derive Client Rate."}
+            </p>
+          </div>
+
+          {/* Segmented Format Switcher Toggle */}
+          <div className="inline-flex items-center rounded-lg border border-border bg-surface-sunken p-1 shadow-2xs shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setQuoteFormat("standard")}
+              className={clsx(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                quoteFormat === "standard"
+                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-primary-700"
+                  : "text-ink-muted hover:text-ink"
+              )}
+              title="Switch to Standard Direct Rate format (Description, Qty, Rate, Amount)"
+            >
+              <FileText className="h-3.5 w-3.5 text-primary-600" />
+              <span>Standard Quote</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQuoteFormat("costing")}
+              className={clsx(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                quoteFormat === "costing"
+                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-success-700"
+                  : "text-ink-muted hover:text-ink"
+              )}
+              title="Switch to Costing & Margin Calculator format (Supplier Cost, Margin %, Client Rate, Profit)"
+            >
+              <Calculator className="h-3.5 w-3.5 text-success-600" />
+              <span>Costing &amp; Margin</span>
+            </button>
+          </div>
         </div>
 
         {/* Toolbar Strip: Client, Supplier & Spec Column Action */}
@@ -821,31 +871,33 @@ export function QuotationForm({
               <strong className="text-ink">{selectedClient?.client_name || toName || "Client"}</strong>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">Supplier:</span>
-              <div className="w-64 sm:w-80 flex items-center gap-1.5">
-                <div className="flex-1">
-                  <Combobox
-                    value={supplierId || null}
-                    onChange={(v) => setSupplierId(v ? Number(v) : "")}
-                    options={supplierOptions}
-                    placeholder="Search or select supplier..."
-                    onAddNew={() => setQuickAddSupplierOpen(true)}
-                    addNewLabel="Add new supplier"
-                  />
+            {quoteFormat === "costing" && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">Supplier:</span>
+                <div className="w-64 sm:w-80 flex items-center gap-1.5">
+                  <div className="flex-1">
+                    <Combobox
+                      value={supplierId || null}
+                      onChange={(v) => setSupplierId(v ? Number(v) : "")}
+                      options={supplierOptions}
+                      placeholder="Search or select supplier..."
+                      onAddNew={() => setQuickAddSupplierOpen(true)}
+                      addNewLabel="Add new supplier"
+                    />
+                  </div>
+                  {supplierId ? (
+                    <button
+                      type="button"
+                      onClick={() => setSupplierId("")}
+                      className="p-2 rounded-md text-ink-faint hover:text-primary-600 hover:bg-surface transition-colors cursor-pointer border border-border"
+                      title="Clear supplier"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
                 </div>
-                {supplierId ? (
-                  <button
-                    type="button"
-                    onClick={() => setSupplierId("")}
-                    className="p-2 rounded-md text-ink-faint hover:text-primary-600 hover:bg-surface transition-colors cursor-pointer border border-border"
-                    title="Clear supplier"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
               </div>
-            </div>
+            )}
           </div>
 
           <button
@@ -857,273 +909,457 @@ export function QuotationForm({
           </button>
         </div>
 
-        {/* Multi-Tier Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              {/* Tier 1 Header */}
-              <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                <th rowSpan={2} className="w-12 px-3 py-2 text-center border-r border-border">
-                  Sr. No.
-                </th>
-                <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left border-r border-border">
-                  Product / Description
-                </th>
-                <th rowSpan={2} className="w-24 px-2 py-2 text-center border-r border-border">
-                  Reference
-                </th>
-                {columns.map((col) => (
-                  <th key={col.key} rowSpan={2} className="w-28 px-3 py-2 text-left border-r border-border">
-                    <div className="flex items-center gap-1">
-                      <input
-                        value={col.label}
-                        onChange={(e) =>
-                          setColumns((prev) =>
-                            prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
-                          )
-                        }
-                        className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeColumn(col.key)}
-                        className="text-ink-faint hover:text-primary-600"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </th>
-                ))}
-                {/* Spanning Header: Supplier Qty & Rate */}
-                <th
-                  colSpan={2}
-                  className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
-                >
-                  Supplier Qty &amp; Rate
-                </th>
-                {/* Spanning Header: Client Given Rate */}
-                <th
-                  colSpan={4}
-                  className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
-                >
-                  Client Given Rate (Profit Calculation)
-                </th>
-                <th rowSpan={2} className="w-10 px-2 py-2 text-center"></th>
-              </tr>
-
-              {/* Tier 2 Sub-Headers */}
-              <tr className="border-b border-border bg-surface-sunken/30 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
-                {/* Supplier Columns */}
-                <th className="w-24 px-2 py-1.5 text-right border-r border-border">Qty.</th>
-                <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                  Rate
-                </th>
-                {/* Client Profit & Margin Columns */}
-                <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                  Add %
-                </th>
-                <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                  Profit
-                </th>
-                <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                  Client Rate
-                </th>
-                <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
-                  Total Profit
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {items.map((it, i) => {
-                const displayImg = it.image
-                  ? it.image.startsWith("data:")
-                    ? it.image
-                    : mediaUrl(it.image) || it.image
-                  : null;
-
-                const rowProfit = parseFloat(it.total_profit ?? "0") || 0;
-
-                return (
-                  <tr key={i} className="border-b border-border hover:bg-surface-hover transition-colors">
-                    {/* Sr. No. */}
-                    <td className="px-3 py-2 text-center font-bold text-ink-muted border-r border-border">
-                      {i + 1}
-                    </td>
-
-                    {/* Product / Description with Product suggestions */}
-                    <td className="px-3 py-2 border-r border-border">
-                      <div className="relative">
-                        <Input
-                          value={it.description}
-                          onChange={(e) => handleItemChange(i, "description", e.target.value)}
-                          placeholder="e.g. Corrugated Box / Shubh Store Kit"
-                          list={`product-list-${i}`}
-                          className="font-medium text-ink"
+        {/* Dynamic Table: Standard Direct Rate vs Multi-Tier Costing */}
+        {quoteFormat === "standard" ? (
+          /* Format 1: Standard Direct Quotation Table (The Classic Format) */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  <th className="w-12 px-3 py-2.5 text-center border-r border-border">Sr. No.</th>
+                  <th className="min-w-[260px] px-4 py-2.5 text-left border-r border-border">Product / Description</th>
+                  <th className="w-24 px-2 py-2.5 text-center border-r border-border">Reference</th>
+                  {columns.map((col) => (
+                    <th key={col.key} className="w-28 px-3 py-2.5 text-left border-r border-border">
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={col.label}
+                          onChange={(e) =>
+                            setColumns((prev) =>
+                              prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
+                            )
+                          }
+                          className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                         />
-                        <datalist id={`product-list-${i}`}>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.product_name} />
-                          ))}
-                        </datalist>
+                        <button
+                          type="button"
+                          onClick={() => removeColumn(col.key)}
+                          className="text-ink-faint hover:text-primary-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
-                    </td>
+                    </th>
+                  ))}
+                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                    <input
+                      value={colQtyLabel}
+                      onChange={(e) => setColQtyLabel(e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                    />
+                  </th>
+                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                    <input
+                      value={colRateLabel}
+                      onChange={(e) => setColRateLabel(e.target.value)}
+                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                    />
+                  </th>
+                  <th className="w-32 px-3 py-2.5 text-right border-r border-border font-bold text-ink">Amount</th>
+                  <th className="w-10 px-2 py-2.5 text-center"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => {
+                  const q = parseFloat(it.qty) || 0;
+                  const r = parseFloat(it.rate) || 0;
+                  const amount = q * r;
+                  const displayImg = it.image
+                    ? it.image.startsWith("data:")
+                      ? it.image
+                      : mediaUrl(it.image) || it.image
+                    : null;
 
-                    {/* Reference Image */}
-                    <td className="px-2 py-2 text-center align-middle border-r border-border">
-                      {displayImg ? (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewLightboxImage(displayImg)}
-                            className="relative group h-8 w-8 rounded-md border border-border overflow-hidden bg-surface p-0.5 shadow-2xs hover:border-primary-400 cursor-pointer"
-                            title="Click to preview image"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={displayImg} alt="Reference" className="h-full w-full object-contain" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                              <ZoomIn className="h-3 w-3 text-white" />
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateItem(i, { image: null })}
-                            className="text-ink-faint hover:text-primary-600 cursor-pointer"
-                            title="Remove image"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-muted hover:text-primary-600 cursor-pointer bg-surface px-2 py-1 rounded border border-border hover:border-primary-300 transition shadow-2xs">
-                          <Upload className="h-3 w-3" />
-                          <span>+ Img</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (evt) => {
-                                  if (evt.target?.result) {
-                                    updateItem(i, { image: String(evt.target.result) });
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                              e.target.value = "";
-                            }}
-                          />
-                        </label>
-                      )}
-                    </td>
-
-                    {/* Custom Columns */}
-                    {columns.map((col) => (
-                      <td key={col.key} className="px-2 py-2 border-r border-border">
-                        <Input
-                          value={it.extra_data[col.key] ?? ""}
-                          onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
-                        />
+                  return (
+                    <tr key={i} className="border-b border-border hover:bg-surface-hover transition-colors">
+                      <td className="px-3 py-2 text-center font-bold text-ink-muted border-r border-border">
+                        {i + 1}
                       </td>
-                    ))}
-
-                    {/* Supplier Qty */}
-                    <td className="px-2 py-2 border-r border-border">
-                      <Input
-                        type="number"
-                        step="1"
-                        min="0"
-                        value={it.qty}
-                        onChange={(e) => handleItemChange(i, "qty", e.target.value)}
-                        className="text-right font-medium"
-                      />
-                    </td>
-
-                    {/* Supplier Rate */}
-                    <td className="px-2 py-2 border-r border-border">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={it.supplier_rate ?? "0"}
-                        onChange={(e) => handleItemChange(i, "supplier_rate", e.target.value)}
-                        className="text-right font-medium"
-                        placeholder="0.00"
-                      />
-                    </td>
-
-                    {/* Add as % */}
-                    <td className="px-2 py-2 border-r border-border">
-                      <div className="relative">
+                      <td className="px-3 py-2 border-r border-border">
+                        <div className="relative">
+                          <Input
+                            value={it.description}
+                            onChange={(e) => handleItemChange(i, "description", e.target.value)}
+                            placeholder="e.g. Visiting Card / Calendar / Brochure"
+                            list={`product-list-std-${i}`}
+                            className="font-medium text-ink"
+                          />
+                          <datalist id={`product-list-std-${i}`}>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.product_name} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </td>
+                      {/* Reference Image */}
+                      <td className="px-2 py-2 text-center align-middle border-r border-border">
+                        {displayImg ? (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewLightboxImage(displayImg)}
+                              className="relative group h-8 w-8 rounded-md border border-border overflow-hidden bg-surface p-0.5 shadow-2xs hover:border-primary-400 cursor-pointer"
+                              title="Click to preview image"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={displayImg} alt="Reference" className="h-full w-full object-contain" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                                <ZoomIn className="h-3 w-3 text-white" />
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateItem(i, { image: null })}
+                              className="text-ink-faint hover:text-primary-600 cursor-pointer"
+                              title="Remove image"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-muted hover:text-primary-600 cursor-pointer bg-surface px-2 py-1 rounded border border-border hover:border-primary-300 transition shadow-2xs">
+                            <Upload className="h-3 w-3" />
+                            <span>+ Img</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (evt) => {
+                                    if (evt.target?.result) {
+                                      updateItem(i, { image: String(evt.target.result) });
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </td>
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-2 py-2 border-r border-border">
+                          <Input
+                            value={it.extra_data[col.key] ?? ""}
+                            onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 border-r border-border">
                         <Input
                           type="number"
-                          step="0.1"
-                          value={it.margin_percent ?? ""}
-                          onChange={(e) => handleItemChange(i, "margin_percent", e.target.value)}
-                          placeholder="25"
-                          className="text-right pr-5 font-medium"
+                          step="0.01"
+                          min="0"
+                          value={it.qty}
+                          onChange={(e) => handleItemChange(i, "qty", e.target.value)}
+                          className="text-right font-medium"
                         />
-                        <span className="absolute right-2 top-2 text-[10px] font-bold text-ink-muted pointer-events-none">
-                          %
-                        </span>
+                      </td>
+                      <td className="px-2 py-2 border-r border-border">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.rate}
+                          onChange={(e) => handleItemChange(i, "rate", e.target.value)}
+                          className="text-right font-bold text-ink"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right font-bold text-ink tnum border-r border-border">
+                        {formatCurrency(amount, effectiveCurrency)}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))
+                          }
+                          disabled={items.length === 1}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed mx-auto"
+                          title="Remove row"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Format 2: Multi-Tier Supplier Costing & Margin Table (The New Format) */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                {/* Tier 1 Header */}
+                <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  <th rowSpan={2} className="w-12 px-3 py-2 text-center border-r border-border">
+                    Sr. No.
+                  </th>
+                  <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left border-r border-border">
+                    Product / Description
+                  </th>
+                  <th rowSpan={2} className="w-24 px-2 py-2 text-center border-r border-border">
+                    Reference
+                  </th>
+                  {columns.map((col) => (
+                    <th key={col.key} rowSpan={2} className="w-28 px-3 py-2 text-left border-r border-border">
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={col.label}
+                          onChange={(e) =>
+                            setColumns((prev) =>
+                              prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
+                            )
+                          }
+                          className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeColumn(col.key)}
+                          className="text-ink-faint hover:text-primary-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
-                    </td>
+                    </th>
+                  ))}
+                  {/* Spanning Header: Supplier Qty & Rate */}
+                  <th
+                    colSpan={2}
+                    className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
+                  >
+                    Supplier Qty &amp; Rate
+                  </th>
+                  {/* Spanning Header: Client Given Rate */}
+                  <th
+                    colSpan={4}
+                    className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
+                  >
+                    Client Given Rate (Profit Calculation)
+                  </th>
+                  <th rowSpan={2} className="w-10 px-2 py-2 text-center"></th>
+                </tr>
 
-                    {/* Profit per unit */}
-                    <td className="px-2 py-2 border-r border-border">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={it.profit ?? "0"}
-                        onChange={(e) => handleItemChange(i, "profit", e.target.value)}
-                        className="text-right font-medium text-ink"
-                        placeholder="0.00"
-                      />
-                    </td>
+                {/* Tier 2 Sub-Headers */}
+                <tr className="border-b border-border bg-surface-sunken/30 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
+                  {/* Supplier Columns */}
+                  <th className="w-24 px-2 py-1.5 text-right border-r border-border">Qty.</th>
+                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                    Rate
+                  </th>
+                  {/* Client Profit & Margin Columns */}
+                  <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                    Add %
+                  </th>
+                  <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                    Profit
+                  </th>
+                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                    Client Rate
+                  </th>
+                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
+                    Total Profit
+                  </th>
+                </tr>
+              </thead>
 
-                    {/* Client Rate */}
-                    <td className="px-2 py-2 border-r border-border">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={it.rate}
-                        onChange={(e) => handleItemChange(i, "rate", e.target.value)}
-                        className="text-right font-bold text-ink"
-                        placeholder="0.00"
-                      />
-                    </td>
+              <tbody>
+                {items.map((it, i) => {
+                  const displayImg = it.image
+                    ? it.image.startsWith("data:")
+                      ? it.image
+                      : mediaUrl(it.image) || it.image
+                    : null;
 
-                    {/* Total Profit */}
-                    <td className="px-3 py-2 text-right font-bold border-r border-border">
-                      <span className="inline-block text-success-700 font-mono tnum">
-                        {formatCurrency(rowProfit, effectiveCurrency)}
-                      </span>
-                    </td>
+                  const rowProfit = parseFloat(it.total_profit ?? "0") || 0;
 
-                    {/* Delete action */}
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))
-                        }
-                        disabled={items.length === 1}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed mx-auto"
-                        title="Remove row"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  return (
+                    <tr key={i} className="border-b border-border hover:bg-surface-hover transition-colors">
+                      {/* Sr. No. */}
+                      <td className="px-3 py-2 text-center font-bold text-ink-muted border-r border-border">
+                        {i + 1}
+                      </td>
+
+                      {/* Product / Description with Product suggestions */}
+                      <td className="px-3 py-2 border-r border-border">
+                        <div className="relative">
+                          <Input
+                            value={it.description}
+                            onChange={(e) => handleItemChange(i, "description", e.target.value)}
+                            placeholder="e.g. Corrugated Box / Shubh Store Kit"
+                            list={`product-list-${i}`}
+                            className="font-medium text-ink"
+                          />
+                          <datalist id={`product-list-${i}`}>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.product_name} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </td>
+
+                      {/* Reference Image */}
+                      <td className="px-2 py-2 text-center align-middle border-r border-border">
+                        {displayImg ? (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewLightboxImage(displayImg)}
+                              className="relative group h-8 w-8 rounded-md border border-border overflow-hidden bg-surface p-0.5 shadow-2xs hover:border-primary-400 cursor-pointer"
+                              title="Click to preview image"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={displayImg} alt="Reference" className="h-full w-full object-contain" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                                <ZoomIn className="h-3 w-3 text-white" />
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateItem(i, { image: null })}
+                              className="text-ink-faint hover:text-primary-600 cursor-pointer"
+                              title="Remove image"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-muted hover:text-primary-600 cursor-pointer bg-surface px-2 py-1 rounded border border-border hover:border-primary-300 transition shadow-2xs">
+                            <Upload className="h-3 w-3" />
+                            <span>+ Img</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (evt) => {
+                                    if (evt.target?.result) {
+                                      updateItem(i, { image: String(evt.target.result) });
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </td>
+
+                      {/* Custom Columns */}
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-2 py-2 border-r border-border">
+                          <Input
+                            value={it.extra_data[col.key] ?? ""}
+                            onChange={(e) => updateItemExtra(i, col.key, e.target.value)}
+                          />
+                        </td>
+                      ))}
+
+                      {/* Supplier Qty */}
+                      <td className="px-2 py-2 border-r border-border">
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={it.qty}
+                          onChange={(e) => handleItemChange(i, "qty", e.target.value)}
+                          className="text-right font-medium"
+                        />
+                      </td>
+
+                      {/* Supplier Rate */}
+                      <td className="px-2 py-2 border-r border-border">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.supplier_rate ?? "0"}
+                          onChange={(e) => handleItemChange(i, "supplier_rate", e.target.value)}
+                          className="text-right font-medium"
+                          placeholder="0.00"
+                        />
+                      </td>
+
+                      {/* Add as % */}
+                      <td className="px-2 py-2 border-r border-border">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={it.margin_percent ?? ""}
+                            onChange={(e) => handleItemChange(i, "margin_percent", e.target.value)}
+                            placeholder="25"
+                            className="text-right pr-5 font-medium"
+                          />
+                          <span className="absolute right-2 top-2 text-[10px] font-bold text-ink-muted pointer-events-none">
+                            %
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Profit per unit */}
+                      <td className="px-2 py-2 border-r border-border">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={it.profit ?? "0"}
+                          onChange={(e) => handleItemChange(i, "profit", e.target.value)}
+                          className="text-right font-medium text-ink"
+                          placeholder="0.00"
+                        />
+                      </td>
+
+                      {/* Client Rate */}
+                      <td className="px-2 py-2 border-r border-border">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.rate}
+                          onChange={(e) => handleItemChange(i, "rate", e.target.value)}
+                          className="text-right font-bold text-ink"
+                          placeholder="0.00"
+                        />
+                      </td>
+
+                      {/* Total Profit */}
+                      <td className="px-3 py-2 text-right font-bold border-r border-border">
+                        <span className="inline-block text-success-700 font-mono tnum">
+                          {formatCurrency(rowProfit, effectiveCurrency)}
+                        </span>
+                      </td>
+
+                      {/* Delete action */}
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))
+                          }
+                          disabled={items.length === 1}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed mx-auto"
+                          title="Remove row"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Section 1 Footer Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-border px-5 py-3 gap-3 bg-surface-sunken/40">
@@ -1132,27 +1368,37 @@ export function QuotationForm({
             onClick={() => setItems((prev) => [...prev, blankItem()])}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer w-fit"
           >
-            <Plus className="h-4 w-4" /> Add Item / Tier Row
+            <Plus className="h-4 w-4" /> {quoteFormat === "standard" ? "Add Line Item" : "Add Item / Tier Row"}
           </button>
 
           {/* Financial Totals */}
           <div className="flex flex-wrap items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-ink-muted">Supplier Cost:</span>
-              <strong className="font-bold text-ink tnum">{formatCurrency(totalSupplierCost, effectiveCurrency)}</strong>
-            </div>
+            {quoteFormat === "costing" && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Supplier Cost:</span>
+                  <strong className="font-bold text-ink tnum">{formatCurrency(totalSupplierCost, effectiveCurrency)}</strong>
+                </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-ink-muted">Net Profit:</span>
-              <strong className="font-bold text-success-700 tnum">{formatCurrency(totalProfit, effectiveCurrency)}</strong>
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Net Profit:</span>
+                  <strong className="font-bold text-success-700 tnum">{formatCurrency(totalProfit, effectiveCurrency)}</strong>
+                </div>
+              </>
+            )}
 
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 shadow-2xs">
-              <span className="text-ink-muted">Client Subtotal:</span>
+              <span className="text-ink-muted">{quoteFormat === "standard" ? "Subtotal:" : "Client Subtotal:"}</span>
               <strong className="font-extrabold text-primary-600 text-sm tnum">
                 {formatCurrency(subtotal, effectiveCurrency)}
               </strong>
             </div>
+
+            {effectiveCurrency !== baseCurrency && (
+              <span className="text-ink-muted text-[11px]">
+                ≈ <strong className="font-mono text-ink">{formatCurrency(subtotal * getRate(effectiveCurrency, baseCurrency, baseCurrency), baseCurrency)}</strong>
+              </span>
+            )}
           </div>
         </div>
       </Card>

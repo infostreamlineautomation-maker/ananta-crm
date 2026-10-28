@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
+  Calculator,
   ChevronDown,
   ChevronRight,
   Copy,
   Download,
   Eye,
+  FileText,
   FileUp,
   Image as ImageIcon,
   Layers,
@@ -89,6 +91,7 @@ const QUOTATIONS_EXPORT_COLUMNS: ExportColumn<any>[] = [
 const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "select", label: "Checkbox", required: true },
   { key: "quotation_no", label: "Quotation No", required: true },
+  { key: "quote_format", label: "Format", defaultVisible: false },
   { key: "date", label: "Date" },
   { key: "client_name", label: "Client" },
   { key: "company_name", label: "Company", defaultVisible: false },
@@ -499,6 +502,11 @@ export default function QuotationsPage() {
                                     <Link href={`/quotations/${q.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
                                       {q.quotation_no}
                                     </Link>
+                                    {q.quote_format === "costing" && (
+                                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold tracking-tight" title="Costing & Margin Quote">
+                                        <Calculator className="h-2.5 w-2.5" /> Costing
+                                      </span>
+                                    )}
                                     {itemCount > 0 && (
                                       <button
                                         type="button"
@@ -511,6 +519,27 @@ export default function QuotationsPage() {
                                       </button>
                                     )}
                                   </div>
+                                </td>
+                              );
+                            case "quote_format":
+                              return (
+                                <td key="quote_format" className={TD}>
+                                  <span className={clsx(
+                                    "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold",
+                                    q.quote_format === "costing"
+                                      ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                      : "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
+                                  )}>
+                                    {q.quote_format === "costing" ? (
+                                      <>
+                                        <Calculator className="h-3 w-3" /> Costing & Margin
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileText className="h-3 w-3" /> Standard
+                                      </>
+                                    )}
+                                  </span>
                                 </td>
                               );
                             case "date":
@@ -620,6 +649,22 @@ export default function QuotationsPage() {
                                 <span className="rounded-full bg-primary-100 dark:bg-primary-950/60 px-2 py-0.5 text-[11px] font-semibold text-primary-700 dark:text-primary-300">
                                   {itemCount} item{itemCount !== 1 ? "s" : ""}
                                 </span>
+                                <span className={clsx(
+                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
+                                  q.quote_format === "costing"
+                                    ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                    : "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
+                                )}>
+                                  {q.quote_format === "costing" ? (
+                                    <>
+                                      <Calculator className="h-3 w-3" /> Costing &amp; Margin
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileText className="h-3 w-3" /> Standard Quote
+                                    </>
+                                  )}
+                                </span>
                               </div>
                               <div className="text-xs text-ink-muted">
                                 Quotation: <span className="font-semibold font-mono text-ink">{q.quotation_no}</span>
@@ -645,9 +690,23 @@ export default function QuotationsPage() {
                                               {col.label}
                                             </th>
                                           ))}
-                                          <th className="w-24 px-3 py-2 text-right">{q.col_qty_label || "Qty"}</th>
-                                          <th className="w-28 px-3 py-2 text-right">{q.col_rate_label || "Rate"}</th>
-                                          <th className="w-32 px-3 py-2 text-right">Amount</th>
+                                          {q.quote_format === "costing" ? (
+                                            <>
+                                              <th className="w-20 px-3 py-2 text-right">{q.col_qty_label || "Qty"}</th>
+                                              <th className="w-24 px-3 py-2 text-right">Supplier Rate</th>
+                                              <th className="w-20 px-3 py-2 text-right">Add %</th>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_rate_label || "Client Rate"}</th>
+                                              <th className="w-28 px-3 py-2 text-right">Amount</th>
+                                              <th className="w-24 px-3 py-2 text-right">Profit/Unit</th>
+                                              <th className="w-28 px-3 py-2 text-right">Total Profit</th>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_qty_label || "Qty"}</th>
+                                              <th className="w-28 px-3 py-2 text-right">{q.col_rate_label || "Rate"}</th>
+                                              <th className="w-32 px-3 py-2 text-right">Amount</th>
+                                            </>
+                                          )}
                                           {hasAnyItemImage && (
                                             <th className="w-20 px-3 py-2 text-center">Reference</th>
                                           )}
@@ -672,15 +731,43 @@ export default function QuotationsPage() {
                                                   {item.extra_data?.[col.key] || item.extra_data?.[col.label] || "—"}
                                                 </td>
                                               ))}
-                                              <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
-                                                {item.qty || "0"}
-                                              </td>
-                                              <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
-                                                {formatCurrency(item.rate, q.currency_code)}
-                                              </td>
-                                              <td className="px-3 py-2.5 text-right font-semibold text-ink tnum">
-                                                {formatCurrency(item.amount || itemAmt, q.currency_code)}
-                                              </td>
+                                              {q.quote_format === "costing" ? (
+                                                <>
+                                                  <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
+                                                    {item.qty || "0"}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-mono text-ink-muted tnum">
+                                                    {item.supplier_rate ? formatCurrency(item.supplier_rate, q.currency_code) : "—"}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-mono text-primary-600 font-semibold tnum">
+                                                    {item.margin_percent ? `${item.margin_percent}%` : "—"}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
+                                                    {formatCurrency(item.rate, q.currency_code)}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-semibold text-ink tnum">
+                                                    {formatCurrency(item.amount || itemAmt, q.currency_code)}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-mono text-emerald-600 font-medium tnum">
+                                                    {item.profit ? formatCurrency(item.profit, q.currency_code) : "—"}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-mono text-emerald-700 font-bold tnum">
+                                                    {item.total_profit ? formatCurrency(item.total_profit, q.currency_code) : "—"}
+                                                  </td>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
+                                                    {item.qty || "0"}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
+                                                    {formatCurrency(item.rate, q.currency_code)}
+                                                  </td>
+                                                  <td className="px-3 py-2.5 text-right font-semibold text-ink tnum">
+                                                    {formatCurrency(item.amount || itemAmt, q.currency_code)}
+                                                  </td>
+                                                </>
+                                              )}
                                               {hasAnyItemImage && (
                                                 <td className="px-3 py-2.5 text-center align-middle">
                                                   {imgUrl ? (
@@ -720,6 +807,22 @@ export default function QuotationsPage() {
                                         })}
                                       </tbody>
                                     </table>
+                                    {q.quote_format === "costing" && (
+                                      <div className="flex items-center justify-end gap-6 px-4 py-2.5 bg-surface-sunken/60 border-t border-border/60 text-xs">
+                                        <div>
+                                          <span className="text-ink-muted">Supplier Total Cost: </span>
+                                          <span className="font-semibold text-ink font-mono">{formatCurrency(q.total_supplier_cost ?? 0, q.currency_code)}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-ink-muted">Client Subtotal: </span>
+                                          <span className="font-semibold text-ink font-mono">{formatCurrency(q.subtotal ?? 0, q.currency_code)}</span>
+                                        </div>
+                                        <div className="border-l border-border pl-6">
+                                          <span className="text-emerald-600 font-semibold">Net Profit: </span>
+                                          <span className="font-bold text-emerald-700 font-mono text-sm">{formatCurrency(q.total_profit ?? 0, q.currency_code)}</span>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()
@@ -800,7 +903,7 @@ export default function QuotationsPage() {
           } catch (e) {
             // ignore
           }
-          router.push("/quotations/new");
+          router.push(`/quotations/new?format=${data.quote_format || "standard"}`);
         }}
         clients={allClients}
         suppliers={allSuppliers}
