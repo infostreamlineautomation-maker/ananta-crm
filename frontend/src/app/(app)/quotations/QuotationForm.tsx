@@ -718,9 +718,15 @@ export function QuotationForm({
         notes,
         footer_content: footerContent,
         whatsapp_message: whatsappText,
-        col_qty_label: colQtyLabel,
-        col_rate_label: colRateLabel,
-        col_labels: colLabels,
+        col_qty_label: (quoteFormat === "costing" ? colLabels.supplier_qty : colLabels.qty) || colQtyLabel || "Qty",
+        col_rate_label: (quoteFormat === "costing" ? colLabels.client_rate : colLabels.rate) || colRateLabel || "Client Rate",
+        col_labels: {
+          ...colLabels,
+          qty: colLabels.qty || colQtyLabel || "Qty",
+          rate: colLabels.rate || colRateLabel || "Client Rate",
+          supplier_qty: colLabels.supplier_qty || colQtyLabel || "Qty.",
+          client_rate: colLabels.client_rate || colRateLabel || "Client Rate",
+        },
         columns_config: columns,
         status,
         items: items.map((it) => ({

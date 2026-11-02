@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Printer, Image as ImageIcon, FileText, ZoomIn } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, Client, QuotationDetail } from "@/lib/types";
@@ -115,6 +115,18 @@ export default function QuotationPrintPage() {
   }, 0);
   const subtotalValue = parseFloat(quotation.subtotal) || computedSubtotal;
 
+  // Determine column titles as entered in the quotation form (whether costing or standard)
+  const isCosting = quotation.quote_format === "costing";
+  const colNameItem = quotation.col_labels?.item || "DESCRIPTION";
+  const colNameReference = quotation.col_labels?.reference || "REFERENCE";
+  const colNameQty = isCosting
+    ? (quotation.col_labels?.supplier_qty || quotation.col_qty_label || quotation.col_labels?.qty || "QTY.")
+    : (quotation.col_labels?.qty || quotation.col_qty_label || quotation.col_labels?.supplier_qty || "QTY.");
+  const colNameRate = isCosting
+    ? (quotation.col_labels?.client_rate || quotation.col_rate_label || quotation.col_labels?.rate || "RATE (PER PIECE)")
+    : (quotation.col_labels?.rate || quotation.col_rate_label || quotation.col_labels?.client_rate || "RATE (PER PIECE)");
+  const colNameAmount = quotation.col_labels?.amount || "AMOUNT";
+
   // Recipient details
   const toCompanyOrClient =
     quotation.to_name ||
@@ -191,6 +203,7 @@ export default function QuotationPrintPage() {
           <ArrowLeft className="h-4 w-4" /> Back to Quotation
         </Link>
         <div className="flex items-center gap-2.5">
+
           {bgImage && (
             <button
               type="button"
@@ -298,7 +311,7 @@ export default function QuotationPrintPage() {
                         SR. NO.
                       </th>
                       <th className="border-r border-black px-3 py-2 text-left">
-                        {(quotation.col_labels?.item || "DESCRIPTION").toUpperCase()}
+                        {colNameItem.toUpperCase()}
                       </th>
                       {columns.map((col) => (
                         <th key={col.key} className="border-r border-black px-3 py-2 text-center">
@@ -307,17 +320,17 @@ export default function QuotationPrintPage() {
                       ))}
                       {hasAnyItemImage && (
                         <th className="border-r border-black w-24 px-2 py-2 text-center">
-                          {(quotation.col_labels?.reference || "REFERENCE").toUpperCase()}
+                          {colNameReference.toUpperCase()}
                         </th>
                       )}
-                      <th className="border-r border-black w-20 px-2 py-2 text-center">
-                        {(quotation.col_labels?.supplier_qty || quotation.col_labels?.qty || quotation.col_qty_label || "QTY.").toUpperCase()}
+                      <th className="border-r border-black w-24 px-2 py-2 text-center">
+                        {colNameQty.toUpperCase()}
                       </th>
-                      <th className="border-r border-black w-32 px-3 py-2 text-center">
-                        {(quotation.col_labels?.client_rate || quotation.col_labels?.rate || quotation.col_rate_label || "RATE (PER PIECE)").toUpperCase()}
+                      <th className="border-r border-black w-36 px-3 py-2 text-center">
+                        {colNameRate.toUpperCase()}
                       </th>
                       <th className="w-32 px-3 py-2 text-right">
-                        {(quotation.col_labels?.amount || "AMOUNT").toUpperCase()}
+                        {colNameAmount.toUpperCase()}
                       </th>
                     </tr>
                   </thead>
