@@ -76,6 +76,8 @@ def settings_view(request):
     if not has_permission(request.user, SETTINGS, EDIT):
         return Response({"detail": "You do not have permission to edit settings."}, status=403)
     old_currency = request.organization.default_currency_code
+    old_intro = request.organization.quotation_intro
+    old_terms = request.organization.quotation_terms
     serializer = OrganizationSettingsSerializer(
         request.organization, data=request.data, partial=True, context={"request": request}
     )
@@ -85,6 +87,67 @@ def settings_view(request):
     if updated_org.default_currency_code != old_currency or "default_currency_code" in request.data:
         from apps.core.forex import sync_exchange_rates
         sync_exchange_rates(updated_org)
+
+    # When quotation intro or terms are updated in settings, propagate to quotations
+    from django.db import models
+    from apps.quotations.models import Quotation
+
+    sync_all = str(request.data.get("sync_existing_quotations", "true")).lower() in ["true", "1", "yes"]
+
+    if "quotation_intro" in request.data:
+        new_intro = updated_org.quotation_intro or ""
+        qs = Quotation.objects.filter(organization=updated_org)
+        if not sync_all:
+            q_intro = models.Q(intro_text="") | models.Q(intro_text__icontains="With The Above Reference")
+            if old_intro:
+                q_intro |= models.Q(intro_text=old_intro)
+            qs = qs.filter(q_intro)
+        qs.update(intro_text=new_intro)
+
+    if "quotation_terms" in request.data:
+        new_terms = updated_org.quotation_terms or ""
+        qs = Quotation.objects.filter(organization=updated_org)
+        if not sync_all:
+            q_terms = models.Q(notes="") | models.Q(notes__icontains="GST Should be Extra")
+            if old_terms:
+                q_terms |= models.Q(notes=old_terms)
+            qs = qs.filter(q_terms)
+        qs.update(notes=new_terms)
+
+    # When quotation or order numbering prefix is updated, sync existing documents
+    import re
+    if "quotation_prefix" in request.data:
+        new_q_pref = (updated_org.quotation_prefix or "").strip()
+        if new_q_pref:
+            if not (new_q_pref.endswith("/") or new_q_pref.endswith("-")):
+                new_q_pref = f"{new_q_pref}/"
+            for q in Quotation.objects.filter(organization=updated_org):
+                m = re.search(r"(\d{3,}-\d{2,4})$", q.quotation_no)
+                if not m:
+                    m = re.search(r"(\d+.*)$", q.quotation_no)
+                if m:
+                    new_no = f"{new_q_pref}{m.group(1)}"
+                    if new_no != q.quotation_no:
+                        if not Quotation.objects.filter(organization=updated_org, quotation_no=new_no).exclude(id=q.id).exists():
+                            q.quotation_no = new_no
+                            q.save(update_fields=["quotation_no"])
+
+    if "order_prefix" in request.data:
+        from apps.orders.models import Order
+        new_ord_pref = (updated_org.order_prefix or "").strip()
+        if new_ord_pref:
+            if not (new_ord_pref.endswith("/") or new_ord_pref.endswith("-")):
+                new_ord_pref = f"{new_ord_pref}/"
+            for ord_obj in Order.objects.filter(organization=updated_org):
+                m = re.search(r"(\d{3,}-\d{2,4})$", ord_obj.order_no)
+                if not m:
+                    m = re.search(r"(\d+.*)$", ord_obj.order_no)
+                if m:
+                    new_no = f"{new_ord_pref}{m.group(1)}"
+                    if new_no != ord_obj.order_no:
+                        if not Order.objects.filter(organization=updated_org, order_no=new_no).exclude(id=ord_obj.id).exists():
+                            ord_obj.order_no = new_no
+                            ord_obj.save(update_fields=["order_no"])
 
     return Response(OrganizationSettingsSerializer(request.organization, context={"request": request}).data)
 

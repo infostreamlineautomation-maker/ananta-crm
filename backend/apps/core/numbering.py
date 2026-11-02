@@ -16,9 +16,7 @@ def next_number(organization, prefix: str = None, doc_type: str = "order", width
     year_2digit = date.today().strftime("%y")
 
     clean_prefix = (prefix or getattr(organization, f"{doc_type}_prefix", None) or "AG/").strip()
-    if clean_prefix.endswith("-"):
-        clean_prefix = clean_prefix[:-1] + "/"
-    elif not clean_prefix.endswith("/"):
+    if not (clean_prefix.endswith("/") or clean_prefix.endswith("-")):
         clean_prefix = f"{clean_prefix}/"
 
     key = f"{doc_type}:{clean_prefix}{year_2digit}"

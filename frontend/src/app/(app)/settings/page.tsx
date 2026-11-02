@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [saving, setSaving] = useState(false);
+  const [syncExistingQuotes, setSyncExistingQuotes] = useState(true);
   const [testEmail, setTestEmail] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
   const [testPhone, setTestPhone] = useState("");
@@ -116,6 +117,10 @@ export default function SettingsPage() {
           }
         }
       });
+
+      if (tab === "quotation" || syncExistingQuotes) {
+        body.append("sync_existing_quotations", syncExistingQuotes ? "true" : "false");
+      }
 
       const updated = await apiFetch<AppSettings>("/api/settings/", { method: "PATCH", body });
       setSettings(updated);
@@ -253,6 +258,18 @@ export default function SettingsPage() {
                   file={files.quotation_signature_image}
                   onChange={(f) => setFiles((s) => ({ ...s, quotation_signature_image: f }))}
                 />
+              </div>
+              <div className="flex items-center gap-2 pt-2 text-xs text-ink-muted border-t border-border mt-1">
+                <input
+                  type="checkbox"
+                  id="sync_existing_quotations"
+                  checked={syncExistingQuotes}
+                  onChange={(e) => setSyncExistingQuotes(e.target.checked)}
+                  className="rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer h-4 w-4"
+                />
+                <label htmlFor="sync_existing_quotations" className="cursor-pointer font-medium text-ink">
+                  Apply Intro &amp; Terms to all current and previously saved quotations of this business
+                </label>
               </div>
             </>
           )}

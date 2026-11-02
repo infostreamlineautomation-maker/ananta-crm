@@ -53,12 +53,18 @@ export function getReportLogo(
   customBrandLogoPath?: string | null,
 ): string {
   if (customReportLogoPath) {
-    const url = mediaUrl(customReportLogoPath);
-    if (url) return url;
+    const lower = customReportLogoPath.toLowerCase();
+    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
+      const url = mediaUrl(customReportLogoPath);
+      if (url) return url;
+    }
   }
   if (customBrandLogoPath) {
-    const url = mediaUrl(customBrandLogoPath);
-    if (url) return url;
+    const lower = customBrandLogoPath.toLowerCase();
+    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
+      const url = mediaUrl(customBrandLogoPath);
+      if (url) return url;
+    }
   }
   const str = (nameOrOrg || "").toLowerCase();
   if (str.includes("meewa")) {

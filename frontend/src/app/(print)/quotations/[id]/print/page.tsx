@@ -105,7 +105,9 @@ export default function QuotationPrintPage() {
   const bgImage = settings?.quotation_background_image ? mediaUrl(settings.quotation_background_image) : null;
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
+  const signatureName = settings?.quotation_signature_name || companyName;
   const designation = settings?.quotation_designation || "Proprietor";
+  const contactPerson = settings?.quotation_contact_person || "";
   const logoImage = getReportLogo(companyName, settings?.report_logo, settings?.logo || settings?.app_logo);
   const currency = quotation.currency_code || clientData?.currency_code || settings?.default_currency_code || "INR";
   const computedSubtotal = (quotation.items || []).reduce((sum, it) => {
@@ -156,19 +158,35 @@ export default function QuotationPrintPage() {
   }
 
   // Intro paragraph
-  const intro =
-    quotation.intro_text ||
-    settings?.quotation_intro ||
+  const DEFAULT_INTRO =
     "With The Above Reference, We Are Pleased To Supply The Material With The Following Rates As Per Terms & Conditions Stated Below. Please Sanction The Rates And Place The Order At The Earliest.";
 
+  const isDefaultIntro =
+    !quotation.intro_text ||
+    quotation.intro_text.trim() === "" ||
+    quotation.intro_text.includes("With The Above Reference");
+
+  const intro =
+    settings?.quotation_intro && settings.quotation_intro.trim()
+      ? (isDefaultIntro ? settings.quotation_intro : (quotation.intro_text || settings.quotation_intro))
+      : (quotation.intro_text || DEFAULT_INTRO);
+
   // Notes lines
-  const rawNotes =
-    quotation.notes ||
-    settings?.quotation_terms ||
-    `1. GST Should be Extra as per Government Rules.
+  const DEFAULT_NOTES = `1. GST Should be Extra as per Government Rules.
 2. Transportation charge will be extra as per the Location of Delivery.
 3. Payment to be made by Payees A/c. Cheque, Draft or NEFT / RTGS / IMPS only.
 4. Subject to Surat Jurisdiction.`;
+
+  const isDefaultNotes =
+    !quotation.notes ||
+    quotation.notes.trim() === "" ||
+    quotation.notes.includes("GST Should be Extra") ||
+    quotation.notes.includes("Government Rules");
+
+  const rawNotes =
+    settings?.quotation_terms && settings.quotation_terms.trim()
+      ? (isDefaultNotes ? settings.quotation_terms : (quotation.notes || settings.quotation_terms))
+      : (quotation.notes || DEFAULT_NOTES);
 
   const notesLines = rawNotes
     .split("\n")
@@ -244,7 +262,17 @@ export default function QuotationPrintPage() {
             <div className="border-b-2 border-primary-600 px-10 pt-8 pb-4 flex items-start justify-between">
               <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoImage} alt={companyName} className="h-14 sm:h-16 w-auto max-w-[280px] object-contain object-left mb-2" />
+                <img
+                  src={logoImage}
+                  alt={companyName}
+                  className="h-14 sm:h-16 w-auto max-w-[280px] object-contain object-left mb-2"
+                  onError={(e) => {
+                    const fallback = companyName.toLowerCase().includes("meewa") ? "/meewa_logo.png" : "/ananta_logo.png";
+                    if (!e.currentTarget.src.endsWith(fallback)) {
+                      e.currentTarget.src = fallback;
+                    }
+                  }}
+                />
                 {settings?.company_address && <p className="text-[11.5px] text-neutral-600 max-w-sm whitespace-pre-line">{settings.company_address}</p>}
               </div>
               <div className="text-right text-xs text-neutral-600">
@@ -456,8 +484,11 @@ export default function QuotationPrintPage() {
                   <div className="h-8" />
                 )}
               </div>
-              <p className="font-black text-[14px] text-black tracking-wide">{companyName}</p>
+              <p className="font-black text-[14px] text-black tracking-wide">{signatureName}</p>
               <p className="text-[12.5px] font-medium text-neutral-800">{designation}</p>
+              {contactPerson && (
+                <p className="text-[12px] font-medium text-neutral-700">Contact: {contactPerson}</p>
+              )}
             </div>
           </div>
 

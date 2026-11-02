@@ -27,6 +27,7 @@ import {
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
 import {
+  AppSettings,
   Client,
   Company,
   Country,
@@ -286,6 +287,32 @@ export function QuotationForm({
       "1. GST Should be Extra as per Government Rules.\n2. Transportation charge will be extra as per the Location of Delivery.\n3. Payment to be made by Payees A/c. Cheque, Draft or NEFT / RTGS / IMPS only.\n4. Subject to Surat Jurisdiction."
   );
   const [footerContent, setFooterContent] = useState(quotation?.footer_content ?? "");
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    apiFetch<AppSettings>("/api/settings/")
+      .then((s) => {
+        setAppSettings(s);
+        if (!quotation) {
+          if (s.quotation_intro && s.quotation_intro.trim()) {
+            setIntroText(s.quotation_intro);
+          }
+          if (s.quotation_terms && s.quotation_terms.trim()) {
+            setNotes(s.quotation_terms);
+          }
+        } else {
+          const isDefaultIntro = !quotation.intro_text || quotation.intro_text.includes("With The Above Reference");
+          if (isDefaultIntro && s.quotation_intro && s.quotation_intro.trim()) {
+            setIntroText(s.quotation_intro);
+          }
+          const isDefaultNotes = !quotation.notes || quotation.notes.includes("GST Should be Extra");
+          if (isDefaultNotes && s.quotation_terms && s.quotation_terms.trim()) {
+            setNotes(s.quotation_terms);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [quotation]);
 
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -1756,9 +1783,27 @@ export function QuotationForm({
 
       {/* Document Terms & Print Notes Card */}
       <Card className="flex flex-col gap-4 p-5">
-        <div className="border-b border-border pb-3">
-          <h2 className="text-base font-bold text-ink">Document Terms &amp; Print Notes</h2>
-          <p className="text-xs text-ink-muted mt-0.5">Formal introduction and conditions for printed PDF</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+          <div>
+            <h2 className="text-base font-bold text-ink">Document Terms &amp; Print Notes</h2>
+            <p className="text-xs text-ink-muted mt-0.5">Formal introduction and conditions for printed PDF</p>
+          </div>
+          {appSettings && (appSettings.quotation_intro || appSettings.quotation_terms) && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (appSettings.quotation_intro) setIntroText(appSettings.quotation_intro);
+                if (appSettings.quotation_terms) setNotes(appSettings.quotation_terms);
+                toast.success("Applied global quotation settings defaults.");
+              }}
+              className="gap-1.5 text-xs font-semibold cursor-pointer"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Apply Global Settings Defaults
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Introductory Text" hint="Appears before line items table on formal PDF">
