@@ -298,7 +298,7 @@ export default function QuotationPrintPage() {
                         SR. NO.
                       </th>
                       <th className="border-r border-black px-3 py-2 text-left">
-                        DESCRIPTION
+                        {(quotation.col_labels?.item || "DESCRIPTION").toUpperCase()}
                       </th>
                       {columns.map((col) => (
                         <th key={col.key} className="border-r border-black px-3 py-2 text-center">
@@ -307,17 +307,17 @@ export default function QuotationPrintPage() {
                       ))}
                       {hasAnyItemImage && (
                         <th className="border-r border-black w-24 px-2 py-2 text-center">
-                          REFERENCE
+                          {(quotation.col_labels?.reference || "REFERENCE").toUpperCase()}
                         </th>
                       )}
                       <th className="border-r border-black w-20 px-2 py-2 text-center">
-                        {quotation.col_qty_label?.toUpperCase() || "QTY."}
+                        {(quotation.col_labels?.supplier_qty || quotation.col_labels?.qty || quotation.col_qty_label || "QTY.").toUpperCase()}
                       </th>
                       <th className="border-r border-black w-32 px-3 py-2 text-center">
-                        {quotation.col_rate_label?.toUpperCase() || "RATE (PER PIECE)"}
+                        {(quotation.col_labels?.client_rate || quotation.col_labels?.rate || quotation.col_rate_label || "RATE (PER PIECE)").toUpperCase()}
                       </th>
                       <th className="w-32 px-3 py-2 text-right">
-                        AMOUNT
+                        {(quotation.col_labels?.amount || "AMOUNT").toUpperCase()}
                       </th>
                     </tr>
                   </thead>

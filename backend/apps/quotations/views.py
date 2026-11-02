@@ -218,6 +218,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             whatsapp_message=source.whatsapp_message,
             col_qty_label=source.col_qty_label,
             col_rate_label=source.col_rate_label,
+            col_labels=source.col_labels or {},
             columns_config=source.columns_config or [],
             currency_code=source.currency_code,
             exchange_rate=source.exchange_rate,

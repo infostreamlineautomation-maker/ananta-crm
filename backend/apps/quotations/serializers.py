@@ -65,7 +65,7 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
         fields = [
             "id", "quotation_no", "quotation_date", "quote_format", "client", "client_name", "company_name", "client_address",
             "project", "project_name", "supplier", "supplier_name", "to_name", "to_address",
-            "subject", "intro_text", "notes", "footer_content", "whatsapp_message", "col_qty_label", "col_rate_label",
+            "subject", "intro_text", "notes", "footer_content", "whatsapp_message", "col_qty_label", "col_rate_label", "col_labels",
             "columns_config", "currency_code", "exchange_rate", "base_currency_code", "status",
             "subtotal", "total_supplier_cost", "total_profit", "items",
             "is_deleted", "created_by", "created_at", "updated_at",

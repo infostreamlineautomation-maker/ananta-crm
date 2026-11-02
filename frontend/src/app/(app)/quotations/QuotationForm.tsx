@@ -202,6 +202,27 @@ export function QuotationForm({
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
   const [colQtyLabel, setColQtyLabel] = useState(quotation?.col_qty_label ?? "Qty");
   const [colRateLabel, setColRateLabel] = useState(quotation?.col_rate_label ?? "Client Rate");
+  const [colLabels, setColLabels] = useState<Record<string, string>>(() => {
+    const saved = quotation?.col_labels || {};
+    return {
+      item: saved.item || "Item & Description",
+      reference: saved.reference || "Reference",
+      amount: saved.amount || "Amount",
+      supplier_group: saved.supplier_group || "Supplier Qty & Rate",
+      supplier_qty: saved.supplier_qty || quotation?.col_qty_label || "Qty.",
+      supplier_rate: saved.supplier_rate || "Rate",
+      client_group: saved.client_group || "Client Given Rate (Profit Calculation)",
+      margin_percent: saved.margin_percent || "Add %",
+      profit: saved.profit || "Profit",
+      client_rate: saved.client_rate || quotation?.col_rate_label || "Client Rate",
+      total_profit: saved.total_profit || "Total Profit",
+      ...saved,
+    };
+  });
+
+  const updateColLabel = (key: string, val: string) => {
+    setColLabels((prev) => ({ ...prev, [key]: val }));
+  };
   const [items, setItems] = useState<QuotationItemDetail[]>(() => {
     if (quotation?.items?.length) {
       return quotation.items.map((it) => {
@@ -283,6 +304,9 @@ export function QuotationForm({
     if (data.supplier_id) setSupplierId(data.supplier_id);
     if (data.intro_text) setIntroText(data.intro_text);
     if (data.notes) setNotes(data.notes);
+    if (data.col_qty_label) setColQtyLabel(data.col_qty_label);
+    if (data.col_rate_label) setColRateLabel(data.col_rate_label);
+    if (data.col_labels) setColLabels((prev) => ({ ...prev, ...data.col_labels }));
     if (data.items && data.items.length) {
       setItems(
         data.items.map((it: any) => ({
@@ -696,6 +720,7 @@ export function QuotationForm({
         whatsapp_message: whatsappText,
         col_qty_label: colQtyLabel,
         col_rate_label: colRateLabel,
+        col_labels: colLabels,
         columns_config: columns,
         status,
         items: items.map((it) => ({
@@ -1045,8 +1070,22 @@ export function QuotationForm({
               <thead>
                 <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                   <th className="w-12 px-3 py-2.5 text-center border-r border-border">Sr. No.</th>
-                  <th className="min-w-[280px] sm:min-w-[340px] px-4 py-2.5 text-left border-r border-border">Item &amp; Description</th>
-                  <th className="w-24 px-2 py-2.5 text-center border-r border-border">Reference</th>
+                  <th className="min-w-[280px] sm:min-w-[340px] px-4 py-2.5 text-left border-r border-border">
+                    <input
+                      value={colLabels.item ?? "Item & Description"}
+                      onChange={(e) => updateColLabel("item", e.target.value)}
+                      className="w-48 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
+                    />
+                  </th>
+                  <th className="w-24 px-2 py-2.5 text-center border-r border-border">
+                    <input
+                      value={colLabels.reference ?? "Reference"}
+                      onChange={(e) => updateColLabel("reference", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
+                    />
+                  </th>
                   {columns.map((col) => (
                     <th key={col.key} className="w-28 px-3 py-2.5 text-left border-r border-border">
                       <div className="flex items-center gap-1">
@@ -1071,19 +1110,34 @@ export function QuotationForm({
                   ))}
                   <th className="w-28 px-3 py-2.5 text-right border-r border-border">
                     <input
-                      value={colQtyLabel}
-                      onChange={(e) => setColQtyLabel(e.target.value)}
+                      value={colLabels.qty ?? colQtyLabel}
+                      onChange={(e) => {
+                        updateColLabel("qty", e.target.value);
+                        setColQtyLabel(e.target.value);
+                      }}
                       className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
                     />
                   </th>
                   <th className="w-28 px-3 py-2.5 text-right border-r border-border">
                     <input
-                      value={colRateLabel}
-                      onChange={(e) => setColRateLabel(e.target.value)}
+                      value={colLabels.rate ?? colRateLabel}
+                      onChange={(e) => {
+                        updateColLabel("rate", e.target.value);
+                        setColRateLabel(e.target.value);
+                      }}
                       className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
                     />
                   </th>
-                  <th className="w-32 px-3 py-2.5 text-right border-r border-border font-bold text-ink">Amount</th>
+                  <th className="w-32 px-3 py-2.5 text-right border-r border-border font-bold text-ink">
+                    <input
+                      value={colLabels.amount ?? "Amount"}
+                      onChange={(e) => updateColLabel("amount", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
+                    />
+                  </th>
                   <th className="w-10 px-2 py-2.5 text-center"></th>
                 </tr>
               </thead>
@@ -1228,10 +1282,20 @@ export function QuotationForm({
                     Sr. No.
                   </th>
                   <th rowSpan={2} className="min-w-[280px] sm:min-w-[340px] px-4 py-2 text-left border-r border-border">
-                    Item &amp; Description
+                    <input
+                      value={colLabels.item ?? "Item & Description"}
+                      onChange={(e) => updateColLabel("item", e.target.value)}
+                      className="w-48 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
+                    />
                   </th>
                   <th rowSpan={2} className="w-24 px-2 py-2 text-center border-r border-border">
-                    Reference
+                    <input
+                      value={colLabels.reference ?? "Reference"}
+                      onChange={(e) => updateColLabel("reference", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column header"
+                    />
                   </th>
                   {columns.map((col) => (
                     <th key={col.key} rowSpan={2} className="w-28 px-3 py-2 text-left border-r border-border">
@@ -1260,14 +1324,24 @@ export function QuotationForm({
                     colSpan={2}
                     className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
                   >
-                    Supplier Qty &amp; Rate
+                    <input
+                      value={colLabels.supplier_group ?? "Supplier Qty & Rate"}
+                      onChange={(e) => updateColLabel("supplier_group", e.target.value)}
+                      className="w-full text-center border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink focus:border-primary-500 focus:outline-none"
+                      title="Click to edit group header"
+                    />
                   </th>
                   {/* Spanning Header: Client Given Rate */}
                   <th
                     colSpan={4}
                     className="px-3 py-1.5 text-center border-r border-border bg-surface-sunken font-bold text-ink"
                   >
-                    Client Given Rate (Profit Calculation)
+                    <input
+                      value={colLabels.client_group ?? "Client Given Rate (Profit Calculation)"}
+                      onChange={(e) => updateColLabel("client_group", e.target.value)}
+                      className="w-full text-center border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink focus:border-primary-500 focus:outline-none"
+                      title="Click to edit group header"
+                    />
                   </th>
                   <th rowSpan={2} className="w-10 px-2 py-2 text-center"></th>
                 </tr>
@@ -1275,22 +1349,60 @@ export function QuotationForm({
                 {/* Tier 2 Sub-Headers */}
                 <tr className="border-b border-border bg-surface-sunken/30 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
                   {/* Supplier Columns */}
-                  <th className="w-24 px-2 py-1.5 text-right border-r border-border">Qty.</th>
+                  <th className="w-24 px-2 py-1.5 text-right border-r border-border">
+                    <input
+                      value={colLabels.supplier_qty ?? "Qty."}
+                      onChange={(e) => {
+                        updateColLabel("supplier_qty", e.target.value);
+                        setColQtyLabel(e.target.value);
+                      }}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
+                  </th>
                   <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                    Rate
+                    <input
+                      value={colLabels.supplier_rate ?? "Rate"}
+                      onChange={(e) => updateColLabel("supplier_rate", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
                   </th>
                   {/* Client Profit & Margin Columns */}
                   <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                    Add %
+                    <input
+                      value={colLabels.margin_percent ?? "Add %"}
+                      onChange={(e) => updateColLabel("margin_percent", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
                   </th>
                   <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                    Profit
+                    <input
+                      value={colLabels.profit ?? "Profit"}
+                      onChange={(e) => updateColLabel("profit", e.target.value)}
+                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
                   </th>
                   <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
-                    Client Rate
+                    <input
+                      value={colLabels.client_rate ?? "Client Rate"}
+                      onChange={(e) => {
+                        updateColLabel("client_rate", e.target.value);
+                        setColRateLabel(e.target.value);
+                      }}
+                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
                   </th>
                   <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
-                    Total Profit
+                    <input
+                      value={colLabels.total_profit ?? "Total Profit"}
+                      onChange={(e) => updateColLabel("total_profit", e.target.value)}
+                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-success-700 uppercase focus:border-primary-500 focus:outline-none"
+                      title="Click to edit column name"
+                    />
                   </th>
                 </tr>
               </thead>

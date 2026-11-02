@@ -51,6 +51,11 @@ class Quotation(AuditedModel, SoftDeleteModel):
 
     col_qty_label = models.CharField(max_length=50, default="Qty")
     col_rate_label = models.CharField(max_length=50, default="Rate")
+    col_labels = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Custom labels for standard and costing table headers.",
+    )
     columns_config = models.JSONField(
         default=list,
         blank=True,

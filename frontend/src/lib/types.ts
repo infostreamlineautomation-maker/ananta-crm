@@ -269,6 +269,7 @@ export interface QuotationDetail {
   whatsapp_message?: string;
   col_qty_label: string;
   col_rate_label: string;
+  col_labels?: Record<string, string>;
   columns_config: QuotationColumn[];
   quote_format?: "standard" | "costing";
   currency_code: string;
@@ -309,6 +310,7 @@ export interface QuotationSummary {
   total_profit?: string;
   col_qty_label?: string;
   col_rate_label?: string;
+  col_labels?: Record<string, string>;
   columns_config?: QuotationColumn[];
   items?: QuotationItemDetail[];
   created_at?: string;

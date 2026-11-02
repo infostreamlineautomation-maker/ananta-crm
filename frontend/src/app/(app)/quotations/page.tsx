@@ -684,7 +684,7 @@ export default function QuotationsPage() {
                                       <thead>
                                         <tr className="border-b border-border bg-surface-sunken/70 text-[10px] font-bold uppercase tracking-wider text-ink-faint">
                                           <th className="w-10 px-3 py-2 text-center">#</th>
-                                          <th className="px-3 py-2">Description / Specifications</th>
+                                          <th className="px-3 py-2">{q.col_labels?.item || "Description / Specifications"}</th>
                                           {q.columns_config?.map((col) => (
                                             <th key={col.key} className="px-3 py-2">
                                               {col.label}
@@ -692,23 +692,22 @@ export default function QuotationsPage() {
                                           ))}
                                           {q.quote_format === "costing" ? (
                                             <>
-                                              <th className="w-20 px-3 py-2 text-right">{q.col_qty_label || "Qty"}</th>
-                                              <th className="w-24 px-3 py-2 text-right">Supplier Rate</th>
-                                              <th className="w-20 px-3 py-2 text-right">Add %</th>
-                                              <th className="w-24 px-3 py-2 text-right">{q.col_rate_label || "Client Rate"}</th>
-                                              <th className="w-28 px-3 py-2 text-right">Amount</th>
-                                              <th className="w-24 px-3 py-2 text-right">Profit/Unit</th>
-                                              <th className="w-28 px-3 py-2 text-right">Total Profit</th>
+                                              <th className="w-20 px-3 py-2 text-right">{q.col_labels?.supplier_qty || q.col_qty_label || "Qty"}</th>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_labels?.supplier_rate || "Supplier Rate"}</th>
+                                              <th className="w-20 px-3 py-2 text-right">{q.col_labels?.margin_percent || "Add %"}</th>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_labels?.profit || "Profit/Unit"}</th>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_labels?.client_rate || q.col_rate_label || "Client Rate"}</th>
+                                              <th className="w-28 px-3 py-2 text-right">{q.col_labels?.total_profit || "Total Profit"}</th>
                                             </>
                                           ) : (
                                             <>
-                                              <th className="w-24 px-3 py-2 text-right">{q.col_qty_label || "Qty"}</th>
-                                              <th className="w-28 px-3 py-2 text-right">{q.col_rate_label || "Rate"}</th>
-                                              <th className="w-32 px-3 py-2 text-right">Amount</th>
+                                              <th className="w-24 px-3 py-2 text-right">{q.col_labels?.qty || q.col_qty_label || "Qty"}</th>
+                                              <th className="w-28 px-3 py-2 text-right">{q.col_labels?.rate || q.col_rate_label || "Rate"}</th>
+                                              <th className="w-32 px-3 py-2 text-right">{q.col_labels?.amount || "Amount"}</th>
                                             </>
                                           )}
                                           {hasAnyItemImage && (
-                                            <th className="w-20 px-3 py-2 text-center">Reference</th>
+                                            <th className="w-20 px-3 py-2 text-center">{q.col_labels?.reference || "Reference"}</th>
                                           )}
                                         </tr>
                                       </thead>
