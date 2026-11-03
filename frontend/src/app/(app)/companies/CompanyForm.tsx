@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Building2, Trash2, Upload, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { Company, Country } from "@/lib/types";
@@ -9,6 +9,9 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field, FieldGroup, Input, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DraftBanner } from "@/components/ui/DraftBanner";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 export interface CompanyFormProps {
   company?: Company | null;
@@ -48,6 +51,60 @@ export function CompanyForm({
   const [removeLogo, setRemoveLogo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+
+  const draftKey = company ? `crm_draft_company_${company.id}` : "crm_draft_company_new";
+  const isDirty = useMemo(() => {
+    if (!company) {
+      return Boolean(form.company_name || form.contact_name || form.contact_email || form.contact_phone || form.address);
+    }
+    return (
+      form.company_name !== (company.company_name ?? "") ||
+      form.contact_name !== (company.contact_name ?? "") ||
+      form.contact_email !== (company.contact_email ?? "") ||
+      form.contact_phone !== (company.contact_phone ?? "") ||
+      form.address !== (company.address ?? "")
+    );
+  }, [company, form]);
+
+  const {
+    draftSavedAt,
+    draftRestored,
+    dismissDraftBanner,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    data: form,
+    isDirty,
+    onRestore: (draft) => {
+      setForm((prev) => ({ ...prev, ...draft }));
+    },
+  });
+
+  function handleDiscardDraft() {
+    clearDraft();
+    setForm({
+      company_name: company?.company_name ?? "",
+      contact_name: company?.contact_name ?? "",
+      gstin: company?.gstin || company?.vat_id || "",
+      msin_number: company?.msin_number ?? "",
+      vat_id: company?.gstin || company?.vat_id || "",
+      reg_no: company?.reg_no ?? "",
+      contact_email: company?.contact_email ?? "",
+      contact_phone: company?.contact_phone ?? "",
+      company_phone: company?.company_phone ?? "",
+      country: company?.country ?? ("" as string | number),
+      state: company?.state ?? "",
+      city: company?.city ?? "",
+      zip_code: company?.zip_code ?? "",
+      address: company?.address ?? "",
+      facebook: company?.facebook ?? "",
+      twitter: company?.twitter ?? "",
+      linkedin: company?.linkedin ?? "",
+      remarks: company?.remarks ?? "",
+    });
+    toast.success("Draft discarded.");
+  }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -57,6 +114,15 @@ export function CompanyForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
+    if (!form.company_name.trim()) {
+      setError("Company Name is required.");
+      return;
+    }
+    setConfirmSaveOpen(true);
+  }
+
+  async function proceedSave() {
     setSaving(true);
     setError(null);
     try {
@@ -70,22 +136,33 @@ export function CompanyForm({
 
       if (company) {
         const updated = await apiFetch<Company>(`/api/companies/${company.id}/`, { method: "PATCH", body });
+        clearDraft();
         toast.success("Company updated.");
         onSaved(updated);
       } else {
         const created = await apiFetch<Company>("/api/companies/", { method: "POST", body });
+        clearDraft();
         toast.success("Company added.");
         onSaved(created);
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this company.");
+      toast.error(e instanceof ApiError ? e.message : "Couldn't save this company.");
     } finally {
       setSaving(false);
+      setConfirmSaveOpen(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      {draftRestored && (
+        <DraftBanner
+          savedAt={draftSavedAt}
+          onDismiss={dismissDraftBanner}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
       <FieldGroup title="Basic Info">
         <Field label="Company Name" required className="sm:col-span-2">
           <Input value={form.company_name} onChange={(e) => set("company_name", e.target.value)} required autoFocus />
@@ -219,6 +296,21 @@ export function CompanyForm({
           Save Company
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onClose={() => setConfirmSaveOpen(false)}
+        onConfirm={proceedSave}
+        title={company ? "Update Company?" : "Save New Company?"}
+        description={
+          company
+            ? `Are you sure you want to save changes to "${form.company_name}"?`
+            : "Are you sure you want to add and save this company?"
+        }
+        confirmLabel={company ? "Yes, Update" : "Yes, Save"}
+        loading={saving}
+        variant="primary"
+      />
     </form>
   );
 }

@@ -23,6 +23,7 @@ import { ProductModal } from "@/components/products/ProductModal";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ProjectImageUploader } from "@/components/orders/ProjectImageUploader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -118,6 +119,7 @@ export function OrderForm({
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
 
   const draftKey = `ananta_project_draft_${activeOrganization?.id || "default"}`;
 
@@ -208,6 +210,18 @@ export function OrderForm({
     paymentStatus,
     paidAmount,
   ]);
+
+  useEffect(() => {
+    const isDirty = Boolean(client || productId || projectTitle || description);
+    if (!isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [client, productId, projectTitle, description]);
 
   const clearDraft = () => {
     try {
@@ -330,13 +344,19 @@ export function OrderForm({
 
     if (!client) {
       setError("Pick a client before saving.");
+      toast.error("Pick a client before saving.");
       return;
     }
     if (!productId) {
       setError("Pick a product before saving.");
+      toast.error("Pick a product before saving.");
       return;
     }
 
+    setConfirmSaveOpen(true);
+  }
+
+  async function proceedSave() {
     setSaving(true);
     try {
       let finalPaid = "0.00";
@@ -420,6 +440,7 @@ export function OrderForm({
       }
     } finally {
       setSaving(false);
+      setConfirmSaveOpen(false);
     }
   }
 
@@ -1003,6 +1024,22 @@ export function OrderForm({
           setProductId(savedProduct.id);
           reloadProducts();
         }}
+      />
+
+      {/* Confirm Save / Update Dialog */}
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onClose={() => setConfirmSaveOpen(false)}
+        onConfirm={proceedSave}
+        title={order ? "Update Project?" : "Save New Project?"}
+        description={
+          order
+            ? `Are you sure you want to save all changes to Project "${order.order_no}"?`
+            : "Are you sure you want to create and save this new project?"
+        }
+        confirmLabel={order ? "Yes, Update" : "Yes, Save"}
+        loading={saving}
+        variant="primary"
       />
     </form>
   );

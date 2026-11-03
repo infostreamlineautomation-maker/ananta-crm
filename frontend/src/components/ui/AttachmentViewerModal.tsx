@@ -122,14 +122,16 @@ export function AttachmentViewerModal({
         if (isPdf) {
           if (rawUrl!.startsWith("data:")) {
             const blob = dataURItoBlob(rawUrl!);
-            const bUrl = URL.createObjectURL(blob);
+            const pdfBlob = new Blob([blob], { type: "application/pdf" });
+            const bUrl = URL.createObjectURL(pdfBlob);
             if (active) setBlobUrl(bUrl);
           } else {
             // Server URL: fetch as blob for smooth inline iframe rendering
             try {
               const res = await fetch(rawUrl!);
               const blob = await res.blob();
-              const bUrl = URL.createObjectURL(blob);
+              const pdfBlob = new Blob([blob], { type: "application/pdf" });
+              const bUrl = URL.createObjectURL(pdfBlob);
               if (active) setBlobUrl(bUrl);
             } catch {
               if (active) setBlobUrl(rawUrl!);
@@ -287,11 +289,17 @@ export function AttachmentViewerModal({
           ) : isPdf ? (
             <div className="h-full w-full">
               {blobUrl ? (
-                <iframe
-                  src={blobUrl}
+                <object
+                  data={`${blobUrl}#toolbar=1&navpanes=0`}
+                  type="application/pdf"
                   className="h-[75vh] w-full rounded-lg border border-border bg-white shadow-xs"
-                  title={attachment.file_name}
-                />
+                >
+                  <iframe
+                    src={`${blobUrl}#toolbar=1`}
+                    className="h-[75vh] w-full rounded-lg border border-border bg-white shadow-xs"
+                    title={attachment.file_name}
+                  />
+                </object>
               ) : (
                 <div className="flex h-[50vh] flex-col items-center justify-center gap-3 p-6 text-center">
                   <p className="text-sm font-medium text-ink">Preview not available in this browser.</p>

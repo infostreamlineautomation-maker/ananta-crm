@@ -63,6 +63,9 @@ import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
 import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DraftBanner } from "@/components/ui/DraftBanner";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 function blankItem(): QuotationItemDetail {
   return {
@@ -336,6 +339,170 @@ export function QuotationForm({
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+
+  // Confirmation dialog states
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ index: number; name: string } | null>(null);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<{ index: number; att: QuotationAttachment } | null>(null);
+
+  // Form Draft Caching & Auto-restore
+  const draftKey = quotation ? `crm_draft_quote_${quotation.id}` : "crm_draft_quote_new";
+  const formData = useMemo(
+    () => ({
+      client,
+      project,
+      supplierId,
+      subject,
+      toName,
+      toAddress,
+      quotationDate,
+      currencyCode,
+      status,
+      quoteFormat,
+      columns,
+      colQtyLabel,
+      colRateLabel,
+      colLabels,
+      items,
+      whatsappText,
+      isWhatsappCustomized,
+      adminRemarks,
+      introText,
+      notes,
+      footerContent,
+    }),
+    [
+      client,
+      project,
+      supplierId,
+      subject,
+      toName,
+      toAddress,
+      quotationDate,
+      currencyCode,
+      status,
+      quoteFormat,
+      columns,
+      colQtyLabel,
+      colRateLabel,
+      colLabels,
+      items,
+      whatsappText,
+      isWhatsappCustomized,
+      adminRemarks,
+      introText,
+      notes,
+      footerContent,
+    ]
+  );
+
+  const isDirty = useMemo(() => {
+    if (!quotation) {
+      return Boolean(
+        client ||
+          toName ||
+          subject ||
+          adminRemarks ||
+          items.length > 1 ||
+          items[0]?.product ||
+          items[0]?.product_name ||
+          items[0]?.rate ||
+          (items[0]?.qty && items[0]?.qty !== "1")
+      );
+    }
+    return (
+      client !== (quotation.client ?? "") ||
+      project !== (quotation.project ?? "") ||
+      supplierId !== (quotation.supplier ?? "") ||
+      subject !== (quotation.subject ?? "") ||
+      toName !== (quotation.to_name ?? "") ||
+      toAddress !== (quotation.to_address ?? "") ||
+      quotationDate !== (quotation.quotation_date ?? "") ||
+      status !== (quotation.status ?? "draft") ||
+      adminRemarks !== (quotation.admin_remarks ?? "") ||
+      introText !== (quotation.intro_text ?? "") ||
+      notes !== (quotation.notes ?? "")
+    );
+  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items]);
+
+  const {
+    draftSavedAt,
+    draftRestored,
+    dismissDraftBanner,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    data: formData,
+    isDirty,
+    onRestore: (draft) => {
+      if (draft.client !== undefined) setClient(draft.client);
+      if (draft.project !== undefined) setProject(draft.project);
+      if (draft.supplierId !== undefined) setSupplierId(draft.supplierId);
+      if (draft.subject !== undefined) setSubject(draft.subject);
+      if (draft.toName !== undefined) setToName(draft.toName);
+      if (draft.toAddress !== undefined) setToAddress(draft.toAddress);
+      if (draft.quotationDate !== undefined) setQuotationDate(draft.quotationDate);
+      if (draft.currencyCode !== undefined) setCurrencyCode(draft.currencyCode);
+      if (draft.status !== undefined) setStatus(draft.status);
+      if (draft.quoteFormat !== undefined) setQuoteFormat(draft.quoteFormat);
+      if (draft.columns !== undefined) setColumns(draft.columns);
+      if (draft.colQtyLabel !== undefined) setColQtyLabel(draft.colQtyLabel);
+      if (draft.colRateLabel !== undefined) setColRateLabel(draft.colRateLabel);
+      if (draft.colLabels !== undefined) setColLabels(draft.colLabels);
+      if (draft.items !== undefined && Array.isArray(draft.items) && draft.items.length > 0) setItems(draft.items);
+      if (draft.whatsappText !== undefined) setWhatsappText(draft.whatsappText);
+      if (draft.isWhatsappCustomized !== undefined) setIsWhatsappCustomized(draft.isWhatsappCustomized);
+      if (draft.adminRemarks !== undefined) setAdminRemarks(draft.adminRemarks);
+      if (draft.introText !== undefined) setIntroText(draft.introText);
+      if (draft.notes !== undefined) setNotes(draft.notes);
+      if (draft.footerContent !== undefined) setFooterContent(draft.footerContent);
+    },
+  });
+
+  function handleDiscardDraft() {
+    clearDraft();
+    if (quotation) {
+      setClient(quotation.client ?? "");
+      setProject(quotation.project ?? initialProjectId ?? "");
+      setSupplierId(quotation.supplier ?? "");
+      setSubject(quotation.subject ?? "");
+      setToName(quotation.to_name ?? "");
+      setToAddress(quotation.to_address ?? "");
+      setQuotationDate(quotation.quotation_date ?? new Date().toISOString().slice(0, 10));
+      setCurrencyCode(quotation.currency_code ?? "");
+      setStatus(quotation.status ?? "draft");
+      setQuoteFormat(quotation.quote_format || initialFormat || "standard");
+      setColumns(quotation.columns_config ?? []);
+      setColLabels(quotation.col_labels || {});
+      setItems(quotation.items?.length ? quotation.items : [blankItem()]);
+      setWhatsappText(quotation.whatsapp_message ?? "");
+      setIsWhatsappCustomized(Boolean(quotation.whatsapp_message));
+      setAdminRemarks(quotation.admin_remarks ?? "");
+      setIntroText(quotation.intro_text ?? appSettings?.quotation_intro ?? "");
+      setNotes(quotation.notes ?? appSettings?.quotation_terms ?? "");
+      setFooterContent(quotation.footer_content ?? "");
+    } else {
+      setClient("");
+      setProject(initialProjectId ?? "");
+      setSupplierId("");
+      setSubject("");
+      setToName("");
+      setToAddress("");
+      setQuotationDate(new Date().toISOString().slice(0, 10));
+      setCurrencyCode("");
+      setStatus("draft");
+      setQuoteFormat(initialFormat || "standard");
+      setColumns([]);
+      setItems([blankItem()]);
+      setWhatsappText("");
+      setIsWhatsappCustomized(false);
+      setAdminRemarks("");
+      setIntroText(appSettings?.quotation_intro ?? "");
+      setNotes(appSettings?.quotation_terms ?? "");
+      setFooterContent("");
+    }
+    toast.success("Draft discarded.");
+  }
 
   function applyImportedData(data: any) {
     if (!data) return;
@@ -862,9 +1029,14 @@ export function QuotationForm({
 
     if (!client) {
       setError("Pick a client before saving.");
+      toast.error("Pick a client before saving.");
       return;
     }
 
+    setConfirmSaveOpen(true);
+  }
+
+  async function proceedSave() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -925,6 +1097,7 @@ export function QuotationForm({
           method: "PATCH",
           body: JSON.stringify(payload),
         });
+        clearDraft();
         toast.success("Quotation updated.");
         router.push("/quotations");
       } else {
@@ -932,13 +1105,16 @@ export function QuotationForm({
           method: "POST",
           body: JSON.stringify(payload),
         });
+        clearDraft();
         toast.success("Quotation created.");
         router.push("/quotations");
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this quotation.");
+      toast.error(e instanceof ApiError ? e.message : "Couldn't save this quotation.");
     } finally {
       setSaving(false);
+      setConfirmSaveOpen(false);
     }
   }
 
@@ -981,6 +1157,14 @@ export function QuotationForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      {draftRestored && (
+        <DraftBanner
+          savedAt={draftSavedAt}
+          onDismiss={dismissDraftBanner}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
+
       {/* Top Action Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
@@ -1237,7 +1421,7 @@ export function QuotationForm({
                             className="p-1 rounded hover:bg-neutral-100 text-primary-600 cursor-pointer"
                             title="Preview file"
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            <Eye className="h-3.5 w-3.5 shrink-0" />
                           </button>
                           <button
                             type="button"
@@ -1245,15 +1429,15 @@ export function QuotationForm({
                             className="p-1 rounded hover:bg-neutral-100 text-ink-muted hover:text-ink cursor-pointer"
                             title="Download file"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Download className="h-3.5 w-3.5 shrink-0" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteAttachment(actualIndex, att)}
+                            onClick={() => setAttachmentToDelete({ index: actualIndex, att })}
                             className="p-1 rounded hover:bg-rose-50 text-rose-600 cursor-pointer"
                             title="Remove file"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5 shrink-0" />
                           </button>
                         </div>
                       </div>
@@ -1558,7 +1742,10 @@ export function QuotationForm({
                         <button
                           type="button"
                           onClick={() =>
-                            setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))
+                            setItemToDelete({
+                              index: i,
+                              name: it.product_name || it.description || `Item #${i + 1}`,
+                            })
                           }
                           disabled={items.length === 1}
                           className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed mx-auto"
@@ -1882,7 +2069,10 @@ export function QuotationForm({
                         <button
                           type="button"
                           onClick={() =>
-                            setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)))
+                            setItemToDelete({
+                              index: i,
+                              name: it.product_name || it.description || `Item #${i + 1}`,
+                            })
                           }
                           disabled={items.length === 1}
                           className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-primary-50 hover:text-primary-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed mx-auto"
@@ -2207,29 +2397,31 @@ export function QuotationForm({
                             <button
                               type="button"
                               onClick={() => handleViewAttachment(att)}
-                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0"
+                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0"
                               title="View / Preview File"
                             >
-                              <Eye className="h-4 w-4 text-primary-600" />
+                              <Eye className="h-3.5 w-3.5 text-primary-600 shrink-0" />
                               <span>View</span>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => handleDownloadAttachment(att)}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-white text-ink-muted hover:text-ink hover:bg-neutral-50 hover:border-neutral-300 transition-colors cursor-pointer shadow-2xs shrink-0"
+                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-white text-ink-muted hover:text-ink hover:bg-neutral-50 hover:border-neutral-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
                               title="Download file"
                             >
-                              <Download className="h-4 w-4" />
+                              <Download className="h-3.5 w-3.5 shrink-0" />
+                              <span className="hidden sm:inline">Download</span>
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteAttachment(actualIndex, att)}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-colors cursor-pointer shadow-2xs shrink-0"
+                              onClick={() => setAttachmentToDelete({ index: actualIndex, att })}
+                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
                               title="Remove file"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                              <span className="hidden sm:inline">Delete</span>
                             </button>
                           </div>
                         </div>
@@ -2408,6 +2600,57 @@ export function QuotationForm({
           setProductModalOpen(false);
           setActiveProductRowIndex(null);
         }}
+      />
+
+      {/* Confirm Save / Update Dialog */}
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onClose={() => setConfirmSaveOpen(false)}
+        onConfirm={proceedSave}
+        title={quotation ? "Update Quotation?" : "Save New Quotation?"}
+        description={
+          quotation
+            ? `Are you sure you want to save all changes to Quotation "${quotation.quotation_no}"?`
+            : "Are you sure you want to create and save this new quotation?"
+        }
+        confirmLabel={quotation ? "Yes, Update" : "Yes, Save"}
+        loading={saving}
+        variant="primary"
+      />
+
+      {/* Confirm Delete Line Item Dialog */}
+      <ConfirmDialog
+        open={Boolean(itemToDelete)}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== itemToDelete.index)));
+            toast.success("Item removed from quotation.");
+            setItemToDelete(null);
+          }
+        }}
+        title="Remove Line Item?"
+        description={`Are you sure you want to remove item #${itemToDelete ? itemToDelete.index + 1 : ""}${
+          itemToDelete?.name ? ` ("${itemToDelete.name}")` : ""
+        } from this quotation?`}
+        confirmLabel="Yes, Remove"
+        variant="danger"
+      />
+
+      {/* Confirm Delete Attachment Dialog */}
+      <ConfirmDialog
+        open={Boolean(attachmentToDelete)}
+        onClose={() => setAttachmentToDelete(null)}
+        onConfirm={() => {
+          if (attachmentToDelete) {
+            handleDeleteAttachment(attachmentToDelete.index, attachmentToDelete.att);
+            setAttachmentToDelete(null);
+          }
+        }}
+        title="Remove Attachment?"
+        description={`Are you sure you want to remove "${attachmentToDelete?.att.file_name}" from this quotation?`}
+        confirmLabel="Yes, Remove"
+        variant="danger"
       />
     </form>
   );

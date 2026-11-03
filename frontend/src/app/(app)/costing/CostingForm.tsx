@@ -40,6 +40,9 @@ import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { ClientForm } from "../clients/page";
 import { SupplierForm } from "../suppliers/page";
 import { ProductModal } from "@/components/products/ProductModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DraftBanner } from "@/components/ui/DraftBanner";
+import { useFormDraft } from "@/lib/useFormDraft";
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -134,6 +137,68 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Confirmation dialog states
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [columnToDelete, setColumnToDelete] = useState<{ key: string; label: string } | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<CostingFile | null>(null);
+
+  // Form Draft Caching & Auto-restore
+  const draftKey = costing ? `crm_draft_costing_${costing.id}` : "crm_draft_costing_new";
+  const formData = useMemo(
+    () => ({
+      costingDate,
+      client,
+      supplier,
+      product,
+      supplierRate,
+      quantity,
+      clientRate,
+      extraData,
+      description,
+      columns,
+    }),
+    [costingDate, client, supplier, product, supplierRate, quantity, clientRate, extraData, description, columns]
+  );
+
+  const isDirty = useMemo(() => {
+    if (!costing) {
+      return Boolean(client || supplier || product || description || (quantity && quantity !== "1") || (supplierRate && supplierRate !== "0") || (clientRate && clientRate !== "0"));
+    }
+    return (
+      costingDate !== (costing.costing_date ?? "") ||
+      client !== (costing.client ?? "") ||
+      supplier !== (costing.supplier ?? "") ||
+      product !== (costing.product ?? "") ||
+      supplierRate !== (costing.items?.[0]?.supplier_rate ?? "0") ||
+      quantity !== (costing.items?.[0]?.quantity ?? "1") ||
+      clientRate !== (costing.items?.[0]?.client_rate ?? "0") ||
+      description !== (costing.description ?? "")
+    );
+  }, [costing, costingDate, client, supplier, product, supplierRate, quantity, clientRate, description]);
+
+  const {
+    draftSavedAt,
+    draftRestored,
+    dismissDraftBanner,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    data: formData,
+    isDirty,
+    onRestore: (draft) => {
+      if (draft.costingDate !== undefined) setCostingDate(draft.costingDate);
+      if (draft.client !== undefined) setClient(draft.client);
+      if (draft.supplier !== undefined) setSupplier(draft.supplier);
+      if (draft.product !== undefined) setProduct(draft.product);
+      if (draft.supplierRate !== undefined) setSupplierRate(draft.supplierRate);
+      if (draft.quantity !== undefined) setQuantity(draft.quantity);
+      if (draft.clientRate !== undefined) setClientRate(draft.clientRate);
+      if (draft.extraData !== undefined) setExtraData(draft.extraData);
+      if (draft.description !== undefined) setDescription(draft.description);
+      if (draft.columns !== undefined) setColumns(draft.columns);
+    },
+  });
+
   const supplierOptions = suppliers.map((s) => ({
     value: s.id,
     label: s.rating ? `${s.supplier_name} (Grade ${s.rating})` : s.supplier_name,
@@ -216,13 +281,18 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
     return ["png", "jpg", "jpeg", "webp", "svg", "gif"].includes(ext);
   };
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!supplier || !product || !client) {
       setError("Pick (or add new) a supplier, product, and client before saving.");
       return;
     }
+    setConfirmSaveOpen(true);
+  }
+
+  async function proceedSave() {
+    setConfirmSaveOpen(false);
     setSaving(true);
     try {
       const payload = {
@@ -252,9 +322,11 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
       };
       if (costing) {
         await apiFetch<CostingDetail>(`/api/costings/${costing.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
+        clearDraft();
         toast.success("Costing sheet updated.");
       } else {
         await apiFetch<CostingDetail>("/api/costings/", { method: "POST", body: JSON.stringify(payload) });
+        clearDraft();
         toast.success("Costing sheet created.");
       }
       router.push("/costing");
@@ -269,13 +341,21 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
   const rateListFiles = useMemo(() => files.filter((f) => f.category === "rate_list"), [files]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-extrabold text-ink">{costing ? "Edit Costing Sheet" : "New Costing Sheet"}</h1>
         <Button type="submit" variant="primary" loading={saving}>
           Save
         </Button>
       </div>
+
+      {draftRestored && (
+        <DraftBanner
+          savedAt={draftSavedAt}
+          onDiscard={clearDraft}
+          onDismiss={dismissDraftBanner}
+        />
+      )}
 
       <Card className="flex flex-col gap-5 p-5">
         {/* Basic Information */}
@@ -389,7 +469,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeColumn(col.key)}
+                    onClick={() => setColumnToDelete({ key: col.key, label: col.label })}
                     className="mb-1 rounded p-1.5 text-ink-faint hover:bg-rose-50 hover:text-rose-600 cursor-pointer transition-colors"
                     title="Remove custom field"
                   >
@@ -503,7 +583,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                         )}
                         <button
                           type="button"
-                          onClick={() => removeFile(f)}
+                          onClick={() => setFileToDelete(f)}
                           className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                           title="Remove file"
                         >
@@ -633,7 +713,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                         )}
                         <button
                           type="button"
-                          onClick={() => removeFile(f)}
+                          onClick={() => setFileToDelete(f)}
                           className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                           title="Remove file"
                         >
@@ -778,6 +858,56 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
           images={[{ image: previewLightbox, caption: "Attached image" }]}
         />
       )}
+
+      {/* Confirm Save / Update Dialog */}
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onClose={() => setConfirmSaveOpen(false)}
+        onConfirm={proceedSave}
+        title={costing ? "Update Costing Sheet?" : "Save New Costing Sheet?"}
+        description={
+          costing
+            ? "Are you sure you want to save all changes to this costing sheet?"
+            : "Are you sure you want to create and save this new costing sheet?"
+        }
+        confirmLabel={costing ? "Yes, Update" : "Yes, Save"}
+        loading={saving}
+        variant="primary"
+      />
+
+      {/* Confirm Remove Column Dialog */}
+      <ConfirmDialog
+        open={Boolean(columnToDelete)}
+        onClose={() => setColumnToDelete(null)}
+        onConfirm={() => {
+          if (columnToDelete) {
+            removeColumn(columnToDelete.key);
+            toast.success(`Removed field "${columnToDelete.label}".`);
+            setColumnToDelete(null);
+          }
+        }}
+        title="Remove Custom Field?"
+        description={`Are you sure you want to remove the field "${columnToDelete?.label}" from this costing sheet?`}
+        confirmLabel="Yes, Remove"
+        variant="danger"
+      />
+
+      {/* Confirm Remove File Dialog */}
+      <ConfirmDialog
+        open={Boolean(fileToDelete)}
+        onClose={() => setFileToDelete(null)}
+        onConfirm={() => {
+          if (fileToDelete) {
+            removeFile(fileToDelete);
+            toast.success(`Removed "${fileToDelete.file_name || "file"}".`);
+            setFileToDelete(null);
+          }
+        }}
+        title="Remove Attached File?"
+        description={`Are you sure you want to remove "${fileToDelete?.file_name || "this file"}"?`}
+        confirmLabel="Yes, Remove"
+        variant="danger"
+      />
     </form>
   );
 }

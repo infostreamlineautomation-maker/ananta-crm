@@ -6,6 +6,7 @@ import { OrderImage } from "@/lib/types";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface ProjectImageUploaderProps {
   orderId?: number;
@@ -32,6 +33,7 @@ export function ProjectImageUploader({
   const [uploadingDirect, setUploadingDirect] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [imageToDelete, setImageToDelete] = useState<OrderImage | null>(null);
 
   // Generate temporary object URLs for pending files
   const pendingPreviews = pendingFiles.map((file, idx) => ({
@@ -187,9 +189,7 @@ export function ProjectImageUploader({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm("Delete this image?")) {
-                        deleteExistingImage(img);
-                      }
+                      setImageToDelete(img);
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/80 text-white hover:bg-rose-600 cursor-pointer"
                     title="Delete"
@@ -255,6 +255,22 @@ export function ProjectImageUploader({
         images={allImages}
         initialIndex={lightboxIndex}
         onDelete={readOnly ? undefined : deleteExistingImage}
+      />
+
+      {/* Confirm Delete Image Dialog */}
+      <ConfirmDialog
+        open={Boolean(imageToDelete)}
+        onClose={() => setImageToDelete(null)}
+        onConfirm={() => {
+          if (imageToDelete) {
+            deleteExistingImage(imageToDelete);
+            setImageToDelete(null);
+          }
+        }}
+        title="Delete Image?"
+        description="Are you sure you want to permanently delete this project image?"
+        confirmLabel="Yes, Delete"
+        variant="danger"
       />
     </div>
   );

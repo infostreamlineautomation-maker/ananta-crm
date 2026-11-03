@@ -46,9 +46,43 @@ export default function QuotationPrintPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
+  // Recipient details
+  const toCompanyOrClient =
+    quotation?.to_name ||
+    clientData?.company_name ||
+    quotation?.company_name ||
+    clientData?.client_name ||
+    quotation?.client_name ||
+    "";
+  const toAddress = quotation?.to_address || clientData?.address || quotation?.client_address || "";
+
+  // Professional PDF Filename / Document Title
+  const cleanQuoteNo = (quotation?.quotation_no || "Quote")
+    .replace(/[\/\\:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const cleanClient = (toCompanyOrClient || "")
+    .replace(/[\/\\:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const pdfTitle = cleanClient ? `Quotation - ${cleanQuoteNo} - ${cleanClient}` : `Quotation - ${cleanQuoteNo}`;
+
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!quotation) return;
+    document.title = pdfTitle;
+    return () => {
+      document.title = "Ananta CRM";
+    };
+  }, [quotation, pdfTitle]);
+
+  function handlePrint() {
+    document.title = pdfTitle;
+    window.print();
+  }
 
   useEffect(() => {
     Promise.all([
@@ -112,7 +146,9 @@ export default function QuotationPrintPage() {
   const signatureImage = settings?.quotation_signature_image ? mediaUrl(settings.quotation_signature_image) : null;
   const companyName = settings?.company_name || settings?.name || settings?.app_name || "Ananta Graphics";
   const signatureName = settings?.quotation_signature_name || companyName;
-  const designation = settings?.quotation_designation || "Proprietor";
+  const isPvtLtd = companyName.toLowerCase().includes("ltd") || companyName.toLowerCase().includes("limited");
+  const defaultDesignation = isPvtLtd ? "Director" : "Proprietor";
+  const designation = settings?.quotation_designation || defaultDesignation;
   const contactPerson = settings?.quotation_contact_person || "";
   const logoImage = getReportLogo(companyName, settings?.report_logo, settings?.logo || settings?.app_logo);
   const currency = quotation.currency_code || clientData?.currency_code || settings?.default_currency_code || "INR";
@@ -134,16 +170,6 @@ export default function QuotationPrintPage() {
     ? (quotation.col_labels?.client_rate || quotation.col_rate_label || quotation.col_labels?.rate || "RATE (PER PIECE)")
     : (quotation.col_labels?.rate || quotation.col_rate_label || quotation.col_labels?.client_rate || "RATE (PER PIECE)");
   const colNameAmount = quotation.col_labels?.amount || "AMOUNT";
-
-  // Recipient details
-  const toCompanyOrClient =
-    quotation.to_name ||
-    clientData?.company_name ||
-    quotation.company_name ||
-    clientData?.client_name ||
-    quotation.client_name ||
-    "";
-  const toAddress = quotation.to_address || clientData?.address || quotation.client_address || "";
 
   // Format Subject
   let formattedSubject = "";
@@ -200,71 +226,176 @@ export default function QuotationPrintPage() {
     .filter(Boolean);
 
   const hasBackground = Boolean(bgImage && useBackground);
+  const isSinglePage = (quotation.items?.length || 0) <= 8;
 
   return (
-    <div className="min-h-screen bg-neutral-200 py-6 print:bg-white print:py-0 print:m-0">
+    <div className="min-h-screen bg-neutral-200 pb-16 print:bg-white print:p-0 print:m-0">
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 0mm;
           }
-          body {
-            margin: 0;
-            padding: 0;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          .quotation-sheet-root {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+          }
+          .quotation-sheet {
+            width: 210mm !important;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .quotation-sheet.is-single-page {
+            height: 297mm !important;
+            max-height: 297mm !important;
+            min-height: 297mm !important;
+            overflow: hidden !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .quotation-sheet.is-multi-page {
+            min-height: 297mm !important;
+            height: auto !important;
+            background-repeat: repeat-y !important;
+            background-size: 100% 297mm !important;
+          }
+          .quotation-sheet-content {
+            box-sizing: border-box !important;
+            min-height: 0 !important;
+          }
+          .prevent-page-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-before: avoid !important;
+            page-break-before: avoid !important;
+            display: block !important;
+          }
+          table, tr, td, th {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .annexure-sheet {
+            width: 210mm !important;
+            height: 296mm !important;
+            max-height: 296mm !important;
+            min-height: 296mm !important;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            break-before: page !important;
+            page-break-before: always !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
 
-      {/* Top Action Bar (Hidden on print) */}
-      <div className="mx-auto mb-5 flex max-w-[820px] items-center justify-between px-4 print:hidden">
-        <Link
-          href={`/quotations/${quotation.id}`}
-          className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted hover:text-ink transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to Quotation
-        </Link>
-        <div className="flex items-center gap-2.5">
+      {/* Top Action Bar (Sticky, full-width, clean, never cramped) */}
+      <header className="sticky top-0 z-30 mb-8 border-b border-neutral-300/80 bg-white/95 backdrop-blur-md shadow-xs print:hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6">
+          {/* Left: Back Link & Document / PDF Info */}
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href={`/quotations/${quotation.id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 hover:text-primary-700 hover:border-primary-300 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <span>Back to Quotation</span>
+            </Link>
 
-          {bgImage && (
-            <button
-              type="button"
-              onClick={() => setUseBackground(!useBackground)}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-xs hover:bg-neutral-50 cursor-pointer"
+            <div className="hidden md:flex items-center gap-2 border-l border-neutral-200 pl-3 min-w-0">
+              <span className="text-[10.5px] font-bold text-neutral-400 uppercase tracking-wider shrink-0">
+                PDF Filename:
+              </span>
+              <span
+                className="inline-flex items-center text-xs font-mono font-semibold text-neutral-800 bg-neutral-100 border border-neutral-200 px-2.5 py-0.5 rounded truncate max-w-[280px] lg:max-w-[420px]"
+                title={`${pdfTitle}.pdf`}
+              >
+                {pdfTitle}.pdf
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Actions & Controls */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap">
+            {bgImage && (
+              <button
+                type="button"
+                onClick={() => setUseBackground(!useBackground)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
+              >
+                {useBackground ? (
+                  <ImageIcon className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                )}
+                <span>
+                  Letterhead:{" "}
+                  <strong className={useBackground ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
+                    {useBackground ? "ON" : "OFF"}
+                  </strong>
+                </span>
+              </button>
+            )}
+
+            {annexures.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setUseAnnexures(!useAnnexures)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
+                title="Toggle inclusion of attached annexure pages in printed PDF"
+              >
+                <FileText
+                  className={`h-3.5 w-3.5 shrink-0 ${useAnnexures ? "text-primary-600" : "text-ink-muted"}`}
+                />
+                <span>
+                  Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pg):{" "}
+                  <strong className={useAnnexures ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
+                    {useAnnexures ? "ON" : "OFF"}
+                  </strong>
+                </span>
+              </button>
+            )}
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handlePrint}
+              className="gap-1.5 shadow-sm shrink-0 whitespace-nowrap font-bold"
             >
-              {useBackground ? <ImageIcon className="h-3.5 w-3.5 text-primary-600" /> : <FileText className="h-3.5 w-3.5 text-ink-muted" />}
-              Letterhead Pad: <span className="font-bold">{useBackground ? "ON" : "OFF"}</span>
-            </button>
-          )}
-          {annexures.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setUseAnnexures(!useAnnexures)}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-xs hover:bg-neutral-50 cursor-pointer"
-              title="Toggle inclusion of attached annexure pages in the printed PDF"
-            >
-              <FileText className={`h-3.5 w-3.5 ${useAnnexures ? "text-primary-600" : "text-ink-muted"}`} />
-              Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pgs):{" "}
-              <span className="font-bold">{useAnnexures ? "ON" : "OFF"}</span>
-            </button>
-          )}
-          <Button variant="primary" onClick={() => window.print()} className="gap-2 shadow-sm">
-            <Printer className="h-4 w-4" /> Print / Save as PDF
-          </Button>
-          {can("orders", "add") && (
-            <Button variant="secondary" onClick={handleCreateOrder} loading={creatingOrder}>
-              Create Order
+              <Printer className="h-3.5 w-3.5 shrink-0" />
+              <span>Print / Save as PDF</span>
             </Button>
-          )}
+
+            {can("orders", "add") && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCreateOrder}
+                loading={creatingOrder}
+                className="shrink-0 whitespace-nowrap font-semibold"
+              >
+                Create Order
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Quotation Sheet */}
-      <div className="mx-auto max-w-[820px] pb-16 print:max-w-none print:pb-0">
+      <div className="quotation-sheet-root mx-auto max-w-[820px] pb-16 print:max-w-none print:pb-0">
         <div
-          className={`relative mx-auto bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden text-black font-sans leading-normal`}
+          className={`quotation-sheet ${isSinglePage ? "is-single-page" : "is-multi-page"} relative mx-auto bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden text-black font-sans leading-normal`}
           style={{
             width: "100%",
             minHeight: "1120px",
@@ -302,210 +433,210 @@ export default function QuotationPrintPage() {
 
           {/* Main Printable Content Container */}
           <div
-            className={`flex flex-col justify-between ${
-              hasBackground ? "pt-[220px] px-12 pb-[115px]" : "px-10 py-6"
+            className={`quotation-sheet-content flex flex-col ${
+              hasBackground
+                ? "pt-[215px] px-12 pb-[75px] print:pt-[200px] print:px-10 print:pb-[60px]"
+                : "px-10 py-6 print:py-5 print:px-8"
             }`}
             style={{ minHeight: hasBackground ? "1120px" : "auto" }}
           >
-            <div>
-              {/* Row 1: To & Quotation No / Date */}
-              <div className="flex items-start justify-between gap-6 text-[13.5px]">
-                {/* Left: To */}
-                <div className="max-w-[420px]">
-                  <p className="font-semibold text-black">To,</p>
-                  {toCompanyOrClient && (
-                    <p className="mt-0.5 font-black text-[14.5px] uppercase tracking-wide text-black">
-                      {toCompanyOrClient}
-                    </p>
-                  )}
-                  {toAddress && (
-                    <div className="mt-0.5 whitespace-pre-line text-[13px] font-medium leading-snug text-neutral-900">
-                      {toAddress}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Quotation No & Date */}
-                <div className="text-right whitespace-nowrap text-[13.5px]">
-                  <p className="font-bold text-black">
-                    Quotation No. : <span className="font-black">{quotation.quotation_no}</span>
+            {/* Row 1: To & Quotation No / Date */}
+            <div className="flex items-start justify-between gap-6 text-[13.5px] print:text-[13px]">
+              {/* Left: To */}
+              <div className="max-w-[420px]">
+                <p className="font-semibold text-black">To,</p>
+                {toCompanyOrClient && (
+                  <p className="mt-0.5 font-black text-[14.5px] print:text-[13.5px] uppercase tracking-wide text-black">
+                    {toCompanyOrClient}
                   </p>
-                  <p className="mt-1 font-bold text-black">
-                    Date : <span className="font-black">{formatQuotationDate(quotation.quotation_date)}</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Row 2: Subject */}
-              <div className="mt-6 text-center">
-                <h2 className="inline-block border-b-2 border-black pb-0.5 text-[13.5px] font-black tracking-wide text-black uppercase">
-                  {formattedSubject}
-                </h2>
-              </div>
-
-              {/* Row 3: Introductory Reference Text */}
-              <div className="mt-5 text-[13px] font-medium leading-relaxed text-black text-justify">
-                <p>{intro}</p>
-              </div>
-
-              {/* Row 4: Line Items Table (Solid black borders matching physical sample) */}
-              <div className="mt-5">
-                <table className="w-full border-collapse border-2 border-black text-[13px]">
-                  <thead>
-                    <tr className="border-b-2 border-black text-[12px] font-bold uppercase tracking-wider text-black">
-                      <th className="border-r border-black w-14 px-2 py-2 text-center">
-                        SR. NO.
-                      </th>
-                      <th className="border-r border-black px-3 py-2 text-left">
-                        {colNameItem.toUpperCase()}
-                      </th>
-                      {columns.map((col) => (
-                        <th key={col.key} className="border-r border-black px-3 py-2 text-center">
-                          {col.label.toUpperCase()}
-                        </th>
-                      ))}
-                      {hasAnyItemImage && (
-                        <th className="border-r border-black w-24 px-2 py-2 text-center">
-                          {colNameReference.toUpperCase()}
-                        </th>
-                      )}
-                      <th className="border-r border-black w-24 px-2 py-2 text-center">
-                        {colNameQty.toUpperCase()}
-                      </th>
-                      <th className="border-r border-black w-36 px-3 py-2 text-center">
-                        {colNameRate.toUpperCase()}
-                      </th>
-                      <th className="w-32 px-3 py-2 text-right">
-                        {colNameAmount.toUpperCase()}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotation.items.map((it, idx) => {
-                      const itemQty = parseFloat(it.qty) || 0;
-                      const itemRate = parseFloat(it.rate) || 0;
-                      const itemAmount = itemQty * itemRate;
-
-                      return (
-                        <tr key={idx} className="border-b border-black">
-                          <td className="border-r border-black px-2 py-2.5 text-center font-medium">
-                            {idx + 1}
-                          </td>
-                          <td className="border-r border-black px-3 py-2.5 text-left font-medium">
-                            {it.product_name && (
-                              <div className="font-bold text-black">{it.product_name}</div>
-                            )}
-                            {it.description && (
-                              <div className={it.product_name ? "text-xs text-neutral-800 whitespace-pre-wrap mt-0.5" : "whitespace-pre-wrap"}>
-                                {it.description}
-                              </div>
-                            )}
-                            {!it.product_name && !it.description && "—"}
-                          </td>
-                          {columns.map((col) => (
-                            <td key={col.key} className="border-r border-black px-3 py-2.5 text-center font-medium">
-                              {it.extra_data?.[col.key] ?? "—"}
-                            </td>
-                          ))}
-                          {hasAnyItemImage && (
-                            <td className="border-r border-black px-2 py-2 text-center align-middle">
-                              {it.image ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const validImages = quotation.items
-                                      .filter((item) => Boolean(item.image))
-                                      .map((item) => ({
-                                        image: mediaUrl(item.image!) || item.image!,
-                                        caption: item.description || `Item #${idx + 1}`,
-                                      }));
-                                    const currentImgUrl = mediaUrl(it.image) || it.image;
-                                    const targetIdx = validImages.findIndex((img) => img.image === currentImgUrl);
-                                    setLightboxImages(validImages);
-                                    setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
-                                    setLightboxOpen(true);
-                                  }}
-                                  className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-400 bg-white p-1 hover:border-black transition-all shadow-xs"
-                                  title="Click to view full image"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={mediaUrl(it.image) || it.image}
-                                    alt={it.description || "Reference image"}
-                                    className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded mx-auto"
-                                  />
-                                  <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
-                                    <ZoomIn className="h-4 w-4" />
-                                  </span>
-                                </button>
-                              ) : (
-                                <span className="text-black font-semibold text-sm">—</span>
-                              )}
-                            </td>
-                          )}
-                          <td className="border-r border-black px-2 py-2.5 text-center font-medium">
-                            {it.qty}
-                          </td>
-                          <td className="border-r border-black px-3 py-2.5 text-center font-medium">
-                            {it.rate}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-medium tnum">
-                            {itemAmount > 0 ? formatCurrency(itemAmount, currency) : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-black font-bold">
-                      <td
-                        colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
-                        className="border-r border-black px-3 py-2 text-right uppercase tracking-wider font-bold"
-                      >
-                        SUBTOTAL
-                      </td>
-                      <td className="px-3 py-2 text-right font-black tnum">
-                        {formatCurrency(subtotalValue, currency)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Row 5: NOTES */}
-              {notesLines.length > 0 && (
-                <div className="mt-6 text-[12.5px] leading-normal text-black">
-                  <p className="font-bold underline uppercase tracking-wide">NOTES :</p>
-                  <div className="mt-2 space-y-1 pl-0.5">
-                    {notesLines.map((line, idx) => {
-                      const cleanText = line.replace(/^\d+[\.\)\-]?\s*/, "");
-                      return (
-                        <div key={idx} className="flex items-start gap-2.5">
-                          <span className="font-semibold">{idx + 1}.</span>
-                          <span className="font-medium text-black">{cleanText}</span>
-                        </div>
-                      );
-                    })}
+                )}
+                {toAddress && (
+                  <div className="mt-0.5 whitespace-pre-line text-[13px] print:text-[12px] font-medium leading-snug text-neutral-900">
+                    {toAddress}
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Row 6: Sign-off / Signature Block (Left Aligned) */}
-            <div className="mt-8 text-left text-[13.5px] text-black">
-              <p className="font-semibold">Thank you,</p>
-              <div className="my-1.5 h-12 flex items-center">
-                {signatureImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={signatureImage} alt="Signature" className="max-h-12 max-w-[160px] object-contain" />
-                ) : (
-                  <div className="h-8" />
                 )}
               </div>
-              <p className="font-black text-[14px] text-black tracking-wide">{signatureName}</p>
-              <p className="text-[12.5px] font-medium text-neutral-800">{designation}</p>
+
+              {/* Right: Quotation No & Date */}
+              <div className="text-right whitespace-nowrap text-[13.5px] print:text-[13px]">
+                <p className="font-bold text-black">
+                  Quotation No. : <span className="font-black">{quotation.quotation_no}</span>
+                </p>
+                <p className="mt-1 font-bold text-black">
+                  Date : <span className="font-black">{formatQuotationDate(quotation.quotation_date)}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Row 2: Subject */}
+            <div className="mt-5 print:mt-4 text-center">
+              <h2 className="inline-block border-b-2 border-black pb-0.5 text-[13.5px] print:text-[13px] font-black tracking-wide text-black uppercase">
+                {formattedSubject}
+              </h2>
+            </div>
+
+            {/* Row 3: Introductory Reference Text */}
+            <div className="mt-4 print:mt-3 text-[13px] print:text-[12.5px] font-medium leading-relaxed print:leading-normal text-black text-justify">
+              <p>{intro}</p>
+            </div>
+
+            {/* Row 4: Line Items Table (Solid black borders matching physical sample) */}
+            <div className="mt-4 print:mt-3.5">
+              <table className="w-full border-collapse border-2 border-black text-[13px] print:text-[12px]">
+                <thead>
+                  <tr className="border-b-2 border-black text-[12px] print:text-[11.5px] font-bold uppercase tracking-wider text-black">
+                    <th className="border-r border-black w-14 px-2 py-2 print:py-1.5 text-center">
+                      SR. NO.
+                    </th>
+                    <th className="border-r border-black px-3 py-2 print:py-1.5 text-left">
+                      {colNameItem.toUpperCase()}
+                    </th>
+                    {columns.map((col) => (
+                      <th key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center">
+                        {col.label.toUpperCase()}
+                      </th>
+                    ))}
+                    {hasAnyItemImage && (
+                      <th className="border-r border-black w-24 px-2 py-2 print:py-1.5 text-center">
+                        {colNameReference.toUpperCase()}
+                      </th>
+                    )}
+                    <th className="border-r border-black w-24 px-2 py-2 print:py-1.5 text-center">
+                      {colNameQty.toUpperCase()}
+                    </th>
+                    <th className="border-r border-black w-36 px-3 py-2 print:py-1.5 text-center">
+                      {colNameRate.toUpperCase()}
+                    </th>
+                    <th className="w-32 px-3 py-2 print:py-1.5 text-right">
+                      {colNameAmount.toUpperCase()}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotation.items.map((it, idx) => {
+                    const itemQty = parseFloat(it.qty) || 0;
+                    const itemRate = parseFloat(it.rate) || 0;
+                    const itemAmount = itemQty * itemRate;
+
+                    return (
+                      <tr key={idx} className="border-b border-black">
+                        <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-left font-medium">
+                          {it.product_name && (
+                            <div className="font-bold text-black">{it.product_name}</div>
+                          )}
+                          {it.description && (
+                            <div className={it.product_name ? "text-xs text-neutral-800 whitespace-pre-wrap mt-0.5" : "whitespace-pre-wrap"}>
+                              {it.description}
+                            </div>
+                          )}
+                          {!it.product_name && !it.description && "—"}
+                        </td>
+                        {columns.map((col) => (
+                          <td key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium">
+                            {it.extra_data?.[col.key] ?? "—"}
+                          </td>
+                        ))}
+                        {hasAnyItemImage && (
+                          <td className="border-r border-black px-2 py-2 print:py-1.5 text-center align-middle">
+                            {it.image ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const validImages = quotation.items
+                                    .filter((item) => Boolean(item.image))
+                                    .map((item) => ({
+                                      image: mediaUrl(item.image!) || item.image!,
+                                      caption: item.description || `Item #${idx + 1}`,
+                                    }));
+                                  const currentImgUrl = mediaUrl(it.image) || it.image;
+                                  const targetIdx = validImages.findIndex((img) => img.image === currentImgUrl);
+                                  setLightboxImages(validImages);
+                                  setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
+                                  setLightboxOpen(true);
+                                }}
+                                className="group relative mx-auto inline-block cursor-pointer overflow-hidden rounded border border-neutral-400 bg-white p-1 hover:border-black transition-all shadow-xs"
+                                title="Click to view full image"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={mediaUrl(it.image) || it.image}
+                                  alt={it.description || "Reference image"}
+                                  className="h-16 w-16 sm:h-20 sm:w-20 print:h-12 print:w-12 object-contain rounded mx-auto"
+                                />
+                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity print:hidden text-white">
+                                  <ZoomIn className="h-4 w-4" />
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="text-black font-semibold text-sm">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
+                          {it.qty}
+                        </td>
+                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium">
+                          {it.rate}
+                        </td>
+                        <td className="px-3 py-2 print:py-1.5 text-right font-medium tnum">
+                          {itemAmount > 0 ? formatCurrency(itemAmount, currency) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-black font-bold text-[12.5px] print:text-[12px]">
+                    <td
+                      colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
+                      className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-bold"
+                    >
+                      SUBTOTAL
+                    </td>
+                    <td className="px-3 py-2 print:py-1.5 text-right font-black tnum">
+                      {formatCurrency(subtotalValue, currency)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Row 5: NOTES */}
+            {notesLines.length > 0 && (
+              <div className="prevent-page-break mt-5 print:mt-4 text-[12.5px] print:text-[12px] leading-normal text-black">
+                <p className="font-bold underline uppercase tracking-wide">NOTES :</p>
+                <div className="mt-1.5 print:mt-1 space-y-1.5 print:space-y-1 pl-0.5">
+                  {notesLines.map((line, idx) => {
+                    const cleanText = line.replace(/^\d+[\.\)\-]?\s*/, "");
+                    return (
+                      <div key={idx} className="flex items-start gap-2.5">
+                        <span className="font-semibold">{idx + 1}.</span>
+                        <span className="font-medium text-black">{cleanText}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Row 6: Sign-off / Signature Block (Left Aligned, naturally following Notes) */}
+            <div className="prevent-page-break mt-8 print:mt-6 text-left text-[13.5px] print:text-[12.5px] text-black">
+              <p className="font-semibold">Thank you,</p>
+              <div className="my-1 print:my-0.5 h-12 print:h-10 flex items-center">
+                {signatureImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={signatureImage} alt="Signature" className="max-h-12 print:max-h-10 max-w-[160px] object-contain" />
+                ) : (
+                  <div className="h-6" />
+                )}
+              </div>
+              <p className="font-black text-[14px] print:text-[13px] text-black tracking-wide">{signatureName}</p>
+              <p className="text-[12.5px] print:text-[12px] font-medium text-neutral-800">{designation}</p>
               {contactPerson && (
-                <p className="text-[12px] font-medium text-neutral-700">Contact: {contactPerson}</p>
+                <p className="text-[12px] print:text-[11px] font-medium text-neutral-700">Contact: {contactPerson}</p>
               )}
             </div>
           </div>
@@ -531,7 +662,7 @@ export default function QuotationPrintPage() {
                 {annexure.pages?.map((pageSrc, pIdx) => (
                   <div
                     key={pIdx}
-                    className="relative mx-auto mt-6 print:mt-0 bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden flex flex-col items-center justify-between"
+                    className="annexure-sheet relative mx-auto mt-6 print:mt-0 bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden flex flex-col items-center justify-between"
                     style={{
                       width: "100%",
                       minHeight: "1120px",

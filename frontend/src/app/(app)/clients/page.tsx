@@ -90,6 +90,7 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
@@ -235,7 +236,7 @@ export default function ClientsPage() {
 
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} clients?`)) return;
+    setBulkDeleteConfirmOpen(false);
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -284,7 +285,7 @@ export default function ClientsPage() {
               Clear
             </Button>
             {canDelete && (
-              <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
+              <Button size="sm" variant="danger" onClick={() => setBulkDeleteConfirmOpen(true)} loading={bulkDeleting}>
                 Delete Selected
               </Button>
             )}
@@ -649,6 +650,19 @@ export default function ClientsPage() {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this client.");
             }
           }}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setBulkDeleteConfirmOpen(false)}
+          title="Delete Selected Clients"
+          description={`Are you sure you want to delete ${selected.size} selected client(s)? This action can be undone later from the archive.`}
+          confirmLabel="Delete All Selected"
+          variant="danger"
+          loading={bulkDeleting}
+          onConfirm={bulkDelete}
         />
       )}
 

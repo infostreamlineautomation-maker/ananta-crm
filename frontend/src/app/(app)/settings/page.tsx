@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { ImageIcon, Loader2, Trash2, Upload } from "lucide-react";
 import clsx from "clsx";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, ExchangeRate } from "@/lib/types";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 import { mediaUrl } from "@/lib/format";
 import { useOrganization } from "@/lib/organization-context";
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   const [testEmail, setTestEmail] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
 
   useEffect(() => {
     apiFetch<AppSettings>("/api/settings/")
@@ -149,7 +151,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end">
-        <Button variant="primary" onClick={handleSave} loading={saving}>
+        <Button variant="primary" onClick={() => setConfirmSaveOpen(true)} loading={saving}>
           Save Settings
         </Button>
       </div>
@@ -607,6 +609,20 @@ export default function SettingsPage() {
           )}
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onClose={() => setConfirmSaveOpen(false)}
+        onConfirm={async () => {
+          setConfirmSaveOpen(false);
+          await handleSave();
+        }}
+        title="Save Organization Settings?"
+        description="Are you sure you want to apply and save these updated settings and preferences?"
+        confirmLabel="Yes, Save Settings"
+        loading={saving}
+        variant="primary"
+      />
     </div>
   );
 }
@@ -891,11 +907,13 @@ function FileField({
   current,
   file,
   onChange,
+  onClear,
 }: {
   label: string;
   current?: string | null;
   file?: File | null;
   onChange: (f: File | null) => void;
+  onClear?: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
   const previewSrc = file ? URL.createObjectURL(file) : mediaUrl(current);
@@ -904,28 +922,64 @@ function FileField({
     setImgError(false);
   }, [current, file]);
 
+  const hasImage = Boolean(previewSrc && !imgError);
+
   return (
     <Field label={label}>
-      <div className="flex items-center gap-3">
-        {previewSrc && !imgError ? (
-          // eslint-disable-next-line @next/next/no-img-element
+      {hasImage ? (
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={previewSrc}
-            alt=""
-            className="h-11 max-w-[88px] rounded-md border border-border object-contain"
+            src={previewSrc!}
+            alt={label}
+            className="h-11 max-w-[110px] rounded-md border border-border bg-white object-contain p-1 shadow-2xs"
             onError={() => setImgError(true)}
           />
-        ) : (
-          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-border-strong text-ink-faint">
-            <Upload className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-white px-2.5 text-xs font-semibold text-ink hover:bg-surface-hover hover:border-primary-300 transition-colors shadow-2xs">
+              <Upload className="h-3.5 w-3.5 text-primary-600" />
+              <span>Change</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  onChange(e.target.files?.[0] ?? null);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setImgError(false);
+                if (onClear) onClear();
+              }}
+              className="flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-white px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-colors shadow-2xs cursor-pointer"
+              title="Remove image"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Remove</span>
+            </button>
           </div>
-        )}
-        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-white px-3 text-[13px] font-semibold text-ink hover:bg-surface-hover">
-          <Upload className="h-3.5 w-3.5" />
-          Upload
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+        </div>
+      ) : (
+        <label className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md border border-dashed border-border-strong hover:border-primary-400 bg-surface-sunken/40 hover:bg-primary-50/40 text-ink-muted hover:text-primary-700 cursor-pointer transition-colors shadow-2xs">
+          <Upload className="h-3.5 w-3.5 text-primary-600" />
+          <span className="text-xs font-semibold">Upload Image</span>
+          <span className="text-[11px] text-ink-faint">(PNG, JPG, WebP)</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              onChange(e.target.files?.[0] ?? null);
+              e.target.value = "";
+            }}
+          />
         </label>
-      </div>
+      )}
     </Field>
   );
 }

@@ -273,9 +273,10 @@ export default function QuotationsPage() {
     setSelected(next);
   };
 
-  const bulkDelete = async () => {
+  const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
+
+  const executeBulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.size} quotations?`)) return;
     setBulkDeleting(true);
     try {
       await Promise.all(
@@ -288,6 +289,7 @@ export default function QuotationsPage() {
       toast.error(e instanceof ApiError ? e.message : "Couldn't delete some quotations.");
     } finally {
       setBulkDeleting(false);
+      setConfirmBulkDeleteOpen(false);
     }
   };
 
@@ -310,7 +312,7 @@ export default function QuotationsPage() {
               Clear
             </Button>
             {canDelete && (
-              <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
+              <Button size="sm" variant="danger" onClick={() => setConfirmBulkDeleteOpen(true)} loading={bulkDeleting}>
                 Delete Selected
               </Button>
             )}
@@ -899,6 +901,18 @@ export default function QuotationsPage() {
           }}
         />
       )}
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmBulkDeleteOpen}
+        onClose={() => setConfirmBulkDeleteOpen(false)}
+        title="Delete Selected Quotations?"
+        description={`Are you sure you want to delete ${selected.size} selected quotation(s)? This action cannot be undone.`}
+        confirmLabel="Yes, Delete All"
+        variant="danger"
+        loading={bulkDeleting}
+        onConfirm={executeBulkDelete}
+      />
 
       {/* PDF & Excel Quotation Import Modal */}
       <QuotationImportModal
