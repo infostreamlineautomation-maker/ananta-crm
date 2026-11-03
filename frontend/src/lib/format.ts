@@ -25,7 +25,20 @@ export function formatDate(iso: string): string {
 
 export function mediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:") || path.startsWith("data:")) {
+  if (path.startsWith("blob:") || path.startsWith("data:")) {
+    return path;
+  }
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    try {
+      const url = new URL(path);
+      // If frontend dev server (:3000) was baked into a media/uploads URL, direct it to Django backend (:8000)
+      if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && url.port === "3000") {
+        url.port = "8000";
+        return url.toString();
+      }
+    } catch {
+      // ignore parse error
+    }
     return path;
   }
   const baseUrl = getApiBaseUrl();
@@ -34,11 +47,8 @@ export function mediaUrl(path: string | null | undefined): string | null {
 
 export function getBrandLogo(nameOrOrg?: string | null, customLogoPath?: string | null): string {
   if (customLogoPath) {
-    const lower = customLogoPath.toLowerCase();
-    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
-      const url = mediaUrl(customLogoPath);
-      if (url) return url;
-    }
+    const url = mediaUrl(customLogoPath);
+    if (url) return url;
   }
   const str = (nameOrOrg || "").toLowerCase();
   if (str.includes("meewa")) {
@@ -53,18 +63,12 @@ export function getReportLogo(
   customBrandLogoPath?: string | null,
 ): string {
   if (customReportLogoPath) {
-    const lower = customReportLogoPath.toLowerCase();
-    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
-      const url = mediaUrl(customReportLogoPath);
-      if (url) return url;
-    }
+    const url = mediaUrl(customReportLogoPath);
+    if (url) return url;
   }
   if (customBrandLogoPath) {
-    const lower = customBrandLogoPath.toLowerCase();
-    if (!lower.includes("anantalogo") && !lower.includes("meewamainlogo")) {
-      const url = mediaUrl(customBrandLogoPath);
-      if (url) return url;
-    }
+    const url = mediaUrl(customBrandLogoPath);
+    if (url) return url;
   }
   const str = (nameOrOrg || "").toLowerCase();
   if (str.includes("meewa")) {

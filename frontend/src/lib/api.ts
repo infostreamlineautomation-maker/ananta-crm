@@ -1,7 +1,15 @@
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+      return envUrl.replace(/\/+$/, "");
+    }
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname.endsWith(".local");
+
+    if (isLocalhost) {
       try {
         const port = envUrl ? new URL(envUrl).port || "8000" : "8000";
         return `${window.location.protocol}//${window.location.hostname}:${port}`;
@@ -9,9 +17,10 @@ export function getApiBaseUrl(): string {
         return `http://${window.location.hostname}:8000`;
       }
     }
-    return envUrl;
+    // In production or custom domains (e.g. crm.meewaindustries.com), default to same-origin
+    return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 }
 
 let cachedCsrfToken: string | null = null;

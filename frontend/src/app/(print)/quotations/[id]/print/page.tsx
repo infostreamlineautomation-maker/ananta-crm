@@ -273,12 +273,13 @@ export default function QuotationPrintPage() {
             box-sizing: border-box !important;
             min-height: 0 !important;
           }
+          .signoff-box,
           .prevent-page-break {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            break-before: avoid !important;
-            page-break-before: avoid !important;
-            display: block !important;
+            break-before: auto !important;
+            display: inline-block !important;
+            width: 100% !important;
           }
           table, tr, td, th {
             break-inside: avoid !important;
@@ -301,24 +302,25 @@ export default function QuotationPrintPage() {
       `}</style>
 
       {/* Top Action Bar (Sticky, full-width, clean, never cramped) */}
-      <header className="sticky top-0 z-30 mb-8 border-b border-neutral-300/80 bg-white/95 backdrop-blur-md shadow-xs print:hidden">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6">
+      <header className="sticky top-0 z-30 mb-8 border-b border-neutral-300 bg-white/95 backdrop-blur-md shadow-xs print:hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6 flex-nowrap">
           {/* Left: Back Link & Document / PDF Info */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 shrink-0" style={{ whiteSpace: "nowrap" }}>
             <Link
               href={`/quotations/${quotation.id}`}
+              style={{ whiteSpace: "nowrap" }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 hover:text-primary-700 hover:border-primary-300 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
             >
               <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-              <span>Back to Quotation</span>
+              <span className="whitespace-nowrap">Back to Quotation</span>
             </Link>
 
-            <div className="hidden md:flex items-center gap-2 border-l border-neutral-200 pl-3 min-w-0">
-              <span className="text-[10.5px] font-bold text-neutral-400 uppercase tracking-wider shrink-0">
+            <div className="hidden lg:flex items-center gap-2 border-l border-neutral-200 pl-3 min-w-0 shrink" style={{ whiteSpace: "nowrap" }}>
+              <span className="text-[10.5px] font-bold text-neutral-400 uppercase tracking-wider shrink-0 whitespace-nowrap">
                 PDF Filename:
               </span>
               <span
-                className="inline-flex items-center text-xs font-mono font-semibold text-neutral-800 bg-neutral-100 border border-neutral-200 px-2.5 py-0.5 rounded truncate max-w-[280px] lg:max-w-[420px]"
+                className="inline-flex items-center text-xs font-mono font-semibold text-neutral-800 bg-neutral-100 border border-neutral-200 px-2.5 py-0.5 rounded truncate max-w-[260px] xl:max-w-[400px] whitespace-nowrap"
                 title={`${pdfTitle}.pdf`}
               >
                 {pdfTitle}.pdf
@@ -327,11 +329,12 @@ export default function QuotationPrintPage() {
           </div>
 
           {/* Right: Actions & Controls */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-nowrap" style={{ whiteSpace: "nowrap" }}>
             {bgImage && (
               <button
                 type="button"
                 onClick={() => setUseBackground(!useBackground)}
+                style={{ whiteSpace: "nowrap" }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 {useBackground ? (
@@ -339,7 +342,7 @@ export default function QuotationPrintPage() {
                 ) : (
                   <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                 )}
-                <span>
+                <span className="whitespace-nowrap">
                   Letterhead:{" "}
                   <strong className={useBackground ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
                     {useBackground ? "ON" : "OFF"}
@@ -352,13 +355,14 @@ export default function QuotationPrintPage() {
               <button
                 type="button"
                 onClick={() => setUseAnnexures(!useAnnexures)}
+                style={{ whiteSpace: "nowrap" }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
                 title="Toggle inclusion of attached annexure pages in printed PDF"
               >
                 <FileText
                   className={`h-3.5 w-3.5 shrink-0 ${useAnnexures ? "text-primary-600" : "text-ink-muted"}`}
                 />
-                <span>
+                <span className="whitespace-nowrap">
                   Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pg):{" "}
                   <strong className={useAnnexures ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
                     {useAnnexures ? "ON" : "OFF"}
@@ -367,26 +371,26 @@ export default function QuotationPrintPage() {
               </button>
             )}
 
-            <Button
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
               onClick={handlePrint}
-              className="gap-1.5 shadow-sm shrink-0 whitespace-nowrap font-bold"
+              style={{ whiteSpace: "nowrap" }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition-colors cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Printer className="h-3.5 w-3.5 shrink-0" />
-              <span>Print / Save as PDF</span>
-            </Button>
+              <span className="whitespace-nowrap">Print / Save as PDF</span>
+            </button>
 
             {can("orders", "add") && (
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
+                type="button"
                 onClick={handleCreateOrder}
-                loading={creatingOrder}
-                className="shrink-0 whitespace-nowrap font-semibold"
+                disabled={creatingOrder}
+                style={{ whiteSpace: "nowrap" }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white hover:bg-surface-hover text-ink px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0 whitespace-nowrap disabled:opacity-50"
               >
-                Create Order
-              </Button>
+                <span className="whitespace-nowrap">{creatingOrder ? "Creating..." : "Create Order"}</span>
+              </button>
             )}
           </div>
         </div>
@@ -435,7 +439,7 @@ export default function QuotationPrintPage() {
           <div
             className={`quotation-sheet-content flex flex-col ${
               hasBackground
-                ? "pt-[215px] px-12 pb-[75px] print:pt-[200px] print:px-10 print:pb-[60px]"
+                ? "pt-[175px] px-12 pb-[50px] print:pt-[42mm] print:px-10 print:pb-[22mm]"
                 : "px-10 py-6 print:py-5 print:px-8"
             }`}
             style={{ minHeight: hasBackground ? "1120px" : "auto" }}
@@ -622,21 +626,29 @@ export default function QuotationPrintPage() {
               </div>
             )}
 
-            {/* Row 6: Sign-off / Signature Block (Left Aligned, naturally following Notes) */}
-            <div className="prevent-page-break mt-8 print:mt-6 text-left text-[13.5px] print:text-[12.5px] text-black">
-              <p className="font-semibold">Thank you,</p>
-              <div className="my-1 print:my-0.5 h-12 print:h-10 flex items-center">
+            {/* Row 6: Sign-off / Signature Block (Left Aligned, unbreakable, naturally following Notes) */}
+            <div
+              className="signoff-box prevent-page-break mt-6 print:mt-3 text-left text-[13.5px] print:text-[12px] text-black"
+              style={{
+                breakInside: "avoid",
+                pageBreakInside: "avoid",
+                display: "inline-block",
+                width: "100%",
+              }}
+            >
+              <p className="font-semibold leading-tight">Thank you,</p>
+              <div className="my-1 print:my-0.5 h-11 print:h-9 flex items-center">
                 {signatureImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={signatureImage} alt="Signature" className="max-h-12 print:max-h-10 max-w-[160px] object-contain" />
+                  <img src={signatureImage} alt="Signature" className="max-h-11 print:max-h-9 max-w-[150px] object-contain" />
                 ) : (
-                  <div className="h-6" />
+                  <div className="h-4" />
                 )}
               </div>
-              <p className="font-black text-[14px] print:text-[13px] text-black tracking-wide">{signatureName}</p>
-              <p className="text-[12.5px] print:text-[12px] font-medium text-neutral-800">{designation}</p>
+              <p className="font-black text-[14px] print:text-[13px] text-black tracking-wide leading-tight">{signatureName}</p>
+              <p className="text-[12.5px] print:text-[11.5px] font-semibold text-neutral-800 leading-tight mt-0.5">{designation}</p>
               {contactPerson && (
-                <p className="text-[12px] print:text-[11px] font-medium text-neutral-700">Contact: {contactPerson}</p>
+                <p className="text-[12px] print:text-[11px] font-medium text-neutral-700 leading-tight mt-0.5">Contact: {contactPerson}</p>
               )}
             </div>
           </div>

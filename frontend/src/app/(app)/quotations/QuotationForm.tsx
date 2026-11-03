@@ -370,6 +370,7 @@ export function QuotationForm({
       introText,
       notes,
       footerContent,
+      attachments,
     }),
     [
       client,
@@ -393,6 +394,7 @@ export function QuotationForm({
       introText,
       notes,
       footerContent,
+      attachments,
     ]
   );
 
@@ -403,6 +405,7 @@ export function QuotationForm({
           toName ||
           subject ||
           adminRemarks ||
+          attachments.length > 0 ||
           items.length > 1 ||
           items[0]?.product ||
           items[0]?.product_name ||
@@ -421,9 +424,10 @@ export function QuotationForm({
       status !== (quotation.status ?? "draft") ||
       adminRemarks !== (quotation.admin_remarks ?? "") ||
       introText !== (quotation.intro_text ?? "") ||
-      notes !== (quotation.notes ?? "")
+      notes !== (quotation.notes ?? "") ||
+      attachments.length !== (quotation.attachments?.length ?? 0)
     );
-  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items]);
+  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items, attachments]);
 
   const {
     draftSavedAt,
@@ -456,6 +460,7 @@ export function QuotationForm({
       if (draft.introText !== undefined) setIntroText(draft.introText);
       if (draft.notes !== undefined) setNotes(draft.notes);
       if (draft.footerContent !== undefined) setFooterContent(draft.footerContent);
+      if (draft.attachments !== undefined && Array.isArray(draft.attachments)) setAttachments(draft.attachments);
     },
   });
 
@@ -481,6 +486,7 @@ export function QuotationForm({
       setIntroText(quotation.intro_text ?? appSettings?.quotation_intro ?? "");
       setNotes(quotation.notes ?? appSettings?.quotation_terms ?? "");
       setFooterContent(quotation.footer_content ?? "");
+      setAttachments(quotation.attachments ?? []);
     } else {
       setClient("");
       setProject(initialProjectId ?? "");
@@ -500,6 +506,7 @@ export function QuotationForm({
       setIntroText(appSettings?.quotation_intro ?? "");
       setNotes(appSettings?.quotation_terms ?? "");
       setFooterContent("");
+      setAttachments([]);
     }
     toast.success("Draft discarded.");
   }
@@ -2331,105 +2338,113 @@ export function QuotationForm({
                 </p>
               </div>
 
-              {/* Uploaded Attachments List (Internal Admin Record) */}
-              {(() => {
-                const adminAtts = attachments
-                  .map((att, actualIndex) => ({ att, actualIndex }))
-                  .filter(({ att }) => !att.include_in_pdf);
+              {/* Uploaded Attachments List (Shows all files: both internal and PDF annexures) */}
+              {attachments.length === 0 ? (
+                <p className="text-[11.5px] text-ink-muted italic pt-0.5">
+                  No files or media uploaded yet.
+                </p>
+              ) : (
+                <div className="mt-1 space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {attachments.map((att, actualIndex) => {
+                    const isImg = att.file_type === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.file_name);
+                    const isPdf = att.file_type === "pdf" || /\.pdf$/i.test(att.file_name);
+                    return (
+                      <div
+                        key={actualIndex}
+                        className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-border bg-surface shadow-2xs hover:border-primary-200 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {isImg ? (
+                            <div className="h-8 w-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                              <ImageIcon className="h-4 w-4" />
+                            </div>
+                          ) : isPdf ? (
+                            <div className="h-8 w-8 rounded bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                              <FileText className="h-4 w-4" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                              <FileSpreadsheet className="h-4 w-4" />
+                            </div>
+                          )}
 
-                if (adminAtts.length === 0) {
-                  return (
-                    <p className="text-[11.5px] text-ink-muted italic pt-0.5">
-                      No internal files or media uploaded yet.
-                    </p>
-                  );
-                }
-
-                return (
-                  <div className="mt-1 space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                    {adminAtts.map(({ att, actualIndex }) => {
-                      const isImg = att.file_type === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.file_name);
-                      const isPdf = att.file_type === "pdf" || /\.pdf$/i.test(att.file_name);
-                      return (
-                        <div
-                          key={actualIndex}
-                          className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border bg-surface shadow-2xs hover:border-primary-200 transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            {isImg ? (
-                              <div className="h-8 w-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-                                <ImageIcon className="h-4 w-4" />
-                              </div>
-                            ) : isPdf ? (
-                              <div className="h-8 w-8 rounded bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-                                <FileText className="h-4 w-4" />
-                              </div>
-                            ) : (
-                              <div className="h-8 w-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                                <FileSpreadsheet className="h-4 w-4" />
-                              </div>
-                            )}
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-ink truncate" title={att.file_name}>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs font-semibold text-ink truncate max-w-[240px]" title={att.file_name}>
                                 {att.file_name}
                               </p>
-                              <p className="text-[11px] text-ink-muted">
-                                {formatFileSize(att.file_size)}
-                                {att.file_type && ` • ${att.file_type.toUpperCase()}`}
-                              </p>
+                              {att.include_in_pdf ? (
+                                <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[10.5px] font-bold text-rose-700 border border-rose-200 shrink-0">
+                                  <FileText className="h-3 w-3 shrink-0" />
+                                  <span>Attached to PDF</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded bg-neutral-100 px-2 py-0.5 text-[10.5px] font-semibold text-neutral-600 border border-neutral-200 shrink-0">
+                                  <ShieldCheck className="h-3 w-3 shrink-0" />
+                                  <span>Internal Only</span>
+                                </span>
+                              )}
                             </div>
-                          </div>
-
-                          {/* View, Download, Delete Actions */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {(isPdf || isImg) && (
-                              <button
-                                type="button"
-                                onClick={() => toggleAttachmentIncludeInPdf(actualIndex, true)}
-                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-border bg-white text-ink-muted hover:text-primary-700 hover:border-primary-300 hover:bg-primary-50/50 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
-                                title="Attach this document to the quotation PDF print"
-                              >
-                                <span>+ PDF</span>
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => handleViewAttachment(att)}
-                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0"
-                              title="View / Preview File"
-                            >
-                              <Eye className="h-3.5 w-3.5 text-primary-600 shrink-0" />
-                              <span>View</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadAttachment(att)}
-                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-white text-ink-muted hover:text-ink hover:bg-neutral-50 hover:border-neutral-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
-                              title="Download file"
-                            >
-                              <Download className="h-3.5 w-3.5 shrink-0" />
-                              <span className="hidden sm:inline">Download</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setAttachmentToDelete({ index: actualIndex, att })}
-                              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
-                              title="Remove file"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 shrink-0" />
-                              <span className="hidden sm:inline">Delete</span>
-                            </button>
+                            <p className="text-[11px] text-ink-muted mt-0.5">
+                              {formatFileSize(att.file_size)}
+                              {att.file_type && ` • ${att.file_type.toUpperCase()}`}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(isPdf || isImg) && (
+                            <button
+                              type="button"
+                              onClick={() => toggleAttachmentIncludeInPdf(actualIndex, !att.include_in_pdf)}
+                              className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0 ${
+                                att.include_in_pdf
+                                  ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                  : "border-border bg-white text-ink-muted hover:text-primary-700 hover:border-primary-300 hover:bg-primary-50/50"
+                              }`}
+                              title={att.include_in_pdf ? "Click to remove from client PDF" : "Click to attach to client PDF"}
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span>{att.include_in_pdf ? "PDF: ON" : "+ PDF"}</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleViewAttachment(att)}
+                            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0"
+                            title="View / Preview File"
+                          >
+                            <Eye className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                            <span>View</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAttachment(att)}
+                            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-white text-ink-muted hover:text-ink hover:bg-neutral-50 hover:border-neutral-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
+                            title="Download file"
+                          >
+                            <Download className="h-3.5 w-3.5 shrink-0" />
+                            <span className="hidden sm:inline">Download</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentToDelete({ index: actualIndex, att })}
+                            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
+                            title="Delete file"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </Card>
