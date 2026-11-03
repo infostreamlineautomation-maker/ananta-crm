@@ -12,7 +12,9 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
-ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com").split(",") if h]
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com,crm.meewaindustries.com,.meewaindustries.com").split(",") if h]
+
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -21,6 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    *(["cloudinary_storage", "cloudinary"] if CLOUDINARY_CLOUD_NAME else []),
     "rest_framework",
     "corsheaders",
     "django_filters",
@@ -112,8 +115,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# Media / Assets Configuration (Local & Server File Storage)
-MEDIA_URL = "/media/"
+# Media / Assets Configuration (Cloudinary in Production or Local File Storage)
 _media_root_env = os.environ.get("MEDIA_ROOT")
 if _media_root_env:
     _media_path = Path(_media_root_env)
@@ -122,14 +124,34 @@ else:
     MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-    },
-}
+if CLOUDINARY_CLOUD_NAME:
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+        "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
+        "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
+    }
+    DEFAULT_FILE_STORAGE = "apps.core.storage.DynamicCloudinaryStorage"
+    STORAGES = {
+        "default": {
+            "BACKEND": "apps.core.storage.DynamicCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = "/media/"
+else:
+    MEDIA_URL = os.environ.get("MEDIA_URL", "/media/")
+    if not MEDIA_URL.endswith("/"):
+        MEDIA_URL += "/"
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -149,7 +171,7 @@ CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app",
+        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app,https://crm.meewaindustries.com",
     ).split(",")
     if o
 ]
@@ -159,7 +181,7 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
         "CSRF_TRUSTED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app",
+        "http://localhost:3000,http://127.0.0.1:3000,https://ananta-crm.vercel.app,https://crm.meewaindustries.com",
     ).split(",")
     if o
 ]
