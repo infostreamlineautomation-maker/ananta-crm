@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import { AppSettings, Client, QuotationDetail } from "@/lib/types";
+import { AppSettings, Client, QuotationAnnexure, QuotationDetail } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl, getBrandLogo, getReportLogo } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +40,8 @@ export default function QuotationPrintPage() {
   const [loading, setLoading] = useState(true);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [useBackground, setUseBackground] = useState(true);
+  const [annexures, setAnnexures] = useState<QuotationAnnexure[]>([]);
+  const [useAnnexures, setUseAnnexures] = useState(true);
   const [lightboxImages, setLightboxImages] = useState<{ image: string; caption?: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -52,10 +54,14 @@ export default function QuotationPrintPage() {
     Promise.all([
       apiFetch<QuotationDetail>(`/api/quotations/${quotationId}/`),
       apiFetch<AppSettings>("/api/settings/"),
+      apiFetch<{ annexures: QuotationAnnexure[] }>(`/api/quotations/${quotationId}/pdf-pages/`).catch(() => ({ annexures: [] })),
     ])
-      .then(async ([q, s]) => {
+      .then(async ([q, s, annexureRes]) => {
         setQuotation(q);
         setSettings(s);
+        if (annexureRes?.annexures) {
+          setAnnexures(annexureRes.annexures);
+        }
         if (q.client) {
           try {
             const cl = await apiFetch<Client>(`/api/clients/${q.client}/`);
@@ -230,6 +236,18 @@ export default function QuotationPrintPage() {
             >
               {useBackground ? <ImageIcon className="h-3.5 w-3.5 text-primary-600" /> : <FileText className="h-3.5 w-3.5 text-ink-muted" />}
               Letterhead Pad: <span className="font-bold">{useBackground ? "ON" : "OFF"}</span>
+            </button>
+          )}
+          {annexures.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setUseAnnexures(!useAnnexures)}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-xs hover:bg-neutral-50 cursor-pointer"
+              title="Toggle inclusion of attached annexure pages in the printed PDF"
+            >
+              <FileText className={`h-3.5 w-3.5 ${useAnnexures ? "text-primary-600" : "text-ink-muted"}`} />
+              Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pgs):{" "}
+              <span className="font-bold">{useAnnexures ? "ON" : "OFF"}</span>
             </button>
           )}
           <Button variant="primary" onClick={() => window.print()} className="gap-2 shadow-sm">
@@ -504,6 +522,60 @@ export default function QuotationPrintPage() {
             </div>
           )}
         </div>
+
+        {/* Client Quotation PDF Annexures / Attachments Pages */}
+        {useAnnexures && annexures.length > 0 && (
+          <div className="annexures-container">
+            {annexures.map((annexure, aIdx) => (
+              <div key={annexure.id || aIdx} className="annexure-group">
+                {annexure.pages?.map((pageSrc, pIdx) => (
+                  <div
+                    key={pIdx}
+                    className="relative mx-auto mt-6 print:mt-0 bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden flex flex-col items-center justify-between"
+                    style={{
+                      width: "100%",
+                      minHeight: "1120px",
+                      pageBreakBefore: "always",
+                      breakBefore: "page",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {/* Header with Annexure Title & Page count */}
+                    <div className="w-full flex items-center justify-between px-10 pt-6 pb-3 border-b border-neutral-200 text-neutral-600 text-[11px] font-medium print:text-[10px]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-neutral-800 uppercase tracking-wide">
+                          {annexure.title || "Quotation Annexure"}
+                        </span>
+                        <span className="text-neutral-400">•</span>
+                        <span className="text-neutral-500 font-mono text-[10.5px]">
+                          {annexure.file_name}
+                        </span>
+                      </div>
+                      <div className="font-semibold text-neutral-700">
+                        {quotation.quotation_no} • Page {pIdx + 1} of {annexure.pages.length}
+                      </div>
+                    </div>
+
+                    {/* Page Content: High-res rendered image */}
+                    <div className="flex-1 w-full flex items-center justify-center p-4">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={pageSrc.startsWith("data:") || pageSrc.startsWith("blob:") ? pageSrc : (mediaUrl(pageSrc) ?? pageSrc)}
+                        alt={`${annexure.title} - Page ${pIdx + 1}`}
+                        className="max-w-full max-h-[1010px] w-auto h-auto object-contain shadow-2xs print:shadow-none"
+                      />
+                    </div>
+
+                    {/* Subtle Footer */}
+                    <div className="w-full text-center py-2.5 border-t border-neutral-100 text-[10px] text-neutral-400 font-medium">
+                      Attached Annexure for Quotation {quotation.quotation_no}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lightbox for Image Preview */}

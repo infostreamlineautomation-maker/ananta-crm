@@ -48,6 +48,7 @@ class Quotation(AuditedModel, SoftDeleteModel):
     notes = models.TextField(blank=True)
     footer_content = models.TextField(blank=True)
     whatsapp_message = models.TextField(blank=True)
+    admin_remarks = models.TextField(blank=True, default="", help_text="Internal admin remarks/records for this quotation.")
 
     col_qty_label = models.CharField(max_length=50, default="Qty")
     col_rate_label = models.CharField(max_length=50, default="Rate")
@@ -126,3 +127,20 @@ class QuotationItem(models.Model):
     @property
     def amount(self):
         return self.qty * self.rate
+
+
+class QuotationAttachment(models.Model):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to="quotations/attachments/")
+    file_name = models.CharField(max_length=255, blank=True)
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    file_type = models.CharField(max_length=50, blank=True, help_text="e.g. image, pdf, excel, document")
+    include_in_pdf = models.BooleanField(default=False, help_text="Whether to append this attachment to the quotation PDF")
+    annexure_title = models.CharField(max_length=200, blank=True, help_text="e.g. Annexure A: Technical Specifications")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"Attachment #{self.pk} for Quote #{self.quotation_id} - {self.file_name}"

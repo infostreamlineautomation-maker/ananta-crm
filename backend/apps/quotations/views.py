@@ -48,7 +48,7 @@ class QuotationFilter(django_filters.FilterSet):
 
 
 class QuotationViewSet(SoftDeleteModuleViewSet):
-    queryset = Quotation.objects.select_related("client", "project", "supplier").prefetch_related("items")
+    queryset = Quotation.objects.select_related("client", "project", "supplier").prefetch_related("items", "attachments")
     serializer_class = QuotationSerializer
     module_name = QUOTATIONS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
@@ -216,6 +216,7 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             notes=source.notes,
             footer_content=source.footer_content,
             whatsapp_message=source.whatsapp_message,
+            admin_remarks=source.admin_remarks,
             col_qty_label=source.col_qty_label,
             col_rate_label=source.col_rate_label,
             col_labels=source.col_labels or {},
@@ -256,6 +257,103 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             pass
 
         return Response(QuotationSerializer(new_quotation).data, status=201)
+
+    @action(detail=True, methods=["post"], parser_classes=[MultiPartParser, FormParser], url_path="upload-attachment")
+    def upload_attachment(self, request, pk=None):
+        quotation = self.get_object()
+        file_obj = request.FILES.get("file")
+        if not file_obj:
+            return Response({"detail": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import os
+        name = file_obj.name
+        size = file_obj.size
+        ext = os.path.splitext(name)[1].lower()
+        if ext in [".pdf"]:
+            ft = "pdf"
+        elif ext in [".xlsx", ".xls", ".csv"]:
+            ft = "excel"
+        elif ext in [".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"]:
+            ft = "image"
+        else:
+            ft = "document"
+
+        from .models import QuotationAttachment
+        from .serializers import QuotationAttachmentSerializer
+        include_in_pdf = str(request.data.get("include_in_pdf", "")).lower() in ("true", "1", "yes")
+        annexure_title = request.data.get("annexure_title", "")
+        att = QuotationAttachment.objects.create(
+            quotation=quotation,
+            file=file_obj,
+            file_name=name,
+            file_size=size,
+            file_type=ft,
+            include_in_pdf=include_in_pdf,
+            annexure_title=annexure_title,
+        )
+        return Response(QuotationAttachmentSerializer(att, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["delete"], url_path=r"attachments/(?P<attachment_id>\d+)")
+    def delete_attachment(self, request, pk=None, attachment_id=None):
+        quotation = self.get_object()
+        att = quotation.attachments.filter(id=attachment_id).first()
+        if not att:
+            return Response({"detail": "Attachment not found."}, status=status.HTTP_404_NOT_FOUND)
+        att.delete()
+        return Response({"detail": "Attachment deleted."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="pdf-pages")
+    def pdf_pages(self, request, pk=None):
+        """Returns rendered page images for any attachment marked include_in_pdf=True.
+        For PDFs, pypdfium2 renders each page as high-res base64 JPEG.
+        For Images, returns direct URL.
+        """
+        quotation = self.get_object()
+        import io, base64, logging
+        import pypdfium2 as pdfium
+
+        annexures = []
+        for att in quotation.attachments.filter(include_in_pdf=True):
+            if not att.file:
+                continue
+            pages = []
+            is_pdf = att.file_type == "pdf" or att.file_name.lower().endswith(".pdf")
+            if is_pdf:
+                try:
+                    file_bytes = None
+                    try:
+                        if hasattr(att.file, "path") and os.path.exists(att.file.path):
+                            with open(att.file.path, "rb") as f:
+                                file_bytes = f.read()
+                    except Exception:
+                        pass
+                    if not file_bytes:
+                        att.file.open("rb")
+                        file_bytes = att.file.read()
+
+                    pdf = pdfium.PdfDocument(io.BytesIO(file_bytes))
+                    for page in pdf:
+                        # Render at 2x scale for sharp print quality (~150-200 DPI)
+                        pil_img = page.render(scale=2).to_pil()
+                        buf = io.BytesIO()
+                        pil_img.save(buf, format="JPEG", quality=85)
+                        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                        pages.append(f"data:image/jpeg;base64,{b64}")
+                except Exception as e:
+                    logging.getLogger(__name__).error("Failed to render PDF %s: %s", att.file_name, e)
+            elif att.file_type == "image" or any(att.file_name.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"]):
+                img_url = request.build_absolute_uri(att.file.url) if request else att.file.url
+                pages.append(img_url)
+
+            annexures.append({
+                "id": att.id,
+                "title": att.annexure_title or att.file_name,
+                "file_name": att.file_name,
+                "file_type": att.file_type,
+                "pages": pages,
+            })
+
+        return Response({"annexures": annexures})
 
     @action(detail=True, methods=["post"], url_path="create-order")
     def create_order(self, request, pk=None):

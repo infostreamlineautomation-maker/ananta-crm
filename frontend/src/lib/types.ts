@@ -248,6 +248,26 @@ export interface QuotationItemDetail {
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected";
 
+export interface QuotationAttachment {
+  id?: number;
+  file?: string | null;
+  file_name: string;
+  file_size?: number | null;
+  file_type?: string;
+  include_in_pdf?: boolean;
+  annexure_title?: string;
+  uploaded_at?: string;
+  file_url?: string | null;
+}
+
+export interface QuotationAnnexure {
+  id: number;
+  title: string;
+  file_name: string;
+  file_type: string;
+  pages: string[];
+}
+
 export interface QuotationDetail {
   id: number;
   quotation_no: string;
@@ -267,6 +287,8 @@ export interface QuotationDetail {
   notes: string;
   footer_content: string;
   whatsapp_message?: string;
+  admin_remarks?: string;
+  attachments?: QuotationAttachment[];
   col_qty_label: string;
   col_rate_label: string;
   col_labels?: Record<string, string>;

@@ -9,16 +9,22 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Download,
   ExternalLink,
+  Eye,
+  FileSpreadsheet,
   FileText,
   FileUp,
+  ImageIcon,
   MessageSquare,
+  Paperclip,
   Plus,
   Printer,
   RefreshCw,
   RotateCcw,
   Search,
   Send,
+  ShieldCheck,
   Trash2,
   Upload,
   X,
@@ -33,6 +39,7 @@ import {
   Country,
   Product,
   ProjectSummary,
+  QuotationAttachment,
   QuotationColumn,
   QuotationDetail,
   QuotationItemDetail,
@@ -55,6 +62,7 @@ import { ProductModal } from "@/components/products/ProductModal";
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
+import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
 
 function blankItem(): QuotationItemDetail {
   return {
@@ -277,6 +285,15 @@ export function QuotationForm({
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [whatsappCopied, setWhatsappCopied] = useState(false);
 
+  // Section 2.5: Admin Remarks & Attachments (Internal Record)
+  const [adminRemarks, setAdminRemarks] = useState(quotation?.admin_remarks ?? "");
+  const [attachments, setAttachments] = useState<QuotationAttachment[]>(quotation?.attachments ?? []);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingAnnexure, setIsDraggingAnnexure] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<QuotationAttachment | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfAnnexureFileInputRef = useRef<HTMLInputElement>(null);
+
   // Section 3: Notes & Terms
   const [introText, setIntroText] = useState(
     quotation?.intro_text ??
@@ -331,6 +348,7 @@ export function QuotationForm({
     if (data.supplier_id) setSupplierId(data.supplier_id);
     if (data.intro_text) setIntroText(data.intro_text);
     if (data.notes) setNotes(data.notes);
+    if (data.admin_remarks) setAdminRemarks(data.admin_remarks);
     if (data.col_qty_label) setColQtyLabel(data.col_qty_label);
     if (data.col_rate_label) setColRateLabel(data.col_rate_label);
     if (data.col_labels) setColLabels((prev) => ({ ...prev, ...data.col_labels }));
@@ -721,6 +739,123 @@ export function QuotationForm({
     toast.success("Applied compact tier rate list format.");
   };
 
+  function formatFileSize(bytes?: number | null): string {
+    if (!bytes) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function handleFilesSelected(fileList: FileList, includeInPdf: boolean = false) {
+    const newFiles = Array.from(fileList);
+    newFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        let fileType = "other";
+        const name = file.name.toLowerCase();
+        if (name.endsWith(".pdf") || file.type === "application/pdf") {
+          fileType = "pdf";
+        } else if (
+          name.endsWith(".xlsx") ||
+          name.endsWith(".xls") ||
+          name.endsWith(".csv") ||
+          file.type.includes("sheet") ||
+          file.type.includes("excel") ||
+          file.type.includes("csv")
+        ) {
+          fileType = "excel";
+        } else if (
+          name.endsWith(".png") ||
+          name.endsWith(".jpg") ||
+          name.endsWith(".jpeg") ||
+          name.endsWith(".webp") ||
+          name.endsWith(".svg") ||
+          name.endsWith(".gif") ||
+          file.type.startsWith("image/")
+        ) {
+          fileType = "image";
+        }
+
+        const baseTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+        const formattedTitle = baseTitle.charAt(0).toUpperCase() + baseTitle.slice(1);
+
+        setAttachments((prev) => [
+          ...prev,
+          {
+            file: base64Data,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: fileType,
+            file_url: base64Data,
+            include_in_pdf: includeInPdf,
+            annexure_title: includeInPdf ? `Annexure: ${formattedTitle}` : "",
+          },
+        ]);
+        toast.success(
+          includeInPdf
+            ? `Added "${file.name}" to Quotation PDF Annexures`
+            : `Attached "${file.name}" to Admin Records`
+        );
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function updateAttachmentTitle(attIdx: number, newTitle: string) {
+    setAttachments((prev) =>
+      prev.map((item, idx) => (idx === attIdx ? { ...item, annexure_title: newTitle } : item))
+    );
+  }
+
+  function toggleAttachmentIncludeInPdf(attIdx: number, include: boolean) {
+    setAttachments((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== attIdx) return item;
+        const currentTitle = item.annexure_title || "";
+        const baseTitle = (item.file_name || "Document").replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+        const formattedTitle = baseTitle.charAt(0).toUpperCase() + baseTitle.slice(1);
+        return {
+          ...item,
+          include_in_pdf: include,
+          annexure_title: include && !currentTitle ? `Annexure: ${formattedTitle}` : currentTitle,
+        };
+      })
+    );
+  }
+
+  function handleViewAttachment(att: QuotationAttachment) {
+    setPreviewAttachment(att);
+  }
+
+  function handleDownloadAttachment(att: QuotationAttachment) {
+    const url = att.file_url || (typeof att.file === "string" ? att.file : null);
+    if (!url) return;
+    const fullUrl = url.startsWith("data:") || url.startsWith("blob:") ? url : mediaUrl(url);
+    if (!fullUrl) return;
+
+    const a = document.createElement("a");
+    a.href = fullUrl;
+    a.download = att.file_name || "attachment";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  async function handleDeleteAttachment(index: number, att: QuotationAttachment) {
+    if (att.id && quotation?.id) {
+      try {
+        await apiFetch(`/api/quotations/${quotation.id}/attachments/${att.id}/`, {
+          method: "DELETE",
+        });
+      } catch {
+        // Continue removing from local state
+      }
+    }
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    toast.success("Attachment removed.");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -745,6 +880,16 @@ export function QuotationForm({
         notes,
         footer_content: footerContent,
         whatsapp_message: whatsappText,
+        admin_remarks: adminRemarks,
+        attachments: attachments.map((att) => ({
+          id: att.id,
+          file: att.file || (att.file_url ? "__KEEP_EXISTING__" : null),
+          file_name: att.file_name,
+          file_size: att.file_size,
+          file_type: att.file_type,
+          include_in_pdf: Boolean(att.include_in_pdf),
+          annexure_title: att.annexure_title || "",
+        })),
         col_qty_label: (quoteFormat === "costing" ? colLabels.supplier_qty : colLabels.qty) || colQtyLabel || "Qty",
         col_rate_label: (quoteFormat === "costing" ? colLabels.client_rate : colLabels.rate) || colRateLabel || "Client Rate",
         col_labels: {
@@ -978,7 +1123,7 @@ export function QuotationForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2 border-t border-border">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 pt-2 border-t border-border items-start">
           <Field label="To Name" hint="Client or Company Name on Quotation">
             <Input
               value={toName}
@@ -994,6 +1139,130 @@ export function QuotationForm({
               placeholder="e.g. Corporate House, VIP Road, Surat, Gujarat"
             />
           </Field>
+
+          {/* Client PDF Annexures / Attachments (Compact in Quotation Information) */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-sunken/40 p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-ink flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-primary-600" />
+                <span>PDF Annexures</span>
+              </label>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-200">
+                Appended to PDF
+              </span>
+            </div>
+
+            {/* Compact Drag & Drop / Upload trigger */}
+            <div
+              onClick={() => pdfAnnexureFileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingAnnexure(true);
+              }}
+              onDragLeave={() => setIsDraggingAnnexure(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingAnnexure(false);
+                if (e.dataTransfer.files?.length) {
+                  handleFilesSelected(e.dataTransfer.files, true);
+                }
+              }}
+              className={clsx(
+                "flex items-center justify-center gap-2 px-3 py-2 border border-dashed rounded-md cursor-pointer transition-colors text-center text-xs font-semibold shadow-2xs",
+                isDraggingAnnexure
+                  ? "border-primary-500 bg-primary-50 text-primary-700"
+                  : "border-border hover:border-primary-400 hover:bg-neutral-50 bg-white text-ink"
+              )}
+            >
+              <input
+                ref={pdfAnnexureFileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) {
+                    handleFilesSelected(e.target.files, true);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <FileUp className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+              <span>Attach PDF / Drawing</span>
+            </div>
+
+            {/* Attached Annexures List */}
+            {(() => {
+              const pdfAtts = attachments
+                .map((att, actualIndex) => ({ att, actualIndex }))
+                .filter(({ att }) => Boolean(att.include_in_pdf));
+
+              if (pdfAtts.length === 0) {
+                return (
+                  <p className="text-[11px] text-ink-muted italic">
+                    Optional: Attach drawings/specs to append to client PDF.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                  {pdfAtts.map(({ att, actualIndex }) => {
+                    const isImg = att.file_type === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.file_name);
+                    return (
+                      <div
+                        key={actualIndex}
+                        className="flex items-center justify-between gap-2 p-1.5 rounded border border-border bg-white text-xs shadow-2xs"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {isImg ? (
+                            <ImageIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          ) : (
+                            <FileText className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                          )}
+                          <input
+                            type="text"
+                            value={att.annexure_title || att.file_name}
+                            onChange={(e) => updateAttachmentTitle(actualIndex, e.target.value)}
+                            placeholder="Annexure Title"
+                            className="text-xs font-semibold text-ink px-1.5 py-0.5 rounded border border-border focus:border-primary-500 focus:outline-hidden flex-1 min-w-0 bg-neutral-50/50"
+                            title={att.file_name}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleViewAttachment(att)}
+                            className="p-1 rounded hover:bg-neutral-100 text-primary-600 cursor-pointer"
+                            title="Preview file"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAttachment(att)}
+                            className="p-1 rounded hover:bg-neutral-100 text-ink-muted hover:text-ink cursor-pointer"
+                            title="Download file"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(actualIndex, att)}
+                            className="p-1 rounded hover:bg-rose-50 text-rose-600 cursor-pointer"
+                            title="Remove file"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </Card>
 
@@ -1683,103 +1952,296 @@ export function QuotationForm({
         </div>
       </Card>
 
-      {/* WhatsApp Proposal Card */}
-      <Card className="flex flex-col gap-4 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-3">
-          <div>
-            <h2 className="text-base font-bold text-ink flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary-600" />
-              WhatsApp Proposal
-            </h2>
-            <p className="text-xs text-ink-muted mt-0.5">
-              Formatted from Section 1 rates. Click &apos;Send on WhatsApp&apos; to dispatch directly to client.
-            </p>
-          </div>
+      {/* Section 2: WhatsApp Proposal & Admin Remarks (Side-by-Side) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+        {/* WhatsApp Proposal Card */}
+        <Card className="flex flex-col justify-between gap-4 p-5 h-full">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-3">
+              <div>
+                <h2 className="text-base font-bold text-ink flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-primary-600" />
+                  WhatsApp Proposal
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Formatted from Section 1 rates. Click &apos;Send on WhatsApp&apos; to dispatch directly to client.
+                </p>
+              </div>
 
-          {/* Quick Actions & Formatting controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleCompactWhatsappFormat}
-            >
-              Tier List Format
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setWhatsappText(defaultWhatsappMessage);
-                setIsWhatsappCustomized(false);
-                toast.success("Reset to auto-generated proposal template.");
-              }}
-              className="gap-1"
-            >
-              <RotateCcw className="h-3 w-3" /> Reset Template
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleCopyWhatsapp}
-              className="gap-1"
-            >
-              {whatsappCopied ? <Check className="h-3.5 w-3.5 text-success-700" /> : <Copy className="h-3.5 w-3.5" />}
-              {whatsappCopied ? "Copied!" : "Copy Text"}
-            </Button>
-          </div>
-        </div>
+              {/* Quick Actions & Formatting controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleCompactWhatsappFormat}
+                >
+                  Tier List Format
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setWhatsappText(defaultWhatsappMessage);
+                    setIsWhatsappCustomized(false);
+                    toast.success("Reset to auto-generated proposal template.");
+                  }}
+                  className="gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset Template
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleCopyWhatsapp}
+                  className="gap-1"
+                >
+                  {whatsappCopied ? <Check className="h-3.5 w-3.5 text-success-700" /> : <Copy className="h-3.5 w-3.5" />}
+                  {whatsappCopied ? "Copied!" : "Copy Text"}
+                </Button>
+              </div>
+            </div>
 
-        {/* WhatsApp Phone & Send Button Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-surface-sunken/40 p-3">
-          <div className="flex items-center gap-2.5 flex-1 max-w-md">
-            <span className="text-xs font-semibold text-ink whitespace-nowrap">
-              Recipient WhatsApp No :
-            </span>
-            <Input
-              value={whatsappPhone}
-              onChange={(e) => setWhatsappPhone(e.target.value)}
-              placeholder="e.g. 9978644533 or +91 9978644533"
-              className="font-mono text-xs"
-            />
-          </div>
+            {/* WhatsApp Phone & Send Button Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-surface-sunken/40 p-3">
+              <div className="flex items-center gap-2.5 flex-1 max-w-md">
+                <span className="text-xs font-semibold text-ink whitespace-nowrap">
+                  Recipient WhatsApp No :
+                </span>
+                <Input
+                  value={whatsappPhone}
+                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                  placeholder="e.g. 9978644533 or +91 9978644533"
+                  className="font-mono text-xs"
+                />
+              </div>
 
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={handleSendWhatsapp}
-            className="gap-2"
-          >
-            <Send className="h-3.5 w-3.5" />
-            <span>Send on WhatsApp</span>
-            <ExternalLink className="h-3 w-3 opacity-80" />
-          </Button>
-        </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleSendWhatsapp}
+                className="gap-2"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Send on WhatsApp</span>
+                <ExternalLink className="h-3 w-3 opacity-80" />
+              </Button>
+            </div>
 
-        {/* Message Preview */}
-        <div>
-          <div className="flex items-center justify-between pb-1.5">
-            <label className="text-xs font-semibold text-ink">
-              Message Preview (Editable Before Sending)
-            </label>
-            <span className="text-[11px] text-ink-muted">
-              Supports WhatsApp bold (*text*), italic (_text_), and line breaks
-            </span>
+            {/* Message Preview */}
+            <div>
+              <div className="flex items-center justify-between pb-1.5">
+                <label className="text-xs font-semibold text-ink">
+                  Message Preview (Editable Before Sending)
+                </label>
+                <span className="text-[11px] text-ink-muted">
+                  Supports WhatsApp bold (*text*), italic (_text_), and line breaks
+                </span>
+              </div>
+              <Textarea
+                value={whatsappText}
+                onChange={(e) => {
+                  setWhatsappText(e.target.value);
+                  setIsWhatsappCustomized(true);
+                }}
+                rows={7}
+                className="font-mono text-xs leading-relaxed"
+              />
+            </div>
           </div>
-          <Textarea
-            value={whatsappText}
-            onChange={(e) => {
-              setWhatsappText(e.target.value);
-              setIsWhatsappCustomized(true);
-            }}
-            rows={8}
-            className="font-mono text-xs leading-relaxed"
-          />
-        </div>
-      </Card>
+        </Card>
+
+        {/* Admin Remarks & Internal Records Card */}
+        <Card className="flex flex-col justify-between gap-4 p-5 h-full">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-2">
+              <div>
+                <h2 className="text-base font-bold text-ink flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary-600" />
+                  Admin Remarks &amp; Internal Records
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Internal notes &amp; media for admin records (never printed on client quotation).
+                </p>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider self-start sm:self-auto">
+                Admin Record
+              </span>
+            </div>
+
+            {/* Remark Textarea */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-ink flex items-center justify-between">
+                <span>Internal Remarks / Notes</span>
+                <span className="text-[11px] font-normal text-ink-muted">Admin &amp; staff reference only</span>
+              </label>
+              <Textarea
+                value={adminRemarks}
+                onChange={(e) => setAdminRemarks(e.target.value)}
+                placeholder="Enter internal notes, client negotiation history, sample approvals, supplier terms..."
+                rows={3}
+                className="text-xs leading-relaxed"
+              />
+            </div>
+
+            {/* Uploaded Media & Attachments Section */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-primary-600" />
+                  Attached Media &amp; Files
+                </label>
+                <span className="text-[11px] text-ink-muted">Images, PDF, Excel (XLSX, XLS, CSV)</span>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files?.length) {
+                    handleFilesSelected(e.dataTransfer.files);
+                  }
+                }}
+                className={clsx(
+                  "flex flex-col items-center justify-center p-3.5 border-2 border-dashed rounded-lg cursor-pointer transition-colors text-center",
+                  isDragging
+                    ? "border-primary-500 bg-primary-50/60"
+                    : "border-border hover:border-primary-400 hover:bg-neutral-50/80 bg-surface-sunken/30"
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.length) {
+                      handleFilesSelected(e.target.files);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <div className="flex items-center gap-2 text-xs font-semibold text-ink">
+                  <FileUp className="h-4 w-4 text-primary-600" />
+                  <span>Click or drag files here to upload</span>
+                </div>
+                <p className="text-[11px] text-ink-muted mt-0.5">
+                  Supports Images (PNG, JPG, WebP), PDF, and Excel spreadsheets
+                </p>
+              </div>
+
+              {/* Uploaded Attachments List (Internal Admin Record) */}
+              {(() => {
+                const adminAtts = attachments
+                  .map((att, actualIndex) => ({ att, actualIndex }))
+                  .filter(({ att }) => !att.include_in_pdf);
+
+                if (adminAtts.length === 0) {
+                  return (
+                    <p className="text-[11.5px] text-ink-muted italic pt-0.5">
+                      No internal files or media uploaded yet.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="mt-1 space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                    {adminAtts.map(({ att, actualIndex }) => {
+                      const isImg = att.file_type === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.file_name);
+                      const isPdf = att.file_type === "pdf" || /\.pdf$/i.test(att.file_name);
+                      return (
+                        <div
+                          key={actualIndex}
+                          className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border bg-surface shadow-2xs hover:border-primary-200 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {isImg ? (
+                              <div className="h-8 w-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                                <ImageIcon className="h-4 w-4" />
+                              </div>
+                            ) : isPdf ? (
+                              <div className="h-8 w-8 rounded bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                                <FileText className="h-4 w-4" />
+                              </div>
+                            ) : (
+                              <div className="h-8 w-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                                <FileSpreadsheet className="h-4 w-4" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-ink truncate" title={att.file_name}>
+                                {att.file_name}
+                              </p>
+                              <p className="text-[11px] text-ink-muted">
+                                {formatFileSize(att.file_size)}
+                                {att.file_type && ` • ${att.file_type.toUpperCase()}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* View, Download, Delete Actions */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {(isPdf || isImg) && (
+                              <button
+                                type="button"
+                                onClick={() => toggleAttachmentIncludeInPdf(actualIndex, true)}
+                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg border border-border bg-white text-ink-muted hover:text-primary-700 hover:border-primary-300 hover:bg-primary-50/50 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
+                                title="Attach this document to the quotation PDF print"
+                              >
+                                <span>+ PDF</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleViewAttachment(att)}
+                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0"
+                              title="View / Preview File"
+                            >
+                              <Eye className="h-4 w-4 text-primary-600" />
+                              <span>View</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadAttachment(att)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-white text-ink-muted hover:text-ink hover:bg-neutral-50 hover:border-neutral-300 transition-colors cursor-pointer shadow-2xs shrink-0"
+                              title="Download file"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAttachment(actualIndex, att)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-colors cursor-pointer shadow-2xs shrink-0"
+                              title="Remove file"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {/* Document Terms & Print Notes Card */}
       <Card className="flex flex-col gap-4 p-5">
@@ -1911,6 +2373,13 @@ export function QuotationForm({
         open={Boolean(previewLightboxImage)}
         onClose={() => setPreviewLightboxImage(null)}
         images={previewLightboxImage ? [{ image: previewLightboxImage }] : []}
+      />
+
+      {/* Attachment Viewer Modal (PDF, Excel, Images) */}
+      <AttachmentViewerModal
+        open={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+        attachment={previewAttachment}
       />
 
       {/* PDF & Excel Import Modal */}
