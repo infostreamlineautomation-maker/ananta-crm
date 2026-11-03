@@ -14,8 +14,6 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-m
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com").split(",") if h]
 
-CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -23,7 +21,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    *(["cloudinary_storage", "cloudinary"] if CLOUDINARY_CLOUD_NAME else []),
     "rest_framework",
     "corsheaders",
     "django_filters",
@@ -115,7 +112,8 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# Media / Assets Configuration (Cloudinary or Local)
+# Media / Assets Configuration (Local & Server File Storage)
+MEDIA_URL = "/media/"
 _media_root_env = os.environ.get("MEDIA_ROOT")
 if _media_root_env:
     _media_path = Path(_media_root_env)
@@ -124,34 +122,14 @@ else:
     MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
-if CLOUDINARY_CLOUD_NAME:
-    CLOUDINARY_STORAGE = {
-        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
-        "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
-        "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
-    }
-    DEFAULT_FILE_STORAGE = "apps.core.storage.DynamicCloudinaryStorage"
-    STORAGES = {
-        "default": {
-            "BACKEND": "apps.core.storage.DynamicCloudinaryStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
-    MEDIA_URL = "/media/"
-else:
-    MEDIA_URL = os.environ.get("MEDIA_URL", "/uploads/")
-    if not MEDIA_URL.endswith("/"):
-        MEDIA_URL += "/"
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
