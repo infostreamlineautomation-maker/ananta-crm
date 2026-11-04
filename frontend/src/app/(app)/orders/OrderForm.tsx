@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { resolveRedirect, consumeJustCreated } from "@/lib/creation-redirect";
 import { Copy, MessageSquare, Pencil, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -41,6 +42,7 @@ export function OrderForm({
   readOnly?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { can } = useAuth();
   const canEdit = can("orders", "edit");
@@ -249,6 +251,60 @@ export function OrderForm({
     toast.success("Draft discarded.");
   };
 
+  useEffect(() => {
+    // Check if client is in query params (e.g. /orders/new?client=12)
+    const clientParam = searchParams.get("client");
+    if (clientParam && !order) {
+      setClient(Number(clientParam));
+    }
+
+    // Check if an entity (e.g. client or supplier) was just created
+    const justCreatedClient = consumeJustCreated("client");
+    if (justCreatedClient && justCreatedClient.id) {
+      reloadClients();
+      apiFetch<Client>(`/api/clients/${justCreatedClient.id}/`)
+        .then((newClient) => {
+          setClients((prev) => {
+            if (prev.some((c) => c.id === newClient.id)) return prev;
+            return [newClient, ...prev];
+          });
+          handleClientChange(Number(newClient.id));
+          toast.success(`Client "${newClient.client_name}" selected.`);
+        })
+        .catch(() => {});
+    }
+
+    const justCreatedSupplier = consumeJustCreated("supplier");
+    if (justCreatedSupplier && justCreatedSupplier.id) {
+      reloadSuppliers();
+      apiFetch<Supplier>(`/api/suppliers/${justCreatedSupplier.id}/`)
+        .then((newSup) => {
+          setSuppliers((prev) => {
+            if (prev.some((s) => s.id === newSup.id)) return prev;
+            return [newSup, ...prev];
+          });
+          setSupplier(Number(newSup.id));
+          toast.success(`Supplier "${newSup.company_name || newSup.supplier_name}" selected.`);
+        })
+        .catch(() => {});
+    }
+
+    const justCreatedProduct = consumeJustCreated("product");
+    if (justCreatedProduct && justCreatedProduct.id) {
+      reloadProducts();
+      apiFetch<Product>(`/api/products/${justCreatedProduct.id}/`)
+        .then((newProd) => {
+          setProducts((prev) => {
+            if (prev.some((p) => p.id === newProd.id)) return prev;
+            return [newProd, ...prev];
+          });
+          setProductId(Number(newProd.id));
+          toast.success(`Product "${newProd.product_name}" selected.`);
+        })
+        .catch(() => {});
+    }
+  }, [searchParams, order]);
+
   const clientOptions = clients.map((c) => ({
     value: c.id,
     label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
@@ -426,7 +482,7 @@ export function OrderForm({
       } else {
         toast.success(order ? "Project updated." : "Project created.");
       }
-      router.push("/orders");
+      router.push(resolveRedirect("/orders", searchParams));
     } catch (e) {
       if (e instanceof ApiError && e.data && typeof e.data === "object") {
         const errorMessages: string[] = [];
@@ -453,7 +509,7 @@ export function OrderForm({
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
       });
       toast.success(`Copied to ${copy.order_no}.`);
-      router.push("/orders");
+      router.push(resolveRedirect("/orders", searchParams));
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't copy this project.");
     } finally {

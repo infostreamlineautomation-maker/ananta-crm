@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models as db_models
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
@@ -180,6 +181,53 @@ class OrderViewSet(ModuleViewSet):
             | db_models.Q(is_visible_to_staff=True, created_by__is_superuser=True)
             | db_models.Q(is_visible_to_staff=True, created_by__role__name="Admin")
         )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        due_expr = db_models.functions.Greatest(
+            db_models.F("grand_total") - db_models.functions.Coalesce(db_models.F("paid_amount"), db_models.Value(0, output_field=db_models.DecimalField())),
+            db_models.Value(0, output_field=db_models.DecimalField()),
+            output_field=db_models.DecimalField(max_digits=12, decimal_places=2),
+        )
+
+        subquery = queryset.values("id")
+        aggregates = Order.objects.filter(id__in=subquery).annotate(
+            annotated_due_amount=due_expr,
+        ).aggregate(
+            total_grand_total=db_models.functions.Coalesce(
+                db_models.Sum("grand_total"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+            total_paid_amount=db_models.functions.Coalesce(
+                db_models.Sum("paid_amount"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+            total_due_amount=db_models.functions.Coalesce(
+                db_models.Sum("annotated_due_amount"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+            response.data["total_grand_total"] = str(aggregates["total_grand_total"])
+            response.data["total_paid_amount"] = str(aggregates["total_paid_amount"])
+            response.data["total_due_amount"] = str(aggregates["total_due_amount"])
+            return response
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            "results": serializer.data,
+            "total_grand_total": str(aggregates["total_grand_total"]),
+            "total_paid_amount": str(aggregates["total_paid_amount"]),
+            "total_due_amount": str(aggregates["total_due_amount"]),
+        })
 
     def perform_create(self, serializer):
         extra = {}

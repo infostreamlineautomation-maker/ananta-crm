@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, Download, Eye, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { clearCreationOrigin, getCreationOrigin, resolveRedirect, setJustCreated } from "@/lib/creation-redirect";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
@@ -77,6 +79,8 @@ const COMPANIES_PAGE_COLUMNS: ColumnDef[] = [
 ];
 
 export default function CompaniesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -85,6 +89,11 @@ export default function CompaniesPage() {
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const { items: countries } = useList<Country>("/api/countries/");
+  const [creationOrigin, setCreationOriginState] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCreationOriginState(getCreationOrigin());
+  }, []);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -332,6 +341,23 @@ export default function CompaniesPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {creationOrigin && creationOrigin !== "/companies" && (
+        <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs text-primary-950">
+          <span className="font-medium">
+            You came from a form ({creationOrigin}). Saving a company will return you there automatically.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              clearCreationOrigin();
+              router.push(creationOrigin);
+            }}
+            className="font-bold underline hover:text-primary-700 cursor-pointer"
+          >
+            Cancel & Return to Previous Form
+          </button>
+        </div>
+      )}
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -491,9 +517,21 @@ export default function CompaniesPage() {
             company={editing === "new" ? null : editing}
             countries={countries}
             onCancel={() => setEditing(null)}
-            onSaved={() => {
+            onSaved={(createdCompany) => {
               setEditing(null);
               reload();
+              if (editing === "new" && createdCompany) {
+                const target = resolveRedirect("/companies", searchParams);
+                if (target !== "/companies") {
+                  setJustCreated({
+                    type: "company",
+                    id: createdCompany.id,
+                    name: createdCompany.company_name,
+                  });
+                  toast.success(`Company "${createdCompany.company_name}" created. Returning to previous form...`);
+                  router.push(target);
+                }
+              }
             }}
           />
         )}

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { consumeJustCreated, resolveRedirect } from "@/lib/creation-redirect";
 import clsx from "clsx";
 import {
   Calculator,
@@ -164,6 +165,7 @@ export function QuotationForm({
   initialFormat?: "standard" | "costing";
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { activeOrganization } = useOrganization();
   const baseCurrency = activeOrganization?.default_currency_code || "INR";
@@ -235,6 +237,20 @@ export function QuotationForm({
   const updateColLabel = (key: string, val: string) => {
     setColLabels((prev) => ({ ...prev, [key]: val }));
   };
+
+  const [showSubtotalInPdf, setShowSubtotalInPdf] = useState<boolean>(() => {
+    if (quotation?.col_labels?.show_subtotal !== undefined) {
+      return String(quotation.col_labels.show_subtotal) === "true" || quotation.col_labels.show_subtotal === true;
+    }
+    return true;
+  });
+
+  const [showProfitInPdf, setShowProfitInPdf] = useState<boolean>(() => {
+    if (quotation?.col_labels?.show_profit !== undefined) {
+      return String(quotation.col_labels.show_profit) === "true" || quotation.col_labels.show_profit === true;
+    }
+    return false;
+  });
   const [items, setItems] = useState<QuotationItemDetail[]>(() => {
     if (quotation?.items?.length) {
       return quotation.items.map((it) => {
@@ -363,6 +379,8 @@ export function QuotationForm({
       colQtyLabel,
       colRateLabel,
       colLabels,
+      showSubtotalInPdf,
+      showProfitInPdf,
       items,
       whatsappText,
       isWhatsappCustomized,
@@ -387,6 +405,8 @@ export function QuotationForm({
       colQtyLabel,
       colRateLabel,
       colLabels,
+      showSubtotalInPdf,
+      showProfitInPdf,
       items,
       whatsappText,
       isWhatsappCustomized,
@@ -399,6 +419,13 @@ export function QuotationForm({
   );
 
   const isDirty = useMemo(() => {
+    const initialShowSubtotal = quotation?.col_labels?.show_subtotal !== undefined
+      ? String(quotation.col_labels.show_subtotal) === "true" || quotation.col_labels.show_subtotal === true
+      : true;
+    const initialShowProfit = quotation?.col_labels?.show_profit !== undefined
+      ? String(quotation.col_labels.show_profit) === "true" || quotation.col_labels.show_profit === true
+      : false;
+
     if (!quotation) {
       return Boolean(
         client ||
@@ -410,7 +437,9 @@ export function QuotationForm({
           items[0]?.product ||
           items[0]?.product_name ||
           items[0]?.rate ||
-          (items[0]?.qty && items[0]?.qty !== "1")
+          (items[0]?.qty && items[0]?.qty !== "1") ||
+          !showSubtotalInPdf ||
+          showProfitInPdf
       );
     }
     return (
@@ -425,9 +454,11 @@ export function QuotationForm({
       adminRemarks !== (quotation.admin_remarks ?? "") ||
       introText !== (quotation.intro_text ?? "") ||
       notes !== (quotation.notes ?? "") ||
+      showSubtotalInPdf !== initialShowSubtotal ||
+      showProfitInPdf !== initialShowProfit ||
       attachments.length !== (quotation.attachments?.length ?? 0)
     );
-  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items, attachments]);
+  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items, attachments, showSubtotalInPdf, showProfitInPdf]);
 
   const {
     draftSavedAt,
@@ -453,6 +484,8 @@ export function QuotationForm({
       if (draft.colQtyLabel !== undefined) setColQtyLabel(draft.colQtyLabel);
       if (draft.colRateLabel !== undefined) setColRateLabel(draft.colRateLabel);
       if (draft.colLabels !== undefined) setColLabels(draft.colLabels);
+      if (draft.showSubtotalInPdf !== undefined) setShowSubtotalInPdf(draft.showSubtotalInPdf);
+      if (draft.showProfitInPdf !== undefined) setShowProfitInPdf(draft.showProfitInPdf);
       if (draft.items !== undefined && Array.isArray(draft.items) && draft.items.length > 0) setItems(draft.items);
       if (draft.whatsappText !== undefined) setWhatsappText(draft.whatsappText);
       if (draft.isWhatsappCustomized !== undefined) setIsWhatsappCustomized(draft.isWhatsappCustomized);
@@ -479,6 +512,16 @@ export function QuotationForm({
       setQuoteFormat(quotation.quote_format || initialFormat || "standard");
       setColumns(quotation.columns_config ?? []);
       setColLabels(quotation.col_labels || {});
+      setShowSubtotalInPdf(
+        quotation.col_labels?.show_subtotal !== undefined
+          ? String(quotation.col_labels.show_subtotal) === "true" || quotation.col_labels.show_subtotal === true
+          : true
+      );
+      setShowProfitInPdf(
+        quotation.col_labels?.show_profit !== undefined
+          ? String(quotation.col_labels.show_profit) === "true" || quotation.col_labels.show_profit === true
+          : false
+      );
       setItems(quotation.items?.length ? quotation.items : [blankItem()]);
       setWhatsappText(quotation.whatsapp_message ?? "");
       setIsWhatsappCustomized(Boolean(quotation.whatsapp_message));
@@ -499,6 +542,9 @@ export function QuotationForm({
       setStatus("draft");
       setQuoteFormat(initialFormat || "standard");
       setColumns([]);
+      setColLabels({});
+      setShowSubtotalInPdf(true);
+      setShowProfitInPdf(false);
       setItems([blankItem()]);
       setWhatsappText("");
       setIsWhatsappCustomized(false);
@@ -525,7 +571,15 @@ export function QuotationForm({
     if (data.admin_remarks) setAdminRemarks(data.admin_remarks);
     if (data.col_qty_label) setColQtyLabel(data.col_qty_label);
     if (data.col_rate_label) setColRateLabel(data.col_rate_label);
-    if (data.col_labels) setColLabels((prev) => ({ ...prev, ...data.col_labels }));
+    if (data.col_labels) {
+      setColLabels((prev) => ({ ...prev, ...data.col_labels }));
+      if (data.col_labels.show_subtotal !== undefined) {
+        setShowSubtotalInPdf(String(data.col_labels.show_subtotal) === "true" || data.col_labels.show_subtotal === true);
+      }
+      if (data.col_labels.show_profit !== undefined) {
+        setShowProfitInPdf(String(data.col_labels.show_profit) === "true" || data.col_labels.show_profit === true);
+      }
+    }
     if (data.items && data.items.length) {
       setItems(
         data.items.map((it: any) => ({
@@ -694,6 +748,35 @@ export function QuotationForm({
       }
     }
   };
+
+  // Auto-select client or supplier if just created from a redirected form
+  useEffect(() => {
+    const justClient = consumeJustCreated("client");
+    if (justClient) {
+      apiFetch<Client>(`/api/clients/${justClient.id}/`)
+        .then((c) => {
+          setClients((prev) => (prev.some((x) => x.id === c.id) ? prev : [c, ...prev]));
+          handleClientChange(Number(c.id));
+          toast.success(`Client "${c.client_name}" selected.`);
+        })
+        .catch(() => {
+          handleClientChange(Number(justClient.id));
+        });
+    }
+
+    const justSupplier = consumeJustCreated("supplier");
+    if (justSupplier) {
+      apiFetch<Supplier>(`/api/suppliers/${justSupplier.id}/`)
+        .then((s) => {
+          setSuppliers((prev) => (prev.some((x) => x.id === s.id) ? prev : [s, ...prev]));
+          setSupplierId(Number(s.id));
+          toast.success(`Supplier "${s.supplier_name}" selected.`);
+        })
+        .catch(() => {
+          setSupplierId(Number(justSupplier.id));
+        });
+    }
+  }, []);
 
   // Two-way calculation logic matching Quotationsample.xlsx
   function handleItemChange(
@@ -1077,6 +1160,8 @@ export function QuotationForm({
           rate: colLabels.rate || colRateLabel || "Client Rate",
           supplier_qty: colLabels.supplier_qty || colQtyLabel || "Qty.",
           client_rate: colLabels.client_rate || colRateLabel || "Client Rate",
+          show_subtotal: showSubtotalInPdf,
+          show_profit: showProfitInPdf,
         },
         columns_config: columns,
         status,
@@ -1106,7 +1191,7 @@ export function QuotationForm({
         });
         clearDraft();
         toast.success("Quotation updated.");
-        router.push("/quotations");
+        router.push(resolveRedirect("/quotations", searchParams));
       } else {
         await apiFetch<QuotationDetail>("/api/quotations/", {
           method: "POST",
@@ -1114,7 +1199,7 @@ export function QuotationForm({
         });
         clearDraft();
         toast.success("Quotation created.");
-        router.push("/quotations");
+        router.push(resolveRedirect("/quotations", searchParams));
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this quotation.");
@@ -1892,13 +1977,26 @@ export function QuotationForm({
                       title="Click to edit column name"
                     />
                   </th>
-                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
-                    <input
-                      value={colLabels.total_profit ?? "Total Profit"}
-                      onChange={(e) => updateColLabel("total_profit", e.target.value)}
-                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-success-700 uppercase focus:border-primary-500 focus:outline-none"
-                      title="Click to edit column name"
-                    />
+                  <th className="w-32 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <label
+                        className="flex items-center gap-1 cursor-pointer select-none"
+                        title="Include Total Profit column in PDF / Printout"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={showProfitInPdf}
+                          onChange={(e) => setShowProfitInPdf(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </label>
+                      <input
+                        value={colLabels.total_profit ?? "Total Profit"}
+                        onChange={(e) => updateColLabel("total_profit", e.target.value)}
+                        className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-success-700 uppercase focus:border-primary-500 focus:outline-none"
+                        title="Click to edit column name (Checkbox controls whether this column appears on PDF)"
+                      />
+                    </div>
                   </th>
                 </tr>
               </thead>
@@ -2117,19 +2215,59 @@ export function QuotationForm({
                   <strong className="font-bold text-ink tnum">{formatCurrency(totalSupplierCost, effectiveCurrency)}</strong>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <label
+                  title="Toggle whether Total Profit column & Net Profit appear on quotation PDF"
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 transition-all cursor-pointer select-none ${
+                    showProfitInPdf
+                      ? "border-emerald-300 bg-emerald-50/70 text-emerald-900 shadow-2xs"
+                      : "border-border bg-surface text-ink hover:bg-surface-hover shadow-2xs"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={showProfitInPdf}
+                    onChange={(e) => setShowProfitInPdf(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
                   <span className="text-ink-muted">Net Profit:</span>
                   <strong className="font-bold text-success-700 tnum">{formatCurrency(totalProfit, effectiveCurrency)}</strong>
-                </div>
+                  <span
+                    className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                      showProfitInPdf ? "bg-emerald-600 text-white" : "bg-neutral-100 text-neutral-500 border border-neutral-200"
+                    }`}
+                  >
+                    PDF: {showProfitInPdf ? "ON" : "OFF"}
+                  </span>
+                </label>
               </>
             )}
 
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 shadow-2xs">
+            <label
+              title="Toggle whether Subtotal appears on quotation PDF"
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 transition-all cursor-pointer select-none ${
+                showSubtotalInPdf
+                  ? "border-primary-300 bg-primary-50/60 text-primary-900 shadow-2xs"
+                  : "border-border bg-surface text-ink hover:bg-surface-hover shadow-2xs"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={showSubtotalInPdf}
+                onChange={(e) => setShowSubtotalInPdf(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
+              />
               <span className="text-ink-muted">{quoteFormat === "standard" ? "Subtotal:" : "Client Subtotal:"}</span>
               <strong className="font-extrabold text-primary-600 text-sm tnum">
                 {formatCurrency(subtotal, effectiveCurrency)}
               </strong>
-            </div>
+              <span
+                className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  showSubtotalInPdf ? "bg-primary-600 text-white" : "bg-neutral-100 text-neutral-500 border border-neutral-200"
+                }`}
+              >
+                PDF: {showSubtotalInPdf ? "ON" : "OFF"}
+              </span>
+            </label>
 
             {effectiveCurrency !== baseCurrency && (
               <span className="text-ink-muted text-[11px]">

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { clearCreationOrigin, getCreationOrigin, resolveRedirect, setJustCreated } from "@/lib/creation-redirect";
 import {
   BookOpen,
   Copy,
@@ -86,12 +88,19 @@ const SUPPLIERS_PAGE_COLUMNS: ColumnDef[] = [
 ];
 
 export default function SuppliersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [copiedContact, setCopiedContact] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
+  const [creationOrigin, setCreationOriginState] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCreationOriginState(getCreationOrigin());
+  }, []);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -307,6 +316,23 @@ export default function SuppliersPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {creationOrigin && creationOrigin !== "/suppliers" && (
+        <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs text-primary-950">
+          <span className="font-medium">
+            You came from a form ({creationOrigin}). Saving a supplier will return you there automatically.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              clearCreationOrigin();
+              router.push(creationOrigin);
+            }}
+            className="font-bold underline hover:text-primary-700 cursor-pointer"
+          >
+            Cancel & Return to Previous Form
+          </button>
+        </div>
+      )}
       <FilterBar
         search={search}
         onSearchChange={(val) => {
@@ -744,9 +770,22 @@ export default function SuppliersPage() {
             key={editing === "new" ? "new" : editing.id}
             supplier={editing === "new" ? null : editing}
             onCancel={() => setEditing(null)}
-            onSaved={() => {
+            onSaved={(savedSupplier) => {
+              const wasNew = editing === "new";
               setEditing(null);
               reload();
+              if (wasNew && savedSupplier) {
+                setJustCreated({
+                  type: "supplier",
+                  id: savedSupplier.id,
+                  name: savedSupplier.supplier_name,
+                });
+                const target = resolveRedirect("/suppliers", searchParams);
+                if (target !== "/suppliers") {
+                  toast.success(`Supplier "${savedSupplier.supplier_name}" created. Returning to form...`);
+                  router.push(target);
+                }
+              }
             }}
           />
         )}

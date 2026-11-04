@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Search, Trash2, Image as ImageIcon } from "lucide-react";
+import { Copy, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Receipt, Search, Trash2, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
+import { useOrganization } from "@/lib/organization-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ClientGroup, Company, Country, OrderDetail, OrderImage, OrderSummary } from "@/lib/types";
@@ -308,7 +309,42 @@ export default function OrdersPage() {
     hasMore,
     loadMore,
     reload,
+    extra,
   } = useInfinitePaginatedList<OrderSummary>(basePath);
+
+  const { activeOrganization } = useOrganization();
+  const displayCurrency = orders[0]?.currency_code || activeOrganization?.default_currency_code || "INR";
+
+  const localTotals = useMemo(() => {
+    let grandTotal = 0;
+    let paidAmount = 0;
+    let dueAmount = 0;
+    for (const o of orders) {
+      grandTotal += Number(o.grand_total || 0);
+      paidAmount += Number(o.paid_amount || 0);
+      dueAmount += Number(o.due_amount || 0);
+    }
+    return { grandTotal, paidAmount, dueAmount };
+  }, [orders]);
+
+  const totalGrand = extra?.total_grand_total !== undefined ? Number(extra.total_grand_total) : localTotals.grandTotal;
+  const totalPaid = extra?.total_paid_amount !== undefined ? Number(extra.total_paid_amount) : localTotals.paidAmount;
+  const totalDue = extra?.total_due_amount !== undefined ? Number(extra.total_due_amount) : localTotals.dueAmount;
+
+  const selectedTotals = useMemo(() => {
+    if (selected.size === 0) return null;
+    let grandTotal = 0;
+    let paidAmount = 0;
+    let dueAmount = 0;
+    for (const o of orders) {
+      if (selected.has(o.id)) {
+        grandTotal += Number(o.grand_total || 0);
+        paidAmount += Number(o.paid_amount || 0);
+        dueAmount += Number(o.due_amount || 0);
+      }
+    }
+    return { grandTotal, paidAmount, dueAmount };
+  }, [orders, selected]);
 
   const canAdd = can("orders", "add");
   const canEdit = can("orders", "edit");
@@ -766,8 +802,154 @@ export default function OrdersPage() {
                 );
               })}
             </tbody>
+            {orders.length > 0 && (
+              <tfoot className="border-t-2 border-border-strong bg-surface-sunken/80">
+                <tr className="font-semibold text-xs text-ink divide-x divide-border/40">
+                  {grid.columns
+                    .filter((col) => grid.visibleColumns.has(col.key))
+                    .map((col) => {
+                      if (col.key === "select") {
+                        return <td key="select" className="px-3 py-3 text-center text-ink-muted">—</td>;
+                      }
+                      if (col.key === "order_no") {
+                        return (
+                          <td key="order_no" className="px-3 py-3 font-bold uppercase tracking-wider text-[11px] text-ink whitespace-nowrap">
+                            TOTAL ({selected.size > 0 ? `${selected.size} sel` : totalCount})
+                          </td>
+                        );
+                      }
+                      if (col.key === "grand_total") {
+                        const val = selectedTotals ? selectedTotals.grandTotal : totalGrand;
+                        return (
+                          <td key="grand_total" className="px-3 py-3 text-right font-bold text-ink tnum whitespace-nowrap">
+                            {formatCurrency(val, displayCurrency)}
+                          </td>
+                        );
+                      }
+                      if (col.key === "paid_amount") {
+                        const val = selectedTotals ? selectedTotals.paidAmount : totalPaid;
+                        return (
+                          <td key="paid_amount" className="px-3 py-3 text-right font-bold text-emerald-700 tnum whitespace-nowrap">
+                            {formatCurrency(val, displayCurrency)}
+                          </td>
+                        );
+                      }
+                      if (col.key === "due_amount") {
+                        const val = selectedTotals ? selectedTotals.dueAmount : totalDue;
+                        return (
+                          <td
+                            key="due_amount"
+                            className={clsx(
+                              "px-3 py-3 text-right font-extrabold tnum whitespace-nowrap text-sm",
+                              val > 0 ? "text-rose-600 bg-rose-50/70" : "text-emerald-700 bg-emerald-50/70"
+                            )}
+                          >
+                            {formatCurrency(val, displayCurrency)}
+                          </td>
+                        );
+                      }
+                      if (col.key === "payment_status") {
+                        const val = selectedTotals ? selectedTotals.dueAmount : totalDue;
+                        return (
+                          <td key="payment_status" className="px-3 py-3 text-center whitespace-nowrap">
+                            {val > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">
+                                Pending Due
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                                All Cleared
+                              </span>
+                            )}
+                          </td>
+                        );
+                      }
+                      return <td key={col.key} className="px-3 py-3 text-ink-muted text-xs text-center">—</td>;
+                    })}
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
+
+        {orders.length > 0 && (
+          <div className="border-t border-border bg-gradient-to-r from-surface-sunken/40 via-surface to-surface-sunken/40 px-5 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-100 border border-primary-200 text-primary-700 shadow-2xs">
+                <Receipt className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink">
+                    {selected.size > 0
+                      ? `Selected Projects Summary (${selected.size} of ${totalCount})`
+                      : debouncedSearch
+                      ? `Client / Search Summary: "${debouncedSearch}"`
+                      : "Total Projects Summary"}
+                  </p>
+                  {debouncedSearch && !selected.size && (
+                    <span className="text-[10px] font-semibold bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
+                      Search Filter Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-ink-muted">
+                  {selected.size > 0
+                    ? `Showing totals for ${selected.size} selected project(s)`
+                    : `Showing totals across all ${totalCount} matching project(s)`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+              <div className="flex flex-col sm:items-end">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Total Amount</span>
+                <span className="text-sm sm:text-base font-bold text-ink tnum">
+                  {formatCurrency(selectedTotals ? selectedTotals.grandTotal : totalGrand, displayCurrency)}
+                </span>
+              </div>
+
+              <div className="h-8 w-px bg-border hidden sm:block" />
+
+              <div className="flex flex-col sm:items-end">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Paid Amount</span>
+                <span className="text-sm sm:text-base font-bold text-emerald-600 tnum">
+                  {formatCurrency(selectedTotals ? selectedTotals.paidAmount : totalPaid, displayCurrency)}
+                </span>
+              </div>
+
+              <div className="h-8 w-px bg-border hidden sm:block" />
+
+              <div
+                className={clsx(
+                  "flex items-center gap-3 rounded-xl border px-4 py-2 shadow-2xs transition-all",
+                  (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0
+                    ? "bg-rose-50 border-rose-300 ring-2 ring-rose-500/10 text-rose-950"
+                    : "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/10 text-emerald-950"
+                )}
+              >
+                <div className="flex flex-col sm:items-end">
+                  <span
+                    className={clsx(
+                      "text-[11px] font-extrabold uppercase tracking-wider",
+                      (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0 ? "text-rose-700" : "text-emerald-700"
+                    )}
+                  >
+                    Total Pending Bill Amount (Balance Due)
+                  </span>
+                  <span
+                    className={clsx(
+                      "text-lg sm:text-xl font-black tnum",
+                      (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0 ? "text-rose-600" : "text-emerald-600"
+                    )}
+                  >
+                    {formatCurrency(selectedTotals ? selectedTotals.dueAmount : totalDue, displayCurrency)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <LoadMorePagination
           loadedCount={orders.length}
           totalCount={totalCount}

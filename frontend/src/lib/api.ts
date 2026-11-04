@@ -116,4 +116,7 @@ export interface Paginated<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+  total_grand_total?: string;
+  total_paid_amount?: string;
+  total_due_amount?: string;
 }

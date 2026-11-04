@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { consumeJustCreated, resolveRedirect } from "@/lib/creation-redirect";
 import {
   BookOpen,
   Calculator,
@@ -73,6 +74,7 @@ function getFileIcon(name?: string | null) {
 
 export function CostingForm({ costing }: { costing?: CostingDetail; initialProjectId?: number }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
 
   const { items: rawSuppliers, reload: reloadSuppliers } = useList<Supplier>("/api/suppliers/?page_size=200");
@@ -93,6 +95,48 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
   useEffect(() => {
     if (rawClients.length) setClients(rawClients);
   }, [rawClients]);
+
+  // Auto-select client, supplier, or product if just created from a redirected form
+  useEffect(() => {
+    const justClient = consumeJustCreated("client");
+    if (justClient) {
+      apiFetch<Client>(`/api/clients/${justClient.id}/`)
+        .then((c) => {
+          setClients((prev) => (prev.some((x) => x.id === c.id) ? prev : [c, ...prev]));
+          setClient(Number(c.id));
+          toast.success(`Client "${c.client_name}" selected.`);
+        })
+        .catch(() => {
+          setClient(Number(justClient.id));
+        });
+    }
+
+    const justSupplier = consumeJustCreated("supplier");
+    if (justSupplier) {
+      apiFetch<Supplier>(`/api/suppliers/${justSupplier.id}/`)
+        .then((s) => {
+          setSuppliers((prev) => (prev.some((x) => x.id === s.id) ? prev : [s, ...prev]));
+          setSupplier(Number(s.id));
+          toast.success(`Supplier "${s.supplier_name}" selected.`);
+        })
+        .catch(() => {
+          setSupplier(Number(justSupplier.id));
+        });
+    }
+
+    const justProduct = consumeJustCreated("product");
+    if (justProduct) {
+      apiFetch<Product>(`/api/products/${justProduct.id}/`)
+        .then((p) => {
+          setProducts((prev) => (prev.some((x) => x.id === p.id) ? prev : [p, ...prev]));
+          setProduct(Number(p.id));
+          toast.success(`Product "${p.product_name}" selected.`);
+        })
+        .catch(() => {
+          setProduct(Number(justProduct.id));
+        });
+    }
+  }, []);
 
   const [quickAdd, setQuickAdd] = useState<"supplier" | "product" | "client" | null>(null);
 
@@ -329,7 +373,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
         clearDraft();
         toast.success("Costing sheet created.");
       }
-      router.push("/costing");
+      router.push(resolveRedirect("/costing", searchParams));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this costing sheet.");
     } finally {

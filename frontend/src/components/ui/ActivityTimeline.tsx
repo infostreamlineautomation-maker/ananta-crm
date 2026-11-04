@@ -13,6 +13,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import clsx from "clsx";
 import { apiFetch } from "@/lib/api";
@@ -25,6 +27,7 @@ interface ActivityTimelineProps {
   title?: string;
   refreshTrigger?: any;
   className?: string;
+  defaultCollapsed?: boolean;
 }
 
 function getRelativeTime(dateString: string): string {
@@ -100,10 +103,35 @@ export function ActivityTimeline({
   title = "Order History & Activity Timeline",
   refreshTrigger,
   className = "",
+  defaultCollapsed = false,
 }: ActivityTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const storageKey = `crm_timeline_collapsed_${title.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}`;
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return defaultCollapsed;
+  });
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(storageKey, String(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   const loadTimeline = async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -137,83 +165,152 @@ export function ActivityTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, refreshTrigger]);
 
+  const visibleEvents = showAll ? events : events.slice(0, 5);
+
   return (
-    <Card className={clsx("overflow-hidden border border-border bg-white shadow-xs", className)}>
-      <div className="flex items-center justify-between border-b border-border bg-surface-sunken/40 px-5 py-3.5">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-primary-600" />
+    <Card className={clsx("overflow-hidden border border-border bg-white shadow-xs transition-all", className)}>
+      {/* Header bar with Shrink / Expand toggle */}
+      <div className="flex items-center justify-between border-b border-border bg-surface-sunken/40 px-5 py-3 select-none">
+        <div
+          onClick={toggleCollapsed}
+          className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-opacity"
+          title={isCollapsed ? "Click to expand timeline" : "Click to shrink timeline"}
+        >
+          <Clock className="h-4 w-4 text-primary-600 shrink-0" />
           <h3 className="text-[14px] font-bold text-ink">{title}</h3>
-          <span className="ml-1 rounded-full bg-surface-sunken px-2 py-0.5 font-mono text-[11px] font-bold text-ink-muted">
+          <span className="ml-1 rounded-full bg-surface-sunken px-2 py-0.5 font-mono text-[11px] font-bold text-ink-muted shrink-0">
             {events.length}
           </span>
+          {isCollapsed && events.length > 0 && (
+            <span className="hidden sm:inline-block text-[11.5px] text-ink-muted truncate max-w-[280px]">
+              • Latest {getRelativeTime(events[0].created_at)}
+            </span>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => loadTimeline(true)}
-          disabled={loading || refreshing}
-          className="flex items-center gap-1 text-[12px] font-semibold text-ink-muted hover:text-primary-600 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={clsx("h-3.5 w-3.5", refreshing && "animate-spin text-primary-500")} />
-          Refresh
-        </button>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              loadTimeline(true);
+            }}
+            disabled={loading || refreshing}
+            className="flex items-center gap-1 text-[12px] font-semibold text-ink-muted hover:text-primary-600 transition-colors disabled:opacity-50 cursor-pointer px-1.5 py-1"
+            title="Refresh activities"
+          >
+            <RefreshCw className={clsx("h-3.5 w-3.5 shrink-0", refreshing && "animate-spin text-primary-500")} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-1 text-[12px] font-semibold text-ink shadow-2xs hover:bg-neutral-50 hover:border-primary-300 transition-colors cursor-pointer shrink-0"
+            title={isCollapsed ? "Expand history timeline" : "Shrink / Collapse history timeline"}
+          >
+            {isCollapsed ? (
+              <>
+                <ChevronDown className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                <span>Expand</span>
+              </>
+            ) : (
+              <>
+                <ChevronUp className="h-3.5 w-3.5 text-neutral-500 shrink-0" />
+                <span>Shrink</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className="p-5">
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <RefreshCw className="h-5 w-5 animate-spin text-ink-faint" />
-          </div>
-        ) : events.length === 0 ? (
-          <div className="py-8 text-center text-sm text-ink-faint">
-            <ShieldCheck className="mx-auto mb-2 h-7 w-7 text-ink-faint/60" />
-            No activity logged for this order yet.
-          </div>
-        ) : (
-          <div className="relative pl-6 before:absolute before:left-[15px] before:top-3 before:bottom-3 before:w-[2px] before:bg-border">
-            <div className="flex flex-col gap-6">
-              {events.map((e, idx) => {
-                const config = getEventConfig(e.event_type);
-                const Icon = config.icon;
-                const isLatest = idx === 0;
-
-                return (
-                  <div key={e.id} className="relative flex items-start gap-4 group">
-                    {/* Step Icon Node */}
-                    <div
-                      className={clsx(
-                        "absolute -left-6 mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white shadow-xs transition-transform group-hover:scale-110",
-                        config.color,
-                        isLatest && "ring-4"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="min-w-0 flex-1 pl-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className={clsx("rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider", config.badgeColor)}>
-                            {e.title}
-                          </span>
-                          <span className="text-[13px] font-bold text-ink">{e.user_name || "System"}</span>
-                        </div>
-                        <span className="text-[12px] font-medium text-ink-muted" title={new Date(e.created_at).toLocaleString("en-IN")}>
-                          {getRelativeTime(e.created_at)}
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
-                        {e.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+      {/* Collapsible Content */}
+      {!isCollapsed && (
+        <div className="p-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-10">
+              <RefreshCw className="h-5 w-5 animate-spin text-ink-faint" />
             </div>
-          </div>
-        )}
-      </div>
+          ) : events.length === 0 ? (
+            <div className="py-8 text-center text-sm text-ink-faint">
+              <ShieldCheck className="mx-auto mb-2 h-7 w-7 text-ink-faint/60" />
+              No activity logged yet.
+            </div>
+          ) : (
+            <div>
+              <div className="relative pl-6 before:absolute before:left-[15px] before:top-3 before:bottom-3 before:w-[2px] before:bg-border">
+                <div className="flex flex-col gap-5">
+                  {visibleEvents.map((e, idx) => {
+                    const config = getEventConfig(e.event_type);
+                    const Icon = config.icon;
+                    const isLatest = idx === 0;
+
+                    return (
+                      <div key={e.id} className="relative flex items-start gap-4 group">
+                        {/* Step Icon Node */}
+                        <div
+                          className={clsx(
+                            "absolute -left-6 mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white shadow-xs transition-transform group-hover:scale-110",
+                            config.color,
+                            isLatest && "ring-4"
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                        </div>
+
+                        {/* Content Details */}
+                        <div className="min-w-0 flex-1 pl-5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={clsx("rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider shrink-0", config.badgeColor)}>
+                                {e.title}
+                              </span>
+                              <span className="text-[13px] font-bold text-ink">{e.user_name || "System"}</span>
+                            </div>
+                            <span className="text-[12px] font-medium text-ink-muted shrink-0" title={new Date(e.created_at).toLocaleString("en-IN")}>
+                              {getRelativeTime(e.created_at)}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+                            {e.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Expand / Show All items toggle if there are more than 5 activities */}
+              {events.length > 5 && (
+                <div className="mt-5 pt-3 border-t border-border flex items-center justify-between">
+                  <span className="text-xs text-ink-muted">
+                    Showing {visibleEvents.length} of {events.length} activities
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAll(!showAll)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:text-primary-600 hover:border-primary-300 hover:bg-surface-hover transition-colors cursor-pointer shadow-2xs"
+                  >
+                    {showAll ? (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5 shrink-0" />
+                        <span>Show recent 5 only</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                        <span>Show all {events.length} activities</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

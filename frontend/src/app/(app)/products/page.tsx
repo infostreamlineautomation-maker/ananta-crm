@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { clearCreationOrigin, getCreationOrigin, resolveRedirect, setJustCreated } from "@/lib/creation-redirect";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
@@ -37,6 +39,8 @@ const BASE_PRODUCTS_COLUMNS: ColumnDef[] = [
 ];
 
 export default function ProductsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -44,6 +48,11 @@ export default function ProductsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
+  const [creationOrigin, setCreationOriginState] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCreationOriginState(getCreationOrigin());
+  }, []);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -249,6 +258,23 @@ export default function ProductsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {creationOrigin && creationOrigin !== "/products" && (
+        <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs text-primary-950">
+          <span className="font-medium">
+            You came from a form ({creationOrigin}). Saving a product will return you there automatically.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              clearCreationOrigin();
+              router.push(creationOrigin);
+            }}
+            className="font-bold underline hover:text-primary-700 cursor-pointer"
+          >
+            Cancel & Return to Previous Form
+          </button>
+        </div>
+      )}
       <FilterBar
         search={search}
         onSearchChange={(val) => {
@@ -406,9 +432,21 @@ export default function ProductsPage() {
         open={editing !== null}
         onClose={() => setEditing(null)}
         product={editing === "new" ? null : editing}
-        onSaved={() => {
+        onSaved={(savedProduct) => {
           setEditing(null);
           reload();
+          if (editing === "new" && savedProduct) {
+            const target = resolveRedirect("/products", searchParams);
+            if (target !== "/products") {
+              setJustCreated({
+                type: "product",
+                id: savedProduct.id,
+                name: savedProduct.product_name,
+              });
+              toast.success(`Product "${savedProduct.product_name}" created. Returning to previous form...`);
+              router.push(target);
+            }
+          }
         }}
       />
 

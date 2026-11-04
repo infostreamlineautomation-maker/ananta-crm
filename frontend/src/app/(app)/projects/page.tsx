@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, ProjectSummary } from "@/lib/types";
+import { Client, Country, ProjectSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
@@ -15,6 +16,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { SlideOver } from "@/components/ui/SlideOver";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { StatusPill, PROJECT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
@@ -22,6 +24,8 @@ import { TableState } from "@/components/ui/Table";
 import { LoadMorePagination } from "@/components/ui/Pagination";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { ClientForm } from "../clients/page";
+import { resolveRedirect, consumeJustCreated } from "@/lib/creation-redirect";
 
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
   { key: "name", header: "Project Name", accessor: (p) => p.name, category: "Basic Information", defaultSelected: true },
@@ -36,9 +40,22 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
 
 export default function ProjectsPage() {
   const { can } = useAuth();
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [addOpen, setAddOpen] = useState(false);
+  const [initialClientForNew, setInitialClientForNew] = useState<number | "">("");
+
+  useEffect(() => {
+    const justCreated = consumeJustCreated("client");
+    if (justCreated && justCreated.id) {
+      setInitialClientForNew(Number(justCreated.id));
+      setAddOpen(true);
+      toast.success(`Client "${justCreated.name || "New Client"}" created. Continuing project setup...`);
+    }
+  }, []);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -168,7 +185,15 @@ export default function ProjectsPage() {
       </Card>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="New Project">
-        <ProjectForm onCancel={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); reload(); }} />
+        <ProjectForm
+          initialClientId={initialClientForNew}
+          onCancel={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            setInitialClientForNew("");
+            reload();
+          }}
+        />
       </Modal>
     </div>
   );
@@ -176,21 +201,27 @@ export default function ProjectsPage() {
 
 export function ProjectForm({
   project,
+  initialClientId,
   onCancel,
   onSaved,
 }: {
   project?: ProjectSummary;
+  initialClientId?: number | "";
   onCancel: () => void;
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const { items: clients } = useList<Client>("/api/clients/?page_size=200");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { items: clients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: countries } = useList<Country>("/api/countries/");
   const [name, setName] = useState(project?.name ?? "");
-  const [client, setClient] = useState<number | "">(project?.client ?? "");
+  const [client, setClient] = useState<number | "">(project?.client ?? initialClientId ?? "");
   const [status, setStatus] = useState(project?.status ?? "active");
   const [description, setDescription] = useState(project?.description ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
 
   const clientOptions = clients.map((c) => ({ value: c.id, label: c.client_name }));
 
@@ -212,6 +243,10 @@ export function ProjectForm({
         toast.success("Project created.");
       }
       onSaved();
+      const target = resolveRedirect("/projects", searchParams);
+      if (target !== "/projects") {
+        router.push(target);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this project.");
     } finally {
@@ -220,33 +255,64 @@ export function ProjectForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Field label="Project Name" required>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-      </Field>
-      <Field label="Client" required>
-        <Combobox value={client || null} onChange={(v) => setClient(Number(v))} options={clientOptions} placeholder="Select client..." />
-      </Field>
-      <Field label="Status">
-        <Select value={status} onChange={(e) => setStatus(e.target.value as "active" | "on_hold" | "completed" | "cancelled")}>
-          <option value="active">Active</option>
-          <option value="on_hold">On Hold</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </Select>
-      </Field>
-      <Field label="Description">
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-      </Field>
-      {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
-      <div className="mt-1 flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" loading={saving}>
-          {project ? "Save Project" : "Create Project"}
-        </Button>
-      </div>
-    </form>
+    <>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Field label="Project Name" required>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </Field>
+        <Field label="Client" required>
+          <Combobox
+            value={client || null}
+            onChange={(v) => setClient(Number(v))}
+            options={clientOptions}
+            placeholder="Select client..."
+            onAddNew={() => setQuickAddClientOpen(true)}
+            addNewLabel="Add new client"
+          />
+        </Field>
+        <Field label="Status">
+          <Select value={status} onChange={(e) => setStatus(e.target.value as "active" | "on_hold" | "completed" | "cancelled")}>
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </Select>
+        </Field>
+        <Field label="Description">
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+        {error && <p className="text-[13px] font-medium text-primary-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={saving}>
+            {project ? "Save Project" : "Create Project"}
+          </Button>
+        </div>
+      </form>
+
+      <SlideOver
+        open={quickAddClientOpen}
+        onClose={() => setQuickAddClientOpen(false)}
+        title="Add New Client"
+        size="lg"
+        zIndex={60}
+      >
+        <ClientForm
+          client={null}
+          countries={countries}
+          onCancel={() => setQuickAddClientOpen(false)}
+          onSaved={(savedClient) => {
+            setQuickAddClientOpen(false);
+            if (savedClient) {
+              reloadClients();
+              setClient(savedClient.id);
+              toast.success(`Client "${savedClient.client_name}" selected.`);
+            }
+          }}
+        />
+      </SlideOver>
+    </>
   );
 }

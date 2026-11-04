@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { resolveRedirect, setJustCreated, getCreationOrigin, clearCreationOrigin } from "@/lib/creation-redirect";
 import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
@@ -85,6 +87,8 @@ const CLIENTS_PAGE_COLUMNS: ColumnDef[] = [
 ];
 
 export default function ClientsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -98,6 +102,17 @@ export default function ClientsPage() {
 
   const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+
+  const creationOrigin = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return searchParams.get("returnUrl") || searchParams.get("from") || getCreationOrigin();
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("create") === "true" || searchParams.get("new") === "true") {
+      setEditing("new");
+    }
+  }, [searchParams]);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
     () => [
@@ -268,6 +283,23 @@ export default function ClientsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {creationOrigin && creationOrigin !== "/clients" && (
+        <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs text-primary-950">
+          <span className="font-medium">
+            You came from a form ({creationOrigin}). Saving a client will return you there automatically.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              clearCreationOrigin();
+              router.push(creationOrigin);
+            }}
+            className="font-bold underline hover:text-primary-700 cursor-pointer"
+          >
+            Cancel & Return to Previous Form
+          </button>
+        </div>
+      )}
       {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-primary-100 bg-primary-50 px-4 py-2.5">
           <span className="text-[13.5px] font-semibold text-primary-700">{selected.size} selected</span>
@@ -626,9 +658,21 @@ export default function ClientsPage() {
             client={editing === "new" ? null : editing}
             countries={countries}
             onCancel={() => setEditing(null)}
-            onSaved={() => {
+            onSaved={(savedClient) => {
               setEditing(null);
               reload();
+              if (editing === "new" && savedClient) {
+                const target = resolveRedirect("/clients", searchParams);
+                if (target !== "/clients") {
+                  setJustCreated({
+                    type: "client",
+                    id: savedClient.id,
+                    name: savedClient.client_name,
+                  });
+                  toast.success(`Client "${savedClient.client_name}" created. Returning to previous form...`);
+                  router.push(target);
+                }
+              }
             }}
           />
         )}

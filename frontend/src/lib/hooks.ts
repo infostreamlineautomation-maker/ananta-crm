@@ -52,6 +52,11 @@ export function useInfinitePaginatedList<T>(basePath: string) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [extra, setExtra] = useState<{
+    total_grand_total?: string;
+    total_paid_amount?: string;
+    total_due_amount?: string;
+  }>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +72,11 @@ export function useInfinitePaginatedList<T>(basePath: string) {
         if (!cancelled) {
           setItems(res.results);
           setCount(res.count);
+          setExtra({
+            total_grand_total: res.total_grand_total,
+            total_paid_amount: res.total_paid_amount,
+            total_due_amount: res.total_due_amount,
+          });
         }
       })
       .catch((e) => {
@@ -109,7 +119,7 @@ export function useInfinitePaginatedList<T>(basePath: string) {
   const hasMore = items.length < count;
   const reload = () => setReloadKey((k) => k + 1);
 
-  return { items, count, page, loading, loadingMore, hasMore, loadMore, reload, error };
+  return { items, count, page, loading, loadingMore, hasMore, loadMore, reload, error, extra };
 }
 
 /** Fetches a list once and unwraps it into a flat array, whether the endpoint
