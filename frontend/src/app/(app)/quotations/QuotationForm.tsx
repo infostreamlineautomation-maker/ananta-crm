@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { consumeJustCreated, resolveRedirect } from "@/lib/creation-redirect";
+import { consumeJustCreated, resolveRedirect, clearCreationOrigin } from "@/lib/creation-redirect";
 import clsx from "clsx";
 import {
   Calculator,
@@ -1190,16 +1190,22 @@ export function QuotationForm({
           body: JSON.stringify(payload),
         });
         clearDraft();
+        clearCreationOrigin();
         toast.success("Quotation updated.");
-        router.push(resolveRedirect("/quotations", searchParams));
+        const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
+        router.push(target);
+        router.refresh();
       } else {
         await apiFetch<QuotationDetail>("/api/quotations/", {
           method: "POST",
           body: JSON.stringify(payload),
         });
         clearDraft();
+        clearCreationOrigin();
         toast.success("Quotation created.");
-        router.push(resolveRedirect("/quotations", searchParams));
+        const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
+        router.push(target);
+        router.refresh();
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this quotation.");

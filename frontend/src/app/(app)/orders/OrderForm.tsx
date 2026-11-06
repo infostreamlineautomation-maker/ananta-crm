@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { resolveRedirect, consumeJustCreated } from "@/lib/creation-redirect";
+import { resolveRedirect, consumeJustCreated, clearCreationOrigin } from "@/lib/creation-redirect";
 import { Copy, MessageSquare, Pencil, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -122,6 +122,8 @@ export function OrderForm({
   const [error, setError] = useState<string | null>(null);
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const isSavedRef = useRef(false);
+  const [savedOrderId, setSavedOrderId] = useState<number | null>(order?.id ?? null);
 
   const draftKey = `ananta_project_draft_${activeOrganization?.id || "default"}`;
 
@@ -158,11 +160,12 @@ export function OrderForm({
 
   // Auto-save draft on changes when creating a new project
   useEffect(() => {
-    if (order) return;
+    if (order || savedOrderId || isSavedRef.current) return;
     const hasContent = client || projectTitle || productId || description || (parseFloat(rate) > 0) || (parseFloat(qty) > 1);
     if (!hasContent) return;
 
     const timer = setTimeout(() => {
+      if (isSavedRef.current) return;
       try {
         const draftObj = {
           date,
@@ -193,6 +196,7 @@ export function OrderForm({
     return () => clearTimeout(timer);
   }, [
     order,
+    savedOrderId,
     draftKey,
     date,
     client,
@@ -214,16 +218,18 @@ export function OrderForm({
   ]);
 
   useEffect(() => {
+    if (isSavedRef.current || saving) return;
     const isDirty = Boolean(client || productId || projectTitle || description);
     if (!isDirty) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isSavedRef.current) return;
       e.preventDefault();
       e.returnValue = "";
       return "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [client, productId, projectTitle, description]);
+  }, [client, productId, projectTitle, description, saving]);
 
   const clearDraft = () => {
     try {
@@ -396,6 +402,7 @@ export function OrderForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || isSavedRef.current) return;
     setError(null);
 
     if (!client) {
@@ -413,6 +420,7 @@ export function OrderForm({
   }
 
   async function proceedSave() {
+    if (saving || isSavedRef.current) return;
     setSaving(true);
     try {
       let finalPaid = "0.00";
@@ -447,13 +455,20 @@ export function OrderForm({
       };
 
       let savedOrder: OrderDetail;
-      if (order) {
-        savedOrder = await apiFetch<OrderDetail>(`/api/orders/${order.id}/`, { method: "PATCH", body: JSON.stringify(payload) });
+      const targetOrderId = order?.id || savedOrderId;
+      if (targetOrderId) {
+        savedOrder = await apiFetch<OrderDetail>(`/api/orders/${targetOrderId}/`, { method: "PATCH", body: JSON.stringify(payload) });
       } else {
         savedOrder = await apiFetch<OrderDetail>("/api/orders/", { method: "POST", body: JSON.stringify(payload) });
       }
 
-      // Successfully saved order - remove the draft
+      // Mark as saved immediately so:
+      // 1. auto-save draft timer will never write to localStorage again
+      // 2. any subsequent save will UPDATE (PATCH) this order rather than create a duplicate with a new job id
+      isSavedRef.current = true;
+      setSavedOrderId(savedOrder.id);
+
+      // Permanently remove the draft from localStorage
       try {
         localStorage.removeItem(draftKey);
       } catch {}
@@ -478,12 +493,18 @@ export function OrderForm({
       }
 
       if (imageUploadFailed) {
-        toast.error(order ? "Project updated, but some images failed to upload." : "Project created, but some images failed to upload. You can re-upload them on the project detail page.");
+        toast.error(order || savedOrderId ? "Project updated, but some images failed to upload." : "Project created, but some images failed to upload. You can re-upload them on the project detail page.");
       } else {
-        toast.success(order ? "Project updated." : "Project created.");
+        toast.success(order || savedOrderId ? "Project updated." : `Project ${savedOrder.order_no} created.`);
       }
-      router.push(resolveRedirect("/orders", searchParams));
+      clearCreationOrigin();
+      const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/orders";
+      setRestoredDraft(false);
+      setConfirmSaveOpen(false);
+      router.push(target);
+      router.refresh();
     } catch (e) {
+      isSavedRef.current = false;
       if (e instanceof ApiError && e.data && typeof e.data === "object") {
         const errorMessages: string[] = [];
         for (const [field, val] of Object.entries(e.data)) {
@@ -509,7 +530,9 @@ export function OrderForm({
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }),
       });
       toast.success(`Copied to ${copy.order_no}.`);
-      router.push(resolveRedirect("/orders", searchParams));
+      clearCreationOrigin();
+      const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/orders";
+      router.push(target);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't copy this project.");
     } finally {
@@ -581,8 +604,19 @@ export function OrderForm({
               </Button>
             )
           ) : (
-            <Button type="submit" variant="primary" loading={saving}>
-              Save Project
+            <Button
+              type="submit"
+              variant="primary"
+              loading={saving}
+              disabled={saving || isSavedRef.current}
+            >
+              {saving
+                ? "Saving..."
+                : isSavedRef.current
+                ? "Saved!"
+                : order || savedOrderId
+                ? "Update Project"
+                : "Save Project"}
             </Button>
           )}
         </div>
@@ -1084,16 +1118,18 @@ export function OrderForm({
 
       {/* Confirm Save / Update Dialog */}
       <ConfirmDialog
-        open={confirmSaveOpen}
-        onClose={() => setConfirmSaveOpen(false)}
+        open={confirmSaveOpen && !isSavedRef.current}
+        onClose={() => {
+          if (!saving) setConfirmSaveOpen(false);
+        }}
         onConfirm={proceedSave}
-        title={order ? "Update Project?" : "Save New Project?"}
+        title={order || savedOrderId ? "Update Project?" : "Save New Project?"}
         description={
-          order
-            ? `Are you sure you want to save all changes to Project "${order.order_no}"?`
+          order || savedOrderId
+            ? `Are you sure you want to save all changes to Project "${order?.order_no || "current"}"?`
             : "Are you sure you want to create and save this new project?"
         }
-        confirmLabel={order ? "Yes, Update" : "Yes, Save"}
+        confirmLabel={order || savedOrderId ? "Yes, Update" : "Yes, Save"}
         loading={saving}
         variant="primary"
       />

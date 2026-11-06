@@ -84,6 +84,18 @@ export function resolveRedirect(
 
   const origin = getCreationOrigin();
   if (origin && origin.startsWith("/") && origin !== defaultUrl) {
+    // Never redirect a work module list (e.g. /orders, /quotations, /costing) into another detail item
+    const isSameModule = (module: string) => defaultUrl.startsWith(module) && origin.startsWith(module);
+    if (
+      isSameModule("/orders") ||
+      isSameModule("/quotations") ||
+      isSameModule("/costing") ||
+      isSameModule("/projects")
+    ) {
+      clearCreationOrigin();
+      return defaultUrl;
+    }
+
     clearCreationOrigin();
     return origin;
   }

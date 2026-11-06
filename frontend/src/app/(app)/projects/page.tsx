@@ -25,7 +25,7 @@ import { LoadMorePagination } from "@/components/ui/Pagination";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ClientForm } from "../clients/page";
-import { resolveRedirect, consumeJustCreated } from "@/lib/creation-redirect";
+import { consumeJustCreated, clearCreationOrigin } from "@/lib/creation-redirect";
 
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
   { key: "name", header: "Project Name", accessor: (p) => p.name, category: "Basic Information", defaultSelected: true },
@@ -243,9 +243,10 @@ export function ProjectForm({
         toast.success("Project created.");
       }
       onSaved();
-      const target = resolveRedirect("/projects", searchParams);
-      if (target !== "/projects") {
-        router.push(target);
+      clearCreationOrigin();
+      const returnUrl = searchParams?.get("returnUrl") || searchParams?.get("from");
+      if (returnUrl && returnUrl.startsWith("/")) {
+        router.push(returnUrl);
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this project.");

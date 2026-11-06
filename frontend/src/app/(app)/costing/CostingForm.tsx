@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { consumeJustCreated, resolveRedirect } from "@/lib/creation-redirect";
+import { consumeJustCreated, resolveRedirect, clearCreationOrigin } from "@/lib/creation-redirect";
 import {
   BookOpen,
   Calculator,
@@ -373,7 +373,10 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
         clearDraft();
         toast.success("Costing sheet created.");
       }
-      router.push(resolveRedirect("/costing", searchParams));
+      clearCreationOrigin();
+      const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/costing";
+      router.push(target);
+      router.refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this costing sheet.");
     } finally {
