@@ -9,7 +9,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field, FieldGroup, Input, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DraftBanner } from "@/components/ui/DraftBanner";
 import { useFormDraft } from "@/lib/useFormDraft";
 
@@ -51,7 +50,6 @@ export function CompanyForm({
   const [removeLogo, setRemoveLogo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
 
   const draftKey = company ? `crm_draft_company_${company.id}` : "crm_draft_company_new";
   const isDirty = useMemo(() => {
@@ -119,7 +117,7 @@ export function CompanyForm({
       setError("Company Name is required.");
       return;
     }
-    setConfirmSaveOpen(true);
+    await proceedSave();
   }
 
   async function proceedSave() {
@@ -127,7 +125,11 @@ export function CompanyForm({
     setError(null);
     try {
       const body = new FormData();
-      Object.entries(form).forEach(([k, v]) => body.append(k, String(v ?? "")));
+      Object.entries(form).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) {
+          body.append(k, String(v));
+        }
+      });
       if (logoFile) {
         body.append("logo", logoFile);
       } else if (removeLogo) {
@@ -150,7 +152,6 @@ export function CompanyForm({
       toast.error(e instanceof ApiError ? e.message : "Couldn't save this company.");
     } finally {
       setSaving(false);
-      setConfirmSaveOpen(false);
     }
   }
 
@@ -296,21 +297,6 @@ export function CompanyForm({
           Save Company
         </Button>
       </div>
-
-      <ConfirmDialog
-        open={confirmSaveOpen}
-        onClose={() => setConfirmSaveOpen(false)}
-        onConfirm={proceedSave}
-        title={company ? "Update Company?" : "Save New Company?"}
-        description={
-          company
-            ? `Are you sure you want to save changes to "${form.company_name}"?`
-            : "Are you sure you want to add and save this company?"
-        }
-        confirmLabel={company ? "Yes, Update" : "Yes, Save"}
-        loading={saving}
-        variant="primary"
-      />
     </form>
   );
 }

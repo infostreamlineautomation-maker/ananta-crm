@@ -376,7 +376,6 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
       clearCreationOrigin();
       const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/costing";
       router.push(target);
-      router.refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this costing sheet.");
     } finally {
@@ -829,7 +828,8 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add any job specifications, remarks or notes..."
-            rows={2}
+            rows={3}
+            className="resize-y min-h-[60px]"
           />
         </Field>
       </Card>

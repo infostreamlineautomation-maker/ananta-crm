@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveRedirect, consumeJustCreated, clearCreationOrigin } from "@/lib/creation-redirect";
-import { Copy, MessageSquare, Pencil, Plus, Printer, RefreshCw, Trash2, X } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Plus, Printer, RefreshCw, Trash2, X, Maximize2, Minimize2, Expand, Minus } from "lucide-react";
+import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useList } from "@/lib/hooks";
@@ -25,6 +26,7 @@ import { SendNotificationModal } from "@/components/notifications/SendNotificati
 import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { ProjectImageUploader } from "@/components/orders/ProjectImageUploader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -94,6 +96,40 @@ export function OrderForm({
   const [qty, setQty] = useState<string>(firstItem?.qty ?? "1");
   const [rate, setRate] = useState<string>(firstItem?.rate ?? "0");
   const [description, setDescription] = useState(firstItem?.description || order?.description || "");
+  const [descRows, setDescRows] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("ananta_crm_order_desc_rows");
+        if (saved) {
+          const val = parseInt(saved, 10);
+          if (!isNaN(val) && val >= 2 && val <= 30) return val;
+        }
+      } catch {}
+    }
+    return 4;
+  });
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [descModalOpen, setDescModalOpen] = useState(false);
+
+  const handleSetDescRows = (rows: number) => {
+    const clamped = Math.max(2, Math.min(30, rows));
+    setDescRows(clamped);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("ananta_crm_order_desc_rows", String(clamped));
+      } catch {}
+    }
+  };
+
+  const descLineCount = useMemo(() => {
+    if (!description) return 0;
+    return description.split("\n").length;
+  }, [description]);
+
+  const handleAutoFitDesc = () => {
+    const lines = description ? description.split("\n").length : 1;
+    handleSetDescRows(Math.max(3, lines + 1));
+  };
   const [extraData, setExtraData] = useState<Record<string, string>>(firstItem?.extra_data || {});
   const [columns, setColumns] = useState<QuotationColumn[]>(order?.columns_config ?? []);
 
@@ -810,15 +846,177 @@ export function OrderForm({
               </div>
 
               <div className="mt-4">
-                <Field label="Description / Specifications">
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. 350 gsm with matt / size details / finishing requirements..."
-                    rows={2}
-                    disabled={readOnly}
-                  />
-                </Field>
+                <div className="flex flex-col gap-1.5">
+                  {/* Header Toolbar: Label on Left, Expand & Size Controls on Right */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[13px] font-semibold text-ink">
+                        Description / Specifications
+                      </label>
+                      {descLineCount > 1 && (
+                        <span className="text-[11px] font-semibold text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-full border border-border">
+                          {descLineCount} lines
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Size Adjustment & Expand Options */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Quick Size Presets */}
+                      <div className="inline-flex items-center rounded-md border border-border bg-surface-sunken p-0.5 shadow-2xs">
+                        <span className="text-[10px] font-semibold text-ink-muted px-1.5 select-none">
+                          Size:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDescExpanded(false);
+                            handleSetDescRows(3);
+                          }}
+                          className={clsx(
+                            "px-1.5 py-0.5 rounded text-[10.5px] font-medium transition cursor-pointer",
+                            !isDescExpanded && descRows === 3
+                              ? "bg-white text-ink font-bold shadow-2xs border border-border/60"
+                              : "text-ink-muted hover:text-ink"
+                          )}
+                          title="Compact size (3 lines)"
+                        >
+                          Sm (3)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDescExpanded(false);
+                            handleSetDescRows(6);
+                          }}
+                          className={clsx(
+                            "px-1.5 py-0.5 rounded text-[10.5px] font-medium transition cursor-pointer",
+                            !isDescExpanded && descRows === 6
+                              ? "bg-white text-ink font-bold shadow-2xs border border-border/60"
+                              : "text-ink-muted hover:text-ink"
+                          )}
+                          title="Medium size (6 lines)"
+                        >
+                          Md (6)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDescExpanded(false);
+                            handleSetDescRows(12);
+                          }}
+                          className={clsx(
+                            "px-1.5 py-0.5 rounded text-[10.5px] font-medium transition cursor-pointer",
+                            !isDescExpanded && descRows === 12
+                              ? "bg-white text-ink font-bold shadow-2xs border border-border/60"
+                              : "text-ink-muted hover:text-ink"
+                          )}
+                          title="Large size (12 lines)"
+                        >
+                          Lg (12)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDescExpanded(false);
+                            handleAutoFitDesc();
+                          }}
+                          className="px-1.5 py-0.5 rounded text-[10.5px] font-medium text-primary-700 hover:text-primary-800 hover:bg-white/80 transition cursor-pointer"
+                          title="Auto fit all lines"
+                        >
+                          Auto Fit
+                        </button>
+                        <div className="flex items-center border-l border-border/80 pl-1 ml-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsDescExpanded(false);
+                              handleSetDescRows(descRows - 2);
+                            }}
+                            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-white/80 transition cursor-pointer"
+                            title="Decrease height by 2 rows"
+                          >
+                            <Minus className="h-2.5 w-2.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsDescExpanded(false);
+                              handleSetDescRows(descRows + 2);
+                            }}
+                            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-white/80 transition cursor-pointer"
+                            title="Increase height by 2 rows"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expand / Collapse Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsDescExpanded((prev) => !prev)}
+                        className={clsx(
+                          "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold shadow-2xs transition cursor-pointer",
+                          isDescExpanded
+                            ? "border-primary-300 bg-primary-50 text-primary-800"
+                            : "border-border bg-surface hover:bg-surface-hover text-ink"
+                        )}
+                        title={isDescExpanded ? "Collapse to compact view" : "Expand to view full content"}
+                      >
+                        {isDescExpanded ? (
+                          <>
+                            <Minimize2 className="h-3.5 w-3.5 text-primary-600" />
+                            <span>Collapse</span>
+                          </>
+                        ) : (
+                          <>
+                            <Maximize2 className="h-3.5 w-3.5 text-primary-600" />
+                            <span>Expand</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Fullscreen Modal View Button */}
+                      <button
+                        type="button"
+                        onClick={() => setDescModalOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-surface hover:bg-surface-hover px-2 py-1 text-xs font-semibold text-ink shadow-2xs transition cursor-pointer"
+                        title="Open in fullscreen dialog for comfortable editing"
+                      >
+                        <Expand className="h-3.5 w-3.5 text-ink-muted" />
+                        <span className="hidden sm:inline">Full View</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Textarea with resize-y enabled */}
+                  <div className="relative">
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="e.g. 350 gsm with matt / size details / finishing requirements / multi-location quantities..."
+                      rows={isDescExpanded ? Math.max(14, descLineCount + 2) : descRows}
+                      disabled={readOnly}
+                      className={clsx(
+                        "resize-y font-mono sm:font-sans text-xs sm:text-sm leading-relaxed transition-all shadow-2xs",
+                        isDescExpanded ? "min-h-[280px]" : "min-h-[80px]"
+                      )}
+                    />
+                  </div>
+
+                  {/* Helper footer */}
+                  <div className="flex items-center justify-between text-[11px] text-ink-muted px-0.5">
+                    <span>
+                      💡 Tip: Drag bottom-right corner ↘ to adjust to any custom height.
+                    </span>
+                    {description && (
+                      <span>
+                        {description.length} chars • {descLineCount} {descLineCount === 1 ? "line" : "lines"}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Dynamic Custom Spec Fields */}
@@ -1133,6 +1331,49 @@ export function OrderForm({
         loading={saving}
         variant="primary"
       />
+
+      {/* Fullscreen / Pop-out Modal for Description & Specifications */}
+      <Modal
+        open={descModalOpen}
+        onClose={() => setDescModalOpen(false)}
+        title="Description / Specifications — Full View"
+        width="max-w-3xl"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
+            <span className="font-semibold text-ink">
+              {projectTitle || "Project Specifications"} {productId ? `• Product #${productId}` : ""}
+            </span>
+            <span>
+              {descLineCount} {descLineCount === 1 ? "line" : "lines"} • {description?.length || 0} characters
+            </span>
+          </div>
+
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Type or paste comprehensive specifications, delivery quantities, finishing parameters..."
+            rows={18}
+            disabled={readOnly}
+            className="w-full font-mono text-xs leading-relaxed resize-y min-h-[360px] border-primary-300 focus:border-primary-500"
+            autoFocus
+          />
+
+          <div className="flex items-center justify-between pt-2 border-t border-border">
+            <span className="text-xs text-ink-muted">
+              Press Escape or click &apos;Done&apos; to return to the project form.
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => setDescModalOpen(false)}
+            >
+              Done &amp; Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </form>
   );
 }

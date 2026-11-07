@@ -10,7 +10,12 @@ export default function NewQuotationPage() {
   const projectParam = searchParams.get("project");
   const initialProjectId = projectParam ? Number(projectParam) : undefined;
   const formatParam = searchParams.get("format");
-  const initialFormat = formatParam === "costing" ? "costing" : "standard";
+  const initialFormat =
+    formatParam === "costing"
+      ? "costing"
+      : formatParam === "detailed"
+      ? "detailed"
+      : "standard";
 
   return (
     <div className="flex flex-col gap-5">

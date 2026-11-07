@@ -98,7 +98,7 @@ class QuotationItemSerializer(serializers.ModelSerializer):
 
 
 class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
-    items = QuotationItemSerializer(many=True)
+    items = QuotationItemSerializer(many=True, required=False)
     attachments = QuotationAttachmentSerializer(many=True, required=False)
     client_name = serializers.CharField(source="client.client_name", read_only=True)
     company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
@@ -117,14 +117,17 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
             "project", "project_name", "supplier", "supplier_name", "to_name", "to_address",
             "subject", "intro_text", "notes", "footer_content", "whatsapp_message", "admin_remarks", "attachments",
             "col_qty_label", "col_rate_label", "col_labels",
-            "columns_config", "currency_code", "exchange_rate", "base_currency_code", "status",
+            "columns_config", "detailed_costing_data", "currency_code", "exchange_rate", "base_currency_code", "status",
             "subtotal", "total_supplier_cost", "total_profit", "items",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
         read_only_fields = ["quotation_no", "is_deleted", "created_by", "created_at", "updated_at"]
 
     def validate_items(self, value):
-        if not value:
+        quote_format = self.initial_data.get("quote_format") or getattr(self.instance, "quote_format", "")
+        detailed_costing = self.initial_data.get("detailed_costing_data") or getattr(self.instance, "detailed_costing_data", {})
+        has_detailed_data = isinstance(detailed_costing, dict) and bool(detailed_costing.get("rows"))
+        if not value and quote_format != "detailed" and not has_detailed_data:
             raise serializers.ValidationError("A quotation needs at least one line item.")
         return value
 

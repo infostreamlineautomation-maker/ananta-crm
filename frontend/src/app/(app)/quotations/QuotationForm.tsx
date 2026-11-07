@@ -46,6 +46,7 @@ import {
   QuotationItemDetail,
   QuotationStatus,
   Supplier,
+  DetailedCostingData,
 } from "@/lib/types";
 import { formatCurrency, mediaUrl } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
@@ -65,8 +66,15 @@ import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
 import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
 import { DraftBanner } from "@/components/ui/DraftBanner";
 import { useFormDraft } from "@/lib/useFormDraft";
+import {
+  DetailedCostingGrid,
+  createInitialDetailedCostingData,
+  buildDetailedCostingWhatsappMessage,
+  buildDetailedCostingWhatsappWithBreakdown,
+} from "@/components/quotations/DetailedCostingGrid";
 
 function blankItem(): QuotationItemDetail {
   return {
@@ -162,7 +170,7 @@ export function QuotationForm({
 }: {
   quotation?: QuotationDetail;
   initialProjectId?: number;
-  initialFormat?: "standard" | "costing";
+  initialFormat?: "standard" | "costing" | "detailed";
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -208,9 +216,15 @@ export function QuotationForm({
   const [toAddress, setToAddress] = useState(quotation?.to_address ?? "");
   const [currencyCode, setCurrencyCode] = useState(quotation?.currency_code ?? "");
   const [status, setStatus] = useState<QuotationStatus>(quotation?.status ?? "draft");
-  const [quoteFormat, setQuoteFormat] = useState<"standard" | "costing">(
+  const [quoteFormat, setQuoteFormat] = useState<"standard" | "costing" | "detailed">(
     quotation?.quote_format || initialFormat || "standard"
   );
+  const [detailedCostingData, setDetailedCostingData] = useState<DetailedCostingData>(() => {
+    if (quotation?.detailed_costing_data && Object.keys(quotation.detailed_costing_data).length > 0) {
+      return quotation.detailed_costing_data;
+    }
+    return createInitialDetailedCostingData(quotation?.subject || "");
+  });
 
   // Section 1: Line Items / Supplier Costing Table
   const [columns, setColumns] = useState<QuotationColumn[]>(quotation?.columns_config ?? []);
@@ -356,8 +370,9 @@ export function QuotationForm({
   const [error, setError] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
 
-  // Confirmation dialog states
+  // Confirmation dialog & post-save print modal states
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [savedQuotationModal, setSavedQuotationModal] = useState<QuotationDetail | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ index: number; name: string } | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] = useState<{ index: number; att: QuotationAttachment } | null>(null);
 
@@ -375,6 +390,7 @@ export function QuotationForm({
       currencyCode,
       status,
       quoteFormat,
+      detailedCostingData,
       columns,
       colQtyLabel,
       colRateLabel,
@@ -401,6 +417,7 @@ export function QuotationForm({
       currencyCode,
       status,
       quoteFormat,
+      detailedCostingData,
       columns,
       colQtyLabel,
       colRateLabel,
@@ -480,6 +497,7 @@ export function QuotationForm({
       if (draft.currencyCode !== undefined) setCurrencyCode(draft.currencyCode);
       if (draft.status !== undefined) setStatus(draft.status);
       if (draft.quoteFormat !== undefined) setQuoteFormat(draft.quoteFormat);
+      if (draft.detailedCostingData !== undefined) setDetailedCostingData(draft.detailedCostingData);
       if (draft.columns !== undefined) setColumns(draft.columns);
       if (draft.colQtyLabel !== undefined) setColQtyLabel(draft.colQtyLabel);
       if (draft.colRateLabel !== undefined) setColRateLabel(draft.colRateLabel);
@@ -510,6 +528,11 @@ export function QuotationForm({
       setCurrencyCode(quotation.currency_code ?? "");
       setStatus(quotation.status ?? "draft");
       setQuoteFormat(quotation.quote_format || initialFormat || "standard");
+      setDetailedCostingData(
+        quotation.detailed_costing_data && Object.keys(quotation.detailed_costing_data).length > 0
+          ? quotation.detailed_costing_data
+          : createInitialDetailedCostingData(quotation.subject || "")
+      );
       setColumns(quotation.columns_config ?? []);
       setColLabels(quotation.col_labels || {});
       setShowSubtotalInPdf(
@@ -541,6 +564,7 @@ export function QuotationForm({
       setCurrencyCode("");
       setStatus("draft");
       setQuoteFormat(initialFormat || "standard");
+      setDetailedCostingData(createInitialDetailedCostingData(""));
       setColumns([]);
       setColLabels({});
       setShowSubtotalInPdf(true);
@@ -894,41 +918,47 @@ export function QuotationForm({
     );
   }
 
-  // Financial aggregates
-  const subtotal = useMemo(
-    () => items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0), 0),
-    [items]
-  );
+  // Financial aggregates for quotation line items (independent of detailed costing)
+  const subtotal = useMemo(() => {
+    return items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0), 0);
+  }, [items]);
 
-  const totalSupplierCost = useMemo(
-    () =>
-      items.reduce(
-        (sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.supplier_rate ?? "0") || 0),
-        0
-      ),
-    [items]
-  );
+  const totalSupplierCost = useMemo(() => {
+    return items.reduce(
+      (sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.supplier_rate ?? "0") || 0),
+      0
+    );
+  }, [items]);
 
-  const totalProfit = useMemo(
-    () =>
-      items.reduce((sum, it) => {
-        const q = parseFloat(it.qty) || 0;
-        const p =
-          parseFloat(it.profit ?? "0") ||
-          (parseFloat(it.rate) || 0) - (parseFloat(it.supplier_rate ?? "0") || 0);
-        return sum + q * p;
-      }, 0),
-    [items]
-  );
+  const totalProfit = useMemo(() => {
+    return items.reduce((sum, it) => {
+      const q = parseFloat(it.qty) || 0;
+      const p =
+        parseFloat(it.profit ?? "0") ||
+        (parseFloat(it.rate) || 0) - (parseFloat(it.supplier_rate ?? "0") || 0);
+      return sum + q * p;
+    }, 0);
+  }, [items]);
 
-  // Auto-generate WhatsApp message template matching Quotationsample.xlsx rows 12-24
+  // Auto-generate WhatsApp message template
   const defaultWhatsappMessage = useMemo(() => {
     const clientName = selectedClient?.client_name || toName || "Sir/Madam";
-    const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "Surat";
+    const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+
+    if (quoteFormat === "detailed") {
+      return buildDetailedCostingWhatsappMessage(
+        detailedCostingData,
+        clientName,
+        city,
+        subject,
+        activeOrganization?.name || "Meewa Industries"
+      );
+    }
+
     const lines: string[] = [];
     lines.push("Dear.");
     lines.push(`*${clientName}*`);
-    if (city) lines.push(city.trim());
+    if (city && city.trim()) lines.push(city.trim());
     lines.push("");
     if (subject) {
       lines.push(`Quotation For : *${subject.trim()}*`);
@@ -936,9 +966,12 @@ export function QuotationForm({
     }
 
     items.forEach((it, idx) => {
-      const prodName = it.product ? products.find((p) => p.id === it.product)?.product_name || it.product_name : it.product_name;
+      const prodName = it.product
+        ? products.find((p) => p.id === it.product)?.product_name || it.product_name
+        : it.product_name;
       const desc = it.description ? it.description.trim() : "";
-      const itemTitle = prodName && desc ? `${prodName} (${desc})` : (prodName || desc || `Item ${idx + 1}`);
+      const itemTitle =
+        prodName && desc ? `${prodName} (${desc})` : prodName || desc || `Item ${idx + 1}`;
       const qty = it.qty || "1";
       const clientRate = it.rate || "0";
       lines.push(`*${itemTitle}*`);
@@ -949,13 +982,42 @@ export function QuotationForm({
 
     lines.push("Thank you... Thank you.... Very much...");
     return lines.join("\n");
-  }, [selectedClient, toName, selectedCompany, subject, items]);
+  }, [
+    selectedClient,
+    toName,
+    selectedCompany,
+    subject,
+    items,
+    quoteFormat,
+    detailedCostingData,
+    products,
+    activeOrganization,
+  ]);
 
   useEffect(() => {
     if (!isWhatsappCustomized) {
-      setWhatsappText(quotation?.whatsapp_message || defaultWhatsappMessage);
+      setWhatsappText(defaultWhatsappMessage);
     }
   }, [defaultWhatsappMessage, isWhatsappCustomized, quotation?.whatsapp_message]);
+
+  // Real-time synchronization when Detailed Costing or checked tiers change
+  const handleDetailedCostingChange = (nextData: DetailedCostingData) => {
+    setDetailedCostingData(nextData);
+
+    // If in detailed mode, immediately update WhatsApp proposal with the latest checked variants!
+    if (quoteFormat === "detailed") {
+      const clientName = selectedClient?.client_name || toName || "Sir/Madam";
+      const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+      const waMsg = buildDetailedCostingWhatsappMessage(
+        nextData,
+        clientName,
+        city,
+        subject,
+        activeOrganization?.name || "Meewa Industries"
+      );
+      setWhatsappText(waMsg);
+    }
+  };
 
   const handleSendWhatsapp = () => {
     const clean = whatsappPhone.replace(/[^0-9]/g, "");
@@ -976,6 +1038,34 @@ export function QuotationForm({
     setWhatsappCopied(true);
     toast.success("WhatsApp message copied to clipboard!");
     setTimeout(() => setWhatsappCopied(false), 2000);
+  };
+
+  const handleDetailedClientRateFormat = () => {
+    const clientName = selectedClient?.client_name || toName || "Sir/Madam";
+    const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+    const msg = buildDetailedCostingWhatsappMessage(
+      detailedCostingData,
+      clientName,
+      city,
+      subject,
+      activeOrganization?.name || "Meewa Industries"
+    );
+    setWhatsappText(msg);
+    toast.success("Applied client comparison proposal.");
+  };
+
+  const handleDetailedFullBreakdownFormat = () => {
+    const clientName = selectedClient?.client_name || toName || "Sir/Madam";
+    const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+    const msg = buildDetailedCostingWhatsappWithBreakdown(
+      detailedCostingData,
+      clientName,
+      city,
+      subject,
+      activeOrganization?.name || "Meewa Industries"
+    );
+    setWhatsappText(msg);
+    toast.success("Applied proposal with full production breakdown.");
   };
 
   const handleCompactWhatsappFormat = () => {
@@ -1164,6 +1254,7 @@ export function QuotationForm({
           show_profit: showProfitInPdf,
         },
         columns_config: columns,
+        detailed_costing_data: detailedCostingData,
         status,
         items: items.map((it) => ({
           product: it.product || null,
@@ -1184,29 +1275,25 @@ export function QuotationForm({
       };
       if (currencyCode) payload.currency_code = currencyCode;
 
+      let savedQuote: QuotationDetail;
       if (quotation) {
-        await apiFetch<QuotationDetail>(`/api/quotations/${quotation.id}/`, {
+        savedQuote = await apiFetch<QuotationDetail>(`/api/quotations/${quotation.id}/`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
         clearDraft();
         clearCreationOrigin();
         toast.success("Quotation updated.");
-        const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
-        router.push(target);
-        router.refresh();
       } else {
-        await apiFetch<QuotationDetail>("/api/quotations/", {
+        savedQuote = await apiFetch<QuotationDetail>("/api/quotations/", {
           method: "POST",
           body: JSON.stringify(payload),
         });
         clearDraft();
         clearCreationOrigin();
         toast.success("Quotation created.");
-        const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
-        router.push(target);
-        router.refresh();
       }
+      setSavedQuotationModal(savedQuote);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save this quotation.");
       toast.error(e instanceof ApiError ? e.message : "Couldn't save this quotation.");
@@ -1548,7 +1635,7 @@ export function QuotationForm({
         </div>
       </Card>
 
-      {/* Line Items Card with Dual Format Switcher */}
+      {/* Line Items Card with 3-Way Format Switcher */}
       <Card className="flex flex-col overflow-hidden">
         {/* Header Title & Format Switcher */}
         <div className="border-b border-border p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1557,17 +1644,21 @@ export function QuotationForm({
               <span>
                 {quoteFormat === "standard"
                   ? "Line Items & Rates"
-                  : "Supplier Costing & Profit Calculator"}
+                  : quoteFormat === "costing"
+                  ? "Supplier Costing & Profit Calculator"
+                  : "Detailed Component & Process Costing"}
               </span>
             </h2>
             <p className="text-xs text-ink-muted mt-0.5">
               {quoteFormat === "standard"
                 ? "Standard direct client quote. Enter item description, quantity, and client selling rate directly."
-                : "Internal margin calculator. Enter supplier cost and profit margin % or per-unit profit to derive Client Rate."}
+                : quoteFormat === "costing"
+                ? "Internal margin calculator. Enter supplier cost and profit margin % or per-unit profit to derive Client Rate."
+                : "Excel-style interactive component calculation. Enter process costs (Paper, Print, Matt, Creasing, etc.) to derive Total Cost and Product Cost."}
             </p>
           </div>
 
-          {/* Segmented Format Switcher Toggle */}
+          {/* Segmented Format Switcher Toggle (3 Tabs) */}
           <div className="inline-flex items-center rounded-lg border border-border bg-surface-sunken p-1 shadow-2xs shrink-0 self-start sm:self-auto">
             <button
               type="button"
@@ -1596,6 +1687,32 @@ export function QuotationForm({
             >
               <Calculator className="h-3.5 w-3.5 text-success-600" />
               <span>Costing &amp; Margin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setQuoteFormat("detailed");
+                const clientName = selectedClient?.client_name || toName || "Sir/Madam";
+                const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+                const waMsg = buildDetailedCostingWhatsappMessage(
+                  detailedCostingData,
+                  clientName,
+                  city,
+                  subject,
+                  activeOrganization?.name || "Meewa Industries"
+                );
+                setWhatsappText(waMsg);
+              }}
+              className={clsx(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                quoteFormat === "detailed"
+                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-emerald-700"
+                  : "text-ink-muted hover:text-ink"
+              )}
+              title="Switch to Detailed Costing Spreadsheet (Item/Process calculation, Batch Qty, Unit Cost)"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Detailed Costing</span>
             </button>
           </div>
         </div>
@@ -1637,17 +1754,27 @@ export function QuotationForm({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={addColumn}
-            className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Spec Column
-          </button>
+          {quoteFormat !== "detailed" && (
+            <button
+              type="button"
+              onClick={addColumn}
+              className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Spec Column
+            </button>
+          )}
         </div>
 
-        {/* Dynamic Table: Standard Direct Rate vs Multi-Tier Costing */}
-        {quoteFormat === "standard" ? (
+        {/* Dynamic Table: Detailed Costing Spreadsheet vs Standard Direct Rate vs Multi-Tier Costing */}
+        {quoteFormat === "detailed" ? (
+          <div className="p-5">
+            <DetailedCostingGrid
+              data={detailedCostingData}
+              currencyCode={effectiveCurrency}
+              onChange={handleDetailedCostingChange}
+            />
+          </div>
+        ) : quoteFormat === "standard" ? (
           /* Format 1: Standard Direct Quotation Table (The Classic Format) */
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -2203,17 +2330,28 @@ export function QuotationForm({
         {/* Section 1 Footer Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-border px-5 py-3 gap-3 bg-surface-sunken/40">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setItems((prev) => [...prev, blankItem()])}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer w-fit"
-            >
-              <Plus className="h-4 w-4" /> {quoteFormat === "standard" ? "Add Line Item" : "Add Item / Tier Row"}
-            </button>
+            {quoteFormat !== "detailed" && (
+              <button
+                type="button"
+                onClick={() => setItems((prev) => [...prev, blankItem()])}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer w-fit"
+              >
+                <Plus className="h-4 w-4" /> {quoteFormat === "standard" ? "Add Line Item" : "Add Item / Tier Row"}
+              </button>
+            )}
           </div>
 
           {/* Financial Totals + Inline Save Button */}
           <div className="flex flex-wrap items-center gap-3 text-xs sm:justify-end">
+            {quoteFormat === "detailed" && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-ink-muted">Total Cost:</span>
+                <strong className="font-bold text-red-600 tnum">
+                  {formatCurrency(totalSupplierCost, effectiveCurrency)}
+                </strong>
+              </div>
+            )}
+
             {quoteFormat === "costing" && (
               <>
                 <div className="flex items-center gap-1.5">
@@ -2262,7 +2400,13 @@ export function QuotationForm({
                 onChange={(e) => setShowSubtotalInPdf(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
               />
-              <span className="text-ink-muted">{quoteFormat === "standard" ? "Subtotal:" : "Client Subtotal:"}</span>
+              <span className="text-ink-muted">
+                {quoteFormat === "standard"
+                  ? "Subtotal:"
+                  : quoteFormat === "costing"
+                  ? "Client Subtotal:"
+                  : "Quotation Subtotal:"}
+              </span>
               <strong className="font-extrabold text-primary-600 text-sm tnum">
                 {formatCurrency(subtotal, effectiveCurrency)}
               </strong>
@@ -2300,10 +2444,18 @@ export function QuotationForm({
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-3">
               <div>
-                <h2 className="text-base font-bold text-ink flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary-600" />
-                  WhatsApp Proposal
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-bold text-ink flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary-600" />
+                    WhatsApp Proposal
+                  </h2>
+                  {quoteFormat === "detailed" && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <Check className="h-3 w-3 text-emerald-600" />
+                      <span>Synced with Detailed Costing</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-ink-muted mt-0.5">
                   Formatted from Section 1 rates. Click &apos;Send on WhatsApp&apos; to dispatch directly to client.
                 </p>
@@ -2311,14 +2463,37 @@ export function QuotationForm({
 
               {/* Quick Actions & Formatting controls */}
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleCompactWhatsappFormat}
-                >
-                  Tier List Format
-                </Button>
+                {quoteFormat === "detailed" ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleDetailedClientRateFormat}
+                      title="Format with checked quantity comparison tiers"
+                    >
+                      Comparison Format
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleDetailedFullBreakdownFormat}
+                      title="Format with full itemized process breakdown"
+                    >
+                      Breakdown Format
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCompactWhatsappFormat}
+                  >
+                    Tier List Format
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="secondary"
@@ -2811,6 +2986,125 @@ export function QuotationForm({
         confirmLabel="Yes, Remove"
         variant="danger"
       />
+
+      {/* Post-Save Choose Print PDF Modal */}
+      {savedQuotationModal && (
+        <Modal
+          open={Boolean(savedQuotationModal)}
+          onClose={() => {
+            setSavedQuotationModal(null);
+            const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
+            router.push(target);
+          }}
+          title="Quotation Saved Successfully"
+          width="max-w-lg"
+        >
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+              <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Check className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-extrabold text-emerald-950">
+                  {savedQuotationModal.quotation_no} has been saved!
+                </h3>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Which PDF document would you like to print or view?
+                </p>
+              </div>
+            </div>
+
+            {/* 2 Print Options Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Option 1: Standard Client Quotation */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`/quotations/${savedQuotationModal.id}/print?view=standard`, "_blank");
+                }}
+                className="group relative flex flex-col justify-between p-4 rounded-xl border-2 border-border hover:border-primary-500 bg-surface hover:bg-primary-50/20 text-left transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="h-9 w-9 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-ink group-hover:text-primary-700">
+                      Standard Quotation
+                    </h4>
+                    <p className="text-[11.5px] text-ink-muted mt-1 leading-relaxed">
+                      Formal client proposal with line items, quantities, client selling rates, and total amount.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-primary-600 group-hover:translate-x-1 transition-transform pt-2 border-t border-border/60">
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Print Quotation &rarr;</span>
+                </div>
+              </button>
+
+              {/* Option 2: Detailed Costing Sheet */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`/quotations/${savedQuotationModal.id}/print?view=detailed`, "_blank");
+                }}
+                className="group relative flex flex-col justify-between p-4 rounded-xl border-2 border-border hover:border-emerald-500 bg-surface hover:bg-emerald-50/20 text-left transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Calculator className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-ink group-hover:text-emerald-700">
+                      Detailed Costing Sheet
+                    </h4>
+                    <p className="text-[11.5px] text-ink-muted mt-1 leading-relaxed">
+                      Complete component breakdown (Paper, Print, Matt, Creasing, etc., Total Rs., Total Qty, and Product Cost).
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-emerald-700 group-hover:translate-x-1 transition-transform pt-2 border-t border-border/60">
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Print Costing Sheet &rarr;</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between border-t border-border pt-3.5 mt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSavedQuotationModal(null);
+                  const target = searchParams?.get("returnUrl") || searchParams?.get("from") || "/quotations";
+                  router.push(target);
+                }}
+                className="text-xs"
+              >
+                Go to Quotations List
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const savedId = savedQuotationModal.id;
+                  setSavedQuotationModal(null);
+                  if (!quotation) {
+                    router.push(`/quotations/${savedId}`);
+                  }
+                }}
+                className="text-xs"
+              >
+                Continue Editing
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </form>
   );
 }

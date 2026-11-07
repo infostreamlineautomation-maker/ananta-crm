@@ -36,9 +36,21 @@ export const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input {...props} className={clsx(inputClasses, props.className)} />
 );
 
-export const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-  <textarea {...props} rows={props.rows ?? 3} className={clsx(inputClasses, "h-auto resize-none py-2", props.className)} />
-);
+export const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => {
+  const hasResize = props.className && /\bresize(-[a-z]+)?\b/.test(props.className);
+  return (
+    <textarea
+      {...props}
+      rows={props.rows ?? 3}
+      className={clsx(
+        inputClasses,
+        "h-auto py-2",
+        !hasResize && "resize-none",
+        props.className
+      )}
+    />
+  );
+};
 
 export const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">

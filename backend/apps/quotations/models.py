@@ -18,9 +18,11 @@ class Quotation(AuditedModel, SoftDeleteModel):
 
     FORMAT_STANDARD = "standard"
     FORMAT_COSTING = "costing"
+    FORMAT_DETAILED = "detailed"
     FORMAT_CHOICES = [
         (FORMAT_STANDARD, "Standard Quotation"),
         (FORMAT_COSTING, "Costing & Profit Calculator"),
+        (FORMAT_DETAILED, "Detailed Costing Sheet"),
     ]
 
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="quotations")
@@ -63,6 +65,11 @@ class Quotation(AuditedModel, SoftDeleteModel):
         help_text="Extra custom columns beyond description/qty/rate, e.g. "
         '[{"key": "custom_size", "label": "Size"}]. Values live per-item in '
         "QuotationItem.extra_data under the same key.",
+    )
+    detailed_costing_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Stores the detailed Excel-style component costing table: { job_title, total_qty, columns, rows, summary }",
     )
 
     currency_code = models.CharField(

@@ -268,6 +268,50 @@ export interface QuotationAnnexure {
   pages: string[];
 }
 
+export interface DetailedCostingCustomColumn {
+  key: string;
+  label: string;
+}
+
+export interface DetailedCostingRow {
+  id: string;
+  item_name: string;
+  qty: string;
+  rate: string;
+  total?: string;
+  custom_fields?: Record<string, string>;
+}
+
+export interface DetailedCostingQuantityTier {
+  id: string;
+  qty: string;
+  total_amount: string;
+  unit_rate: string;
+  margin_percent?: string;
+  include_in_whatsapp: boolean;
+  notes?: string;
+}
+
+export interface DetailedCostingData {
+  job_title?: string;
+  total_qty: string;
+  qty_mode?: "sum" | "custom";
+  col_item_label?: string;
+  col_qty_label?: string;
+  col_rate_label?: string;
+  col_total_label?: string;
+  custom_columns?: DetailedCostingCustomColumn[];
+  rows: DetailedCostingRow[];
+  total_cost?: string;
+  cost_per_unit?: string;
+  margin_percent?: string;
+  client_rate?: string;
+  client_subtotal?: string;
+  costing_notes?: string;
+  quantity_tiers?: DetailedCostingQuantityTier[];
+  custom_process_templates?: string[];
+}
+
 export interface QuotationDetail {
   id: number;
   quotation_no: string;
@@ -293,7 +337,8 @@ export interface QuotationDetail {
   col_rate_label: string;
   col_labels?: Record<string, any>;
   columns_config: QuotationColumn[];
-  quote_format?: "standard" | "costing";
+  detailed_costing_data?: DetailedCostingData;
+  quote_format?: "standard" | "costing" | "detailed";
   currency_code: string;
   status: QuotationStatus;
   subtotal: string;
@@ -310,7 +355,7 @@ export interface QuotationSummary {
   id: number;
   quotation_no: string;
   quotation_date: string;
-  quote_format?: "standard" | "costing";
+  quote_format?: "standard" | "costing" | "detailed";
   client: number | null;
   client_name: string | null;
   company_name?: string | null;
@@ -334,6 +379,7 @@ export interface QuotationSummary {
   col_rate_label?: string;
   col_labels?: Record<string, any>;
   columns_config?: QuotationColumn[];
+  detailed_costing_data?: DetailedCostingData;
   items?: QuotationItemDetail[];
   created_at?: string;
   updated_at?: string;

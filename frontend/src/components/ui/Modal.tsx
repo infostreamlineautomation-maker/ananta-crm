@@ -11,12 +11,14 @@ export function Modal({
   title,
   children,
   width = "max-w-md",
+  zIndex = 60,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   width?: string;
+  zIndex?: number;
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -38,7 +40,10 @@ export function Modal({
   // <form> elements are invalid HTML; the browser silently merges them, so a
   // submit button inside the modal would submit the *outer* form instead.
   return createPortal(
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex }}
+    >
       <div className="absolute inset-0 bg-ink/30 backdrop-blur-[1px]" onClick={onClose} />
       <div className={clsx("relative w-full rounded-lg border border-border bg-surface shadow-[var(--shadow-pop)]", width)}>
         <div className="flex items-center justify-between border-b border-border px-5 py-4">

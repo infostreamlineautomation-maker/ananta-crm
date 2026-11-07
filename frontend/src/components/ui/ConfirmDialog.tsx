@@ -14,6 +14,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant,
   loading = false,
+  zIndex = 70,
 }: {
   open: boolean;
   onClose: () => void;
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   cancelLabel?: string;
   variant?: "primary" | "danger" | "secondary";
   loading?: boolean;
+  zIndex?: number;
 }) {
   const isDelete =
     variant === "danger" ||
@@ -37,7 +39,7 @@ export function ConfirmDialog({
   const resolvedVariant = variant || (isDelete ? "danger" : "primary");
 
   return (
-    <Modal open={open} onClose={onClose} title={title} width="max-w-md">
+    <Modal open={open} onClose={onClose} title={title} width="max-w-md" zIndex={zIndex}>
       <div className="flex items-start gap-3.5 py-1">
         <div
           className={`flex h-10 w-10 flex-none items-center justify-center rounded-full ${

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn, Calculator, TrendingUp } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn, ZoomOut, Maximize2, Calculator, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, Client, QuotationAnnexure, QuotationDetail } from "@/lib/types";
@@ -31,6 +31,7 @@ export default function QuotationPrintPage() {
   const params = useParams<{ id: string }>();
   const quotationId = Number(params.id);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { user, loading: authLoading, can } = useAuth();
 
@@ -44,9 +45,42 @@ export default function QuotationPrintPage() {
   const [useAnnexures, setUseAnnexures] = useState(true);
   const [showSubtotal, setShowSubtotal] = useState(true);
   const [showProfit, setShowProfit] = useState(false);
+  const [printViewMode, setPrintViewMode] = useState<"standard" | "detailed">("standard");
+  const [zoom, setZoom] = useState(1);
   const [lightboxImages, setLightboxImages] = useState<{ image: string; caption?: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  function handleZoomIn() {
+    setZoom((z) => Math.min(1.6, Number((z + 0.1).toFixed(2))));
+  }
+
+  function handleZoomOut() {
+    setZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2))));
+  }
+
+  function handleResetZoom() {
+    setZoom(1);
+  }
+
+  function handleFitWidth() {
+    if (typeof window === "undefined") return;
+    const available = window.innerWidth - 64;
+    const calculated = Number((available / 820).toFixed(2));
+    const target = Math.min(1.5, Math.max(0.75, calculated));
+    setZoom(target);
+  }
+
+  useEffect(() => {
+    const view = searchParams?.get("view");
+    if (view === "detailed" || view === "standard") {
+      setPrintViewMode(view);
+    } else if (quotation?.quote_format === "detailed") {
+      setPrintViewMode("detailed");
+    } else {
+      setPrintViewMode("standard");
+    }
+  }, [searchParams, quotation?.quote_format]);
 
   // Recipient details
   const toCompanyOrClient =
@@ -67,7 +101,14 @@ export default function QuotationPrintPage() {
     .replace(/[\/\\:*?"<>|]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const pdfTitle = cleanClient ? `Quotation - ${cleanQuoteNo} - ${cleanClient}` : `Quotation - ${cleanQuoteNo}`;
+  const pdfTitle =
+    printViewMode === "detailed"
+      ? cleanClient
+        ? `Costing - ${cleanQuoteNo} - ${cleanClient}`
+        : `Costing - ${cleanQuoteNo}`
+      : cleanClient
+      ? `Quotation - ${cleanQuoteNo} - ${cleanClient}`
+      : `Quotation - ${cleanQuoteNo}`;
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -247,7 +288,7 @@ export default function QuotationPrintPage() {
   const isSinglePage = (quotation.items?.length || 0) <= 8;
 
   return (
-    <div className="min-h-screen bg-neutral-200 pb-16 print:bg-white print:p-0 print:m-0">
+    <div className="min-h-screen bg-neutral-200/90 pb-20 print:bg-white print:p-0 print:m-0 w-full overflow-x-hidden">
       <style jsx global>{`
         @media print {
           @page {
@@ -265,6 +306,8 @@ export default function QuotationPrintPage() {
             padding: 0 !important;
             margin: 0 !important;
             max-width: none !important;
+            transform: none !important;
+            margin-bottom: 0 !important;
           }
           .quotation-sheet {
             width: 210mm !important;
@@ -272,6 +315,7 @@ export default function QuotationPrintPage() {
             box-sizing: border-box !important;
             border: none !important;
             box-shadow: none !important;
+            transform: none !important;
           }
           .quotation-sheet.is-single-page {
             height: 297mm !important;
@@ -315,124 +359,52 @@ export default function QuotationPrintPage() {
             page-break-before: always !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+            transform: none !important;
           }
         }
       `}</style>
 
-      {/* Top Action Bar (Sticky, full-width, clean, never cramped) */}
-      <header className="sticky top-0 z-30 mb-8 border-b border-neutral-300 bg-white/95 backdrop-blur-md shadow-xs print:hidden">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6 flex-nowrap">
-          {/* Left: Back Link & Document / PDF Info */}
-          <div className="flex items-center gap-3 shrink-0" style={{ whiteSpace: "nowrap" }}>
+      {/* Top Action Bar (Sticky, full-width, perfectly organized 2-tier header) */}
+      <header className="sticky top-0 z-30 mb-6 border-b border-neutral-300/80 bg-white shadow-xs print:hidden">
+        {/* Row 1: Document Details & Primary Actions */}
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+          {/* Left: Back Link & Document Meta */}
+          <div className="flex items-center gap-2.5 min-w-0">
             <Link
               href={`/quotations/${quotation.id}`}
-              style={{ whiteSpace: "nowrap" }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 hover:text-primary-700 hover:border-primary-300 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 hover:text-primary-700 hover:border-primary-300 transition-colors shrink-0"
             >
-              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Back to Quotation</span>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Back to Quotation</span>
+              <span className="sm:hidden">Back</span>
             </Link>
 
-            <div className="hidden lg:flex items-center gap-2 border-l border-neutral-200 pl-3 min-w-0 shrink" style={{ whiteSpace: "nowrap" }}>
-              <span className="text-[10.5px] font-bold text-neutral-400 uppercase tracking-wider shrink-0 whitespace-nowrap">
-                PDF Filename:
+            <div className="h-4 w-px bg-neutral-200 hidden sm:block shrink-0" />
+
+            {/* Quote Number & Client Title */}
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-100 border border-neutral-200 text-xs font-bold text-neutral-800 shrink-0 font-mono">
+                <FileText className="h-3 w-3 text-primary-600" />
+                {quotation.quotation_no}
               </span>
-              <span
-                className="inline-flex items-center text-xs font-mono font-semibold text-neutral-800 bg-neutral-100 border border-neutral-200 px-2.5 py-0.5 rounded truncate max-w-[260px] xl:max-w-[400px] whitespace-nowrap"
-                title={`${pdfTitle}.pdf`}
-              >
-                {pdfTitle}.pdf
-              </span>
+              {toCompanyOrClient && (
+                <span className="text-xs font-bold text-ink truncate max-w-[160px] sm:max-w-[280px] md:max-w-[420px]" title={toCompanyOrClient}>
+                  {toCompanyOrClient}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Right: Actions & Controls */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-nowrap" style={{ whiteSpace: "nowrap" }}>
-            {bgImage && (
-              <button
-                type="button"
-                onClick={() => setUseBackground(!useBackground)}
-                style={{ whiteSpace: "nowrap" }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
-              >
-                {useBackground ? (
-                  <ImageIcon className="h-3.5 w-3.5 text-primary-600 shrink-0" />
-                ) : (
-                  <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                )}
-                <span className="whitespace-nowrap">
-                  Letterhead:{" "}
-                  <strong className={useBackground ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
-                    {useBackground ? "ON" : "OFF"}
-                  </strong>
-                </span>
-              </button>
-            )}
-
-            {annexures.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setUseAnnexures(!useAnnexures)}
-                style={{ whiteSpace: "nowrap" }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap"
-                title="Toggle inclusion of attached annexure pages in printed PDF"
-              >
-                <FileText
-                  className={`h-3.5 w-3.5 shrink-0 ${useAnnexures ? "text-primary-600" : "text-ink-muted"}`}
-                />
-                <span className="whitespace-nowrap">
-                  Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pg):{" "}
-                  <strong className={useAnnexures ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
-                    {useAnnexures ? "ON" : "OFF"}
-                  </strong>
-                </span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowSubtotal(!showSubtotal)}
-              style={{ whiteSpace: "nowrap" }}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap ${
-                showSubtotal ? "border-primary-300 bg-white text-ink" : "border-neutral-300 bg-neutral-100 text-neutral-500"
-              }`}
-              title="Toggle inclusion of Subtotal row in printed PDF"
-            >
-              <Calculator className={`h-3.5 w-3.5 shrink-0 ${showSubtotal ? "text-primary-600" : "text-neutral-400"}`} />
-              <span className="whitespace-nowrap">
-                Subtotal:{" "}
-                <strong className={showSubtotal ? "text-primary-700 font-bold" : "text-neutral-500 font-bold"}>
-                  {showSubtotal ? "ON" : "OFF"}
-                </strong>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowProfit(!showProfit)}
-              style={{ whiteSpace: "nowrap" }}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs hover:bg-neutral-50 cursor-pointer shrink-0 whitespace-nowrap ${
-                showProfit ? "border-emerald-300 bg-white text-ink" : "border-neutral-300 bg-neutral-100 text-neutral-500"
-              }`}
-              title="Toggle inclusion of Total Profit column & profit total in printed PDF"
-            >
-              <TrendingUp className={`h-3.5 w-3.5 shrink-0 ${showProfit ? "text-emerald-600" : "text-neutral-400"}`} />
-              <span className="whitespace-nowrap">
-                Profit:{" "}
-                <strong className={showProfit ? "text-emerald-700 font-bold" : "text-neutral-500 font-bold"}>
-                  {showProfit ? "ON" : "OFF"}
-                </strong>
-              </span>
-            </button>
-
+          {/* Right: Primary Print & Convert to Order */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handlePrint}
-              style={{ whiteSpace: "nowrap" }}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition-colors cursor-pointer"
+              title="Print or Save as PDF (Ctrl+P)"
             >
-              <Printer className="h-3.5 w-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Print / Save as PDF</span>
+              <Printer className="h-3.5 w-3.5" />
+              <span>Print / Save as PDF</span>
             </button>
 
             {can("orders", "add") && (
@@ -440,27 +412,196 @@ export default function QuotationPrintPage() {
                 type="button"
                 onClick={handleCreateOrder}
                 disabled={creatingOrder}
-                style={{ whiteSpace: "nowrap" }}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white hover:bg-surface-hover text-ink px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0 whitespace-nowrap disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white hover:bg-neutral-50 text-ink px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                <span className="whitespace-nowrap">{creatingOrder ? "Creating..." : "Create Order"}</span>
+                <span>{creatingOrder ? "Creating..." : "Create Order"}</span>
               </button>
             )}
           </div>
         </div>
+
+        {/* Row 2: Secondary Controls Strip (View Format, PDF Toggles, Zoom) */}
+        <div className="border-t border-neutral-200/80 bg-neutral-50/90 px-4 py-1.5 sm:px-6">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 flex-wrap">
+            {/* Left: View Format Switcher (if detailed costing exists) & Filename */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              {Boolean(quotation?.detailed_costing_data?.rows?.length) && (
+                <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setPrintViewMode("standard")}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                      printViewMode === "standard"
+                        ? "bg-primary-50 text-primary-700 font-bold border border-primary-200 shadow-2xs"
+                        : "text-neutral-600 hover:text-black"
+                    }`}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>Standard Quotation</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintViewMode("detailed")}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                      printViewMode === "detailed"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 shadow-2xs"
+                        : "text-neutral-600 hover:text-black"
+                    }`}
+                  >
+                    <Calculator className="h-3.5 w-3.5" />
+                    <span>Detailed Costing</span>
+                  </button>
+                </div>
+              )}
+
+              {/* PDF Filename Tag */}
+              <span
+                className="hidden lg:inline-flex items-center text-[11px] font-mono font-medium text-neutral-500 bg-white border border-neutral-200 px-2.5 py-0.5 rounded truncate max-w-[280px]"
+                title={`${pdfTitle}.pdf`}
+              >
+                {pdfTitle}.pdf
+              </span>
+            </div>
+
+            {/* Right: PDF Toggles Cluster + Zoom Controls */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap shrink-0">
+              {/* Toggles */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {bgImage && (
+                  <button
+                    type="button"
+                    onClick={() => setUseBackground(!useBackground)}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                      useBackground
+                        ? "border-primary-200 bg-white text-ink shadow-2xs"
+                        : "border-neutral-200 bg-neutral-100 text-neutral-400 opacity-60"
+                    }`}
+                    title="Toggle letterhead background"
+                  >
+                    <ImageIcon className={`h-3 w-3 ${useBackground ? "text-primary-600" : "text-neutral-400"}`} />
+                    <span>Letterhead</span>
+                    <span className={`text-[10px] font-bold px-1 rounded ${useBackground ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-600"}`}>
+                      {useBackground ? "ON" : "OFF"}
+                    </span>
+                  </button>
+                )}
+
+                {annexures.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setUseAnnexures(!useAnnexures)}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                      useAnnexures
+                        ? "border-primary-200 bg-white text-ink shadow-2xs"
+                        : "border-neutral-200 bg-neutral-100 text-neutral-400 opacity-60"
+                    }`}
+                    title="Toggle inclusion of annexure pages in printed PDF"
+                  >
+                    <FileText className={`h-3 w-3 ${useAnnexures ? "text-primary-600" : "text-neutral-400"}`} />
+                    <span>Annexures ({annexures.reduce((acc, a) => acc + (a.pages?.length || 0), 0)} pg)</span>
+                    <span className={`text-[10px] font-bold px-1 rounded ${useAnnexures ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-600"}`}>
+                      {useAnnexures ? "ON" : "OFF"}
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowSubtotal(!showSubtotal)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    showSubtotal
+                      ? "border-primary-200 bg-white text-ink shadow-2xs"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 opacity-60"
+                  }`}
+                  title="Toggle Subtotal row"
+                >
+                  <Calculator className={`h-3 w-3 ${showSubtotal ? "text-primary-600" : "text-neutral-400"}`} />
+                  <span>Subtotal</span>
+                  <span className={`text-[10px] font-bold px-1 rounded ${showSubtotal ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-600"}`}>
+                    {showSubtotal ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowProfit(!showProfit)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    showProfit
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 font-semibold shadow-2xs"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 opacity-60"
+                  }`}
+                  title="Toggle profit column on PDF"
+                >
+                  <TrendingUp className={`h-3 w-3 ${showProfit ? "text-emerald-600" : "text-neutral-400"}`} />
+                  <span>Profit</span>
+                  <span className={`text-[10px] font-bold px-1 rounded ${showProfit ? "bg-emerald-200 text-emerald-800" : "bg-neutral-200 text-neutral-600"}`}>
+                    {showProfit ? "ON" : "OFF"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="h-4 w-px bg-neutral-300 hidden sm:block shrink-0" />
+
+              {/* Zoom Controls */}
+              <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-2xs shrink-0">
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  className="px-2 py-0.5 text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 rounded cursor-pointer"
+                  title="Zoom Out"
+                >
+                  -
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetZoom}
+                  className="px-2 py-0.5 text-[11px] font-semibold text-neutral-700 hover:bg-neutral-100 rounded min-w-[42px] text-center cursor-pointer"
+                  title="Reset zoom to 100%"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  className="px-2 py-0.5 text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 rounded cursor-pointer"
+                  title="Zoom In"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFitWidth}
+                  className="px-2 py-0.5 text-[10.5px] font-semibold text-neutral-600 hover:text-primary-700 hover:bg-neutral-100 rounded cursor-pointer border-l border-neutral-200"
+                  title="Fit quotation to screen width"
+                >
+                  Fit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </header>
 
-      {/* Quotation Sheet */}
-      <div className="quotation-sheet-root mx-auto max-w-[820px] pb-16 print:max-w-none print:pb-0">
+      {/* Main Print Preview Container - Perfectly Centered */}
+      <main className="w-full flex flex-col items-center justify-start py-4 px-4 print:p-0 print:m-0">
         <div
-          className={`quotation-sheet ${isSinglePage ? "is-single-page" : "is-multi-page"} relative mx-auto bg-white shadow-xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden text-black font-sans leading-normal`}
+          className="quotation-sheet-root flex flex-col items-center w-full max-w-[820px] mx-auto print:max-w-none print:m-0"
           style={{
-            width: "100%",
-            minHeight: "1120px",
-            boxSizing: "border-box",
-            backgroundImage: hasBackground ? `url(${bgImage})` : undefined,
-            backgroundSize: "100% 100%",
-            backgroundPosition: "top center",
+            transform: zoom !== 1 ? `scale(${zoom})` : undefined,
+            transformOrigin: "top center",
+            transition: "transform 0.15s ease-out",
+            marginBottom: zoom > 1 ? `${(isSinglePage ? 1120 : (quotation.items.length * 60 + 1000)) * (zoom - 1)}px` : undefined,
+          }}
+        >
+          <div
+            className={`quotation-sheet ${isSinglePage ? "is-single-page" : "is-multi-page"} relative w-full bg-white shadow-2xl print:shadow-none border border-neutral-300 print:border-0 overflow-hidden text-black font-sans leading-normal`}
+            style={{
+              width: "100%",
+              minHeight: "1120px",
+              boxSizing: "border-box",
+              backgroundImage: hasBackground ? `url(${bgImage})` : undefined,
+              backgroundSize: "100% 100%",
+              backgroundPosition: "top center",
             backgroundRepeat: "no-repeat",
           }}
         >
@@ -540,7 +681,160 @@ export default function QuotationPrintPage() {
 
             {/* Row 4: Line Items Table (Solid black borders matching physical sample) */}
             <div className="mt-4 print:mt-3.5">
-              <table className="w-full border-collapse border-2 border-black text-[13px] print:text-[12px]">
+              {printViewMode === "detailed" && quotation.detailed_costing_data?.rows?.length ? (
+                <>
+                  {/* Format 3: Detailed Costing Spreadsheet Table */}
+                  <table className="w-full border-collapse border-2 border-black text-[13px] print:text-[12px]">
+                  <thead>
+                    <tr className="border-b-2 border-black text-[12px] print:text-[11.5px] font-bold uppercase tracking-wider text-black bg-neutral-100/60 print:bg-transparent">
+                      <th className="border-r border-black w-14 px-2 py-2 print:py-1.5 text-center">
+                        SR. NO.
+                      </th>
+                      <th className="border-r border-black px-3 py-2 print:py-1.5 text-left">
+                        {(quotation.detailed_costing_data.col_item_label || "ITEM / PROCESS").toUpperCase()}
+                      </th>
+                      {(quotation.detailed_costing_data.custom_columns || []).map((col) => (
+                        <th key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center">
+                          {col.label.toUpperCase()}
+                        </th>
+                      ))}
+                      <th className="border-r border-black w-28 px-2 py-2 print:py-1.5 text-center">
+                        {(quotation.detailed_costing_data.col_qty_label || "QTY.").toUpperCase()}
+                      </th>
+                      <th className="border-r border-black w-36 px-3 py-2 print:py-1.5 text-center">
+                        {(quotation.detailed_costing_data.col_rate_label || "RATE").toUpperCase()}
+                      </th>
+                      <th className="w-36 px-3 py-2 print:py-1.5 text-right">
+                        {(quotation.detailed_costing_data.col_total_label || "TOTAL").toUpperCase()}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotation.detailed_costing_data.rows
+                      .filter((r) => r.item_name && r.item_name.trim().length > 0)
+                      .map((r, idx) => {
+                        const rowQty = parseFloat(r.qty) || 0;
+                        const rowRate = parseFloat(r.rate) || 0;
+                        const rowTotal = parseFloat(r.total || "0") || rowQty * rowRate;
+                        return (
+                          <tr key={r.id || idx} className="border-b border-black">
+                            <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
+                              {idx + 1}
+                            </td>
+                            <td className="border-r border-black px-3 py-2 print:py-1.5 text-left font-bold text-black">
+                              {r.item_name}
+                            </td>
+                            {(quotation.detailed_costing_data?.custom_columns || []).map((col) => (
+                              <td key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium">
+                                {r.custom_fields?.[col.key] || "—"}
+                              </td>
+                            ))}
+                            <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
+                              {r.qty || "0"}
+                            </td>
+                            <td className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium tnum">
+                              {formatCurrency(rowRate, currency, 2)}
+                            </td>
+                            <td className="px-3 py-2 print:py-1.5 text-right font-bold tnum">
+                              {formatCurrency(rowTotal, currency, 2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                  <tfoot>
+                    {/* Summary row 1: Total Cost */}
+                    <tr className="border-t-2 border-black font-bold text-[12.5px] print:text-[12px]">
+                      <td
+                        colSpan={2 + (quotation.detailed_costing_data.custom_columns?.length || 0) + 2}
+                        className="border-r border-black px-3 py-1.5 print:py-1 text-right uppercase tracking-wider font-extrabold text-neutral-900"
+                      >
+                        TOTAL RS. (PRODUCTION COST):
+                      </td>
+                      <td className="px-3 py-1.5 print:py-1 text-right font-black tnum text-neutral-900">
+                        {formatCurrency(parseFloat(quotation.detailed_costing_data.total_cost || "0"), currency, 2)}
+                      </td>
+                    </tr>
+                    {/* Summary row 2: Total Qty */}
+                    <tr className="border-t border-black font-bold text-[12.5px] print:text-[12px]">
+                      <td
+                        colSpan={2 + (quotation.detailed_costing_data.custom_columns?.length || 0) + 2}
+                        className="border-r border-black px-3 py-1.5 print:py-1 text-right uppercase tracking-wider font-extrabold text-neutral-900"
+                      >
+                        TOTAL BATCH QTY.:
+                      </td>
+                      <td className="px-3 py-1.5 print:py-1 text-right font-black tnum text-neutral-900">
+                        {quotation.detailed_costing_data.total_qty || "0"} pcs
+                      </td>
+                    </tr>
+                    {/* Summary row 3: Product Cost Per Piece */}
+                    <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
+                      <td
+                        colSpan={2 + (quotation.detailed_costing_data.custom_columns?.length || 0) + 2}
+                        className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
+                      >
+                        PRODUCT COST / RATE PER PC:
+                      </td>
+                      <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
+                        {formatCurrency(
+                          parseFloat(
+                            quotation.detailed_costing_data.client_rate ||
+                              quotation.detailed_costing_data.cost_per_unit ||
+                              "0"
+                          ),
+                          currency,
+                          2
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                {/* Quantity Comparison Table on Printable Sheet */}
+                {Boolean(
+                  (quotation.detailed_costing_data?.quantity_tiers || []).some(
+                    (t) => t.include_in_whatsapp !== false
+                  )
+                ) && (
+                  <div className="mt-4 print:mt-3 border-2 border-black">
+                    <div className="bg-neutral-100 border-b border-black px-3 py-1.5 font-black text-[12px] print:text-[11.5px] uppercase tracking-wider text-black">
+                      QUANTITY &amp; RATE COMPARISON OPTIONS
+                    </div>
+                    <table className="w-full border-collapse text-[12.5px] print:text-[12px]">
+                      <thead>
+                        <tr className="border-b border-black text-[11.5px] print:text-[11px] font-bold uppercase tracking-wider text-black bg-neutral-50/50">
+                          <th className="border-r border-black px-3 py-1.5 text-center">QUANTITY</th>
+                          <th className="border-r border-black px-3 py-1.5 text-center">RATE / PC</th>
+                          <th className="border-r border-black px-3 py-1.5 text-right">TOTAL AMOUNT</th>
+                          <th className="px-3 py-1.5 text-left">REMARKS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(quotation.detailed_costing_data.quantity_tiers || [])
+                          .filter((t) => t.include_in_whatsapp !== false)
+                          .map((t, idx) => (
+                            <tr key={t.id || idx} className="border-b border-black font-medium">
+                              <td className="border-r border-black px-3 py-1.5 text-center font-bold text-black">
+                                {Number(t.qty || 0).toLocaleString()} pcs
+                              </td>
+                              <td className="border-r border-black px-3 py-1.5 text-center font-bold text-black tnum">
+                                {formatCurrency(parseFloat(t.unit_rate || "0"), currency, 2)}
+                              </td>
+                              <td className="border-r border-black px-3 py-1.5 text-right font-black text-black tnum">
+                                {formatCurrency(parseFloat(t.total_amount || "0"), currency, 2)}
+                              </td>
+                              <td className="px-3 py-1.5 text-left text-neutral-800">
+                                {t.notes || "—"}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                </>
+              ) : (
+                <table className="w-full border-collapse border-2 border-black text-[13px] print:text-[12px]">
                 <thead>
                   <tr className="border-b-2 border-black text-[12px] print:text-[11.5px] font-bold uppercase tracking-wider text-black">
                     <th className="border-r border-black w-14 px-2 py-2 print:py-1.5 text-center">
@@ -692,7 +986,8 @@ export default function QuotationPrintPage() {
                     </tr>
                   </tfoot>
                 )}
-              </table>
+                </table>
+              )}
             </div>
 
             {/* Row 5: NOTES */}
@@ -806,7 +1101,8 @@ export default function QuotationPrintPage() {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </main>
 
       {/* Lightbox for Image Preview */}
       <ImageLightboxModal
