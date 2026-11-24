@@ -55,6 +55,14 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
     filterset_class = QuotationFilter
     search_fields = ["quotation_no", "subject", "to_name", "client__client_name"]
 
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if getattr(request.user, "is_portal_client", False):
+            if request.method in ["PUT", "PATCH", "DELETE"]:
+                self.permission_denied(request, message="Client portal users cannot modify or delete quotations directly. Use Approve or Suggest Edits.")
+            if request.method == "POST" and self.action not in ["accept", "request_revision", "reject"]:
+                self.permission_denied(request, message="Client portal users cannot create quotations directly.")
+
     def perform_create(self, serializer):
         extra = {}
         if hasattr(Quotation, "created_by"):
@@ -525,6 +533,76 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
             return Response({"detail": "WhatsApp communication logged."})
 
         return Response({"detail": "Invalid channel."}, status=400)
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        """Allows a client or staff to accept/approve a quotation."""
+        quotation = self.get_object()
+        quotation.status = Quotation.ACCEPTED
+        quotation.accepted_at = timezone.now()
+        client_notes = request.data.get("notes", "").strip()
+        if client_notes:
+            quotation.client_feedback = client_notes
+        quotation.save(update_fields=["status", "accepted_at", "client_feedback", "updated_at"])
+        self._log("submit", quotation)
+
+        # Notify internal organization staff
+        try:
+            from apps.notifications.models import Notification
+            client_name = quotation.client.client_name if quotation.client else (quotation.to_name or "Client")
+            Notification.objects.create(
+                organization=quotation.organization,
+                event_type=Notification.ORDER_CREATED,
+                title=f"Quotation {quotation.quotation_no} APPROVED",
+                message=f"{client_name} approved quotation {quotation.quotation_no} ({quotation.currency_code} {quotation.subtotal:,.2f}). Ready for order conversion.",
+            )
+        except Exception:
+            pass
+
+        serializer = self.get_serializer(quotation)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="request-revision")
+    def request_revision(self, request, pk=None):
+        """Allows a client to submit revision feedback on a quotation."""
+        quotation = self.get_object()
+        revision_notes = request.data.get("notes", "").strip()
+        quotation.status = Quotation.REVISION_REQUESTED
+        if revision_notes:
+            quotation.client_feedback = revision_notes
+            stamp = f"\n[Client Revision Request by {request.user.get_full_name() or request.user.username}]: {revision_notes}"
+            quotation.notes = (quotation.notes or "") + stamp
+        quotation.save(update_fields=["status", "client_feedback", "notes", "updated_at"])
+        self._log("update", quotation)
+
+        # Notify internal organization staff
+        try:
+            from apps.notifications.models import Notification
+            client_name = quotation.client.client_name if quotation.client else (quotation.to_name or "Client")
+            Notification.objects.create(
+                organization=quotation.organization,
+                event_type=Notification.ORDER_CREATED,
+                title=f"Revision Requested: {quotation.quotation_no}",
+                message=f"{client_name} requested changes on {quotation.quotation_no}: {revision_notes or 'Review specs'}",
+            )
+        except Exception:
+            pass
+
+        serializer = self.get_serializer(quotation)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """Allows a client to decline a quotation."""
+        quotation = self.get_object()
+        reason = request.data.get("reason", "").strip()
+        quotation.status = Quotation.REJECTED
+        if reason:
+            quotation.client_feedback = f"Declined by client: {reason}"
+        quotation.save(update_fields=["status", "client_feedback", "updated_at"])
+        self._log("update", quotation)
+        serializer = self.get_serializer(quotation)
+        return Response(serializer.data)
 
     @action(detail=False, methods=["post"], url_path="parse-import", parser_classes=[MultiPartParser, FormParser])
     def parse_import(self, request):

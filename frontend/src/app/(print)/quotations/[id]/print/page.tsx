@@ -130,12 +130,12 @@ export default function QuotationPrintPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<QuotationDetail>(`/api/quotations/${quotationId}/`),
-      apiFetch<AppSettings>("/api/settings/"),
+      apiFetch<AppSettings>("/api/settings/").catch(() => null),
       apiFetch<{ annexures: QuotationAnnexure[] }>(`/api/quotations/${quotationId}/pdf-pages/`).catch(() => ({ annexures: [] })),
     ])
       .then(async ([q, s, annexureRes]) => {
         setQuotation(q);
-        setSettings(s);
+        if (s) setSettings(s);
         if (q.col_labels?.show_subtotal !== undefined) {
           setShowSubtotal(String(q.col_labels.show_subtotal) === "true" || q.col_labels.show_subtotal === true);
         }

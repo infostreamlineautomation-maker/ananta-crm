@@ -78,7 +78,7 @@ export function ColumnSelector({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={clsx(
-          "flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink shadow-xs transition-colors hover:bg-surface-hover cursor-pointer",
+          "flex h-9 items-center gap-1.5 rounded-lg border border-border bg-white px-3 text-[12.5px] font-semibold text-ink shadow-xs transition-colors hover:bg-surface-hover cursor-pointer",
           open && "border-primary-500 ring-2 ring-primary-100",
         )}
       >

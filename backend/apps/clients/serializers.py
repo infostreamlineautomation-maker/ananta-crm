@@ -43,16 +43,17 @@ class ClientSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer)
     company_name = serializers.CharField(source="company.company_name", read_only=True)
     country_name = serializers.CharField(source="effective_country.name", read_only=True)
     currency_code = serializers.CharField(source="effective_country.currency_code", read_only=True)
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
     group_ids = serializers.PrimaryKeyRelatedField(many=True, read_only=True, source="groups")
     same_organization_fields = ["company"]
 
     class Meta:
         model = Client
         fields = [
-            "id", "client_name", "client_type", "company", "company_name", "phone", "email",
+            "id", "organization", "organization_name", "client_name", "client_type", "company", "company_name", "phone", "email",
             "address", "country", "country_name", "currency_code", "group_ids", "extra_data",
             "is_deleted", "created_at", "updated_at",
         ]
-        read_only_fields = ["is_deleted", "created_at", "updated_at"]
+        read_only_fields = ["organization", "is_deleted", "created_at", "updated_at"]
 
 

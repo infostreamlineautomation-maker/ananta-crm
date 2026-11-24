@@ -27,6 +27,35 @@ class ModuleViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         if hasattr(qs.model, "organization_id"):
             qs = qs.filter(organization=self.request.organization)
+
+        user = getattr(self.request, "user", None)
+        if user and user.is_authenticated and not user.is_superuser:
+            # Frappe-style row-level user permissions:
+            if getattr(user, "is_portal_client", False):
+                client = getattr(user, "linked_client", None)
+                if not client:
+                    # Portal user has no linked client, deny all row access
+                    return qs.none()
+
+                model_name = qs.model.__name__
+                if hasattr(qs.model, "client_id"):
+                    qs = qs.filter(client_id=client.id)
+                elif hasattr(qs.model, "client"):
+                    qs = qs.filter(client=client)
+                elif model_name == "Client":
+                    qs = qs.filter(id=client.id)
+                elif model_name == "Company":
+                    if client.company_id:
+                        qs = qs.filter(id=client.company_id)
+                    else:
+                        qs = qs.none()
+                elif model_name in ("Product", "Category", "Country", "Organization"):
+                    # Shared read-only catalogs
+                    pass
+                else:
+                    # Sensitive internal models: denied to external portal clients
+                    qs = qs.none()
+
         return qs
 
     def perform_create(self, serializer):

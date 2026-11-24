@@ -15,7 +15,7 @@ export const MODULES = {
 } as const;
 
 export type ModuleKey = (typeof MODULES)[keyof typeof MODULES];
-export type PermissionAction = "view" | "add" | "edit" | "delete";
+export type PermissionAction = "view" | "add" | "edit" | "delete" | "submit" | "cancel" | "print" | "export";
 
 /** Display labels for the Roles & Permissions matrix — mirrors the MODULES
  * dict values in apps/core/modules.py, same order. */
@@ -33,4 +33,24 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   [MODULES.NOTIFICATIONS]: "Notifications",
 };
 
-export const PERMISSION_ACTIONS: PermissionAction[] = ["view", "add", "edit", "delete"];
+export const PERMISSION_ACTIONS: PermissionAction[] = [
+  "view",
+  "add",
+  "edit",
+  "delete",
+  "submit",
+  "cancel",
+  "print",
+  "export",
+];
+
+export const PERMISSION_ACTION_LABELS: Record<PermissionAction, string> = {
+  view: "View / Read",
+  add: "Add / Create",
+  edit: "Edit / Write",
+  delete: "Delete",
+  submit: "Submit",
+  cancel: "Cancel",
+  print: "Print / PDF",
+  export: "Export",
+};

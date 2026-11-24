@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useMemo, useEffect } from "react";
+import { useId, useState, useMemo, useEffect, Fragment } from "react";
 import clsx from "clsx";
 import {
   Calculator,
@@ -20,6 +20,8 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import {
   DetailedCostingCustomColumn,
+  DetailedCostingComparisonColumn,
+  DetailedCostingRowComparisonItem,
   DetailedCostingData,
   DetailedCostingRow,
   DetailedCostingQuantityTier,
@@ -31,6 +33,15 @@ function newRowId(): string {
   return `row_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 }
 
+export function formatCalculatedRate(num: number): string {
+  if (num <= 0 || isNaN(num) || !isFinite(num)) return "";
+  const rounded2 = Math.round(num * 100) / 100;
+  if (Math.abs(num - rounded2) < 0.0001) {
+    return num.toFixed(2);
+  }
+  return parseFloat(num.toFixed(4)).toString();
+}
+
 export function createBlankDetailedRow(itemName: string = ""): DetailedCostingRow {
   return {
     id: newRowId(),
@@ -39,6 +50,7 @@ export function createBlankDetailedRow(itemName: string = ""): DetailedCostingRo
     rate: "",
     total: "0.00",
     custom_fields: {},
+    comparisons: {},
   };
 }
 
@@ -66,9 +78,10 @@ export function createInitialDetailedCostingData(
     total_qty: "1000",
     col_item_label: "Item / Process Name",
     col_qty_label: "Qty.",
-    col_rate_label: "Rate",
+    col_rate_label: "Rate / pc",
     col_total_label: "Total Amount",
     custom_columns: [],
+    comparison_columns: [],
     rows: [
       createBlankDetailedRow(),
       createBlankDetailedRow(),
@@ -224,6 +237,8 @@ export function DetailedCostingGrid({
   const [headerTempText, setHeaderTempText] = useState("");
   const [newColName, setNewColName] = useState("");
   const [isAddingCol, setIsAddingCol] = useState(false);
+  const [isAddingCompQty, setIsAddingCompQty] = useState(false);
+  const [newCompQtyInput, setNewCompQtyInput] = useState("");
 
   // Quick Add Common Process Rows state (customizable: add/remove/persist)
   const [quickProcesses, setQuickProcesses] = useState<string[]>(() => {
@@ -299,6 +314,7 @@ export function DetailedCostingGrid({
   }
 
   const customCols = data.custom_columns || [];
+  const comparisonCols = data.comparison_columns || [];
   const rows = data.rows?.length > 0 ? data.rows : [createBlankDetailedRow()];
   const isCustomQtyMode = data.qty_mode === "custom";
 
@@ -307,15 +323,51 @@ export function DetailedCostingGrid({
     const nextData: DetailedCostingData = { ...data, ...partial };
 
     let totalCost = 0;
+    const compCols = nextData.comparison_columns || [];
 
     const computedRows = (nextData.rows || []).map((r) => {
       const q = parseFloat(r.qty) || 0;
       const rate = parseFloat(r.rate) || 0;
       const rowTotal = q * rate;
       totalCost += rowTotal;
+
+      const updatedComparisons: Record<string, DetailedCostingRowComparisonItem> = {
+        ...(r.comparisons || {}),
+      };
+
+      compCols.forEach((col) => {
+        const cItem = updatedComparisons[col.id] || { qty: col.qty, rate: "", total: "0.00", is_custom: false };
+        const colQtyNum = parseFloat(col.qty) || 1;
+
+        let activeAmountStr = cItem.rate;
+        // If not custom-edited by user, auto-calculate:
+        // unitRate = rate entered, or rowTotal / q (e.g. 100 / 10 = 10 rs per pc)
+        // Then for colQtyNum (e.g. 1000): colQtyNum * unitRate = 1000 * 10 = 10,000 rs
+        if (!cItem.is_custom) {
+          const unitRate = parseFloat(r.rate) || (q > 0 ? rowTotal / q : 0);
+          if (unitRate > 0 && colQtyNum > 0) {
+            const calculated = colQtyNum * unitRate;
+            activeAmountStr = calculated.toFixed(2);
+          } else {
+            activeAmountStr = "";
+          }
+        }
+
+        const cellAmount = parseFloat(activeAmountStr) || 0;
+
+        updatedComparisons[col.id] = {
+          ...cItem,
+          qty: col.qty,
+          rate: activeAmountStr,
+          total: cellAmount > 0 ? cellAmount.toFixed(2) : "0.00",
+          is_custom: Boolean(cItem.is_custom),
+        };
+      });
+
       return {
         ...r,
         total: rowTotal > 0 ? rowTotal.toFixed(2) : "0.00",
+        comparisons: updatedComparisons,
       };
     });
 
@@ -339,20 +391,143 @@ export function DetailedCostingGrid({
     const clientSubtotal = activeQty * clientRate;
     nextData.client_subtotal = clientSubtotal > 0 ? clientSubtotal.toFixed(2) : nextData.total_cost;
 
+    // Recalculate each comparison column's summary metrics
+    const computedCompCols = compCols.map((col) => {
+      let colTotalCost = 0;
+      computedRows.forEach((r) => {
+        const cellTot = parseFloat(r.comparisons?.[col.id]?.total || "0") || 0;
+        colTotalCost += cellTot;
+      });
+
+      const colQty = parseFloat(col.qty || "0") || 1;
+      const colUnitCost = colQty > 0 ? colTotalCost / colQty : 0;
+      const colClientRate = colUnitCost * (1 + marginPct / 100);
+      const colClientSubtotal = colQty * colClientRate;
+
+      return {
+        ...col,
+        total_cost: colTotalCost.toFixed(2),
+        cost_per_unit: colUnitCost.toFixed(2),
+        client_rate: colClientRate.toFixed(2),
+        client_subtotal: colClientSubtotal.toFixed(2),
+      };
+    });
+    nextData.comparison_columns = computedCompCols;
+
+    // Keep quantity_tiers in sync if comparison columns exist
+    if (computedCompCols.length > 0) {
+      const existingTiers = nextData.quantity_tiers || [];
+
+      const existingBase = existingTiers.find((t) => t.id === "tier_base");
+      const baseTier: DetailedCostingQuantityTier = {
+        id: "tier_base",
+        qty: nextData.total_qty || "1000",
+        total_amount: nextData.client_subtotal || "0.00",
+        unit_rate: nextData.client_rate || "0.00",
+        include_in_whatsapp: existingBase ? existingBase.include_in_whatsapp : true,
+        notes: existingBase?.notes || "Base Volume",
+      };
+
+      const compTiers: DetailedCostingQuantityTier[] = computedCompCols.map((col) => {
+        const existing = existingTiers.find((t) => t.id === `tier_${col.id}`);
+        return {
+          id: `tier_${col.id}`,
+          qty: col.qty,
+          total_amount: col.client_subtotal || "0.00",
+          unit_rate: col.client_rate || "0.00",
+          include_in_whatsapp: existing ? existing.include_in_whatsapp : true,
+          notes: existing?.notes || `${Number(col.qty).toLocaleString()} pcs Bulk Tier`,
+        };
+      });
+
+      const extraTiers = existingTiers.filter(
+        (t) => t.id !== "tier_base" && !computedCompCols.some((c) => `tier_${c.id}` === t.id)
+      );
+
+      const baseQtyNum = parseFloat(nextData.total_qty || "1000");
+      const hasCompMatchingBase = computedCompCols.some((c) => parseFloat(c.qty) === baseQtyNum);
+      const baseTierList = hasCompMatchingBase ? [] : [baseTier];
+
+      nextData.quantity_tiers = [...baseTierList, ...compTiers, ...extraTiers];
+    }
+
     onChange(nextData);
   }
 
-  // Row modifications
+  // Row modifications (supporting 2-way sync between Qty, Rate and Total Amount)
   function handleRowFieldChange(
     index: number,
-    field: "item_name" | "qty" | "rate",
+    field: "item_name" | "qty" | "rate" | "total",
     val: string
   ) {
     const updatedRows = [...rows];
-    updatedRows[index] = {
-      ...updatedRows[index],
-      [field]: val,
+    const currentRow = updatedRows[index];
+
+    if (field === "total") {
+      const q = parseFloat(currentRow.qty) || 0;
+      const tot = parseFloat(val) || 0;
+      const newRate = q > 0 && tot > 0 ? (tot / q).toFixed(2) : currentRow.rate;
+      updatedRows[index] = {
+        ...currentRow,
+        rate: newRate,
+        total: val,
+      };
+    } else if (field === "rate") {
+      const q = parseFloat(currentRow.qty) || 0;
+      const r = parseFloat(val) || 0;
+      const tot = q * r;
+      updatedRows[index] = {
+        ...currentRow,
+        rate: val,
+        total: tot > 0 ? tot.toFixed(2) : "0.00",
+      };
+    } else if (field === "qty") {
+      const q = parseFloat(val) || 0;
+      const r = parseFloat(currentRow.rate) || 0;
+      const tot = q * r;
+      updatedRows[index] = {
+        ...currentRow,
+        qty: val,
+        total: tot > 0 ? tot.toFixed(2) : "0.00",
+      };
+    } else {
+      updatedRows[index] = {
+        ...currentRow,
+        [field]: val,
+      };
+    }
+    updateDataAndRecalculate({ rows: updatedRows });
+  }
+
+  function handleComparisonRateChange(
+    rowIndex: number,
+    colId: string,
+    val: string
+  ) {
+    const updatedRows = [...rows];
+    const currentRow = updatedRows[rowIndex];
+    const compCol = comparisonCols.find((c) => c.id === colId);
+    const colQty = compCol ? compCol.qty : "1000";
+
+    const enteredAmount = parseFloat(val) || 0;
+    // If user cleared the input (empty string), revert is_custom to false so it can auto-recalculate from base
+    const isCustom = val.trim() !== "";
+
+    const updatedCompItem: DetailedCostingRowComparisonItem = {
+      qty: colQty,
+      rate: val,
+      total: enteredAmount > 0 ? enteredAmount.toFixed(2) : "0.00",
+      is_custom: isCustom,
     };
+
+    updatedRows[rowIndex] = {
+      ...currentRow,
+      comparisons: {
+        ...(currentRow.comparisons || {}),
+        [colId]: updatedCompItem,
+      },
+    };
+
     updateDataAndRecalculate({ rows: updatedRows });
   }
 
@@ -374,6 +549,12 @@ export function DetailedCostingGrid({
   }
 
   function handleAddRow(itemName: string = "") {
+    const compCols = data.comparison_columns || [];
+    const initialComparisons: Record<string, DetailedCostingRowComparisonItem> = {};
+    compCols.forEach((col) => {
+      initialComparisons[col.id] = { qty: col.qty, rate: "", total: "0.00", is_custom: false };
+    });
+
     if (itemName) {
       const firstEmptyIdx = rows.findIndex(
         (r) =>
@@ -386,13 +567,19 @@ export function DetailedCostingGrid({
         updatedRows[firstEmptyIdx] = {
           ...updatedRows[firstEmptyIdx],
           item_name: itemName,
+          comparisons: {
+            ...initialComparisons,
+            ...(updatedRows[firstEmptyIdx].comparisons || {}),
+          },
         };
         updateDataAndRecalculate({ rows: updatedRows });
         toast.success(`Added "${itemName}" row to costing sheet.`);
         return;
       }
     }
-    const updatedRows = [...rows, createBlankDetailedRow(itemName)];
+    const newRow = createBlankDetailedRow(itemName);
+    newRow.comparisons = initialComparisons;
+    const updatedRows = [...rows, newRow];
     updateDataAndRecalculate({ rows: updatedRows });
     if (itemName) {
       toast.success(`Added "${itemName}" row to costing sheet.`);
@@ -406,6 +593,81 @@ export function DetailedCostingGrid({
     }
     const updatedRows = rows.filter((_, i) => i !== index);
     updateDataAndRecalculate({ rows: updatedRows });
+  }
+
+  function handleAddComparisonColumn(presetQty?: string) {
+    const rawQty = presetQty !== undefined ? presetQty : newCompQtyInput.trim();
+    const cleanQty = rawQty.replace(/[^0-9.]/g, "");
+    const numQty = parseFloat(cleanQty);
+
+    if (!cleanQty || isNaN(numQty) || numQty <= 0) {
+      toast.error("Please enter a valid comparison quantity (e.g. 2000).");
+      return;
+    }
+
+    const currentCompCols = data.comparison_columns || [];
+    if (currentCompCols.some((c) => parseFloat(c.qty) === numQty)) {
+      toast.error(`${Number(cleanQty).toLocaleString()} pcs bulk rate column already exists.`);
+      return;
+    }
+
+    const newColId = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const newCompCol: DetailedCostingComparisonColumn = {
+      id: newColId,
+      qty: cleanQty,
+      label: `${Number(cleanQty).toLocaleString()} pcs`,
+    };
+
+    const updatedRows = rows.map((r) => {
+      const q = parseFloat(r.qty) || 0;
+      const rate = parseFloat(r.rate) || 0;
+      const rowTotal = q * rate;
+      const unitRate = rate > 0 ? rate : (q > 0 ? rowTotal / q : 0);
+      const autoAmount = unitRate > 0 && numQty > 0 ? (numQty * unitRate).toFixed(2) : "";
+
+      return {
+        ...r,
+        comparisons: {
+          ...(r.comparisons || {}),
+          [newColId]: {
+            qty: cleanQty,
+            rate: autoAmount,
+            total: autoAmount || "0.00",
+            is_custom: false,
+          },
+        },
+      };
+    });
+
+    setNewCompQtyInput("");
+    setIsAddingCompQty(false);
+    updateDataAndRecalculate({
+      comparison_columns: [...currentCompCols, newCompCol],
+      rows: updatedRows,
+    });
+    toast.success(`Added ${Number(cleanQty).toLocaleString()} pcs bulk rate column.`);
+  }
+
+  function handleDeleteComparisonColumn(colId: string) {
+    const currentCompCols = data.comparison_columns || [];
+    const targetCol = currentCompCols.find((c) => c.id === colId);
+    const updatedCompCols = currentCompCols.filter((c) => c.id !== colId);
+
+    const updatedRows = rows.map((r) => {
+      const copy = { ...(r.comparisons || {}) };
+      delete copy[colId];
+      return { ...r, comparisons: copy };
+    });
+
+    updateDataAndRecalculate({
+      comparison_columns: updatedCompCols,
+      rows: updatedRows,
+    });
+
+    toast.success(
+      `Removed ${targetCol?.qty ? Number(targetCol.qty).toLocaleString() + " pcs" : ""} comparison column.`
+    );
   }
 
   // Column modifications
@@ -565,7 +827,7 @@ export function DetailedCostingGrid({
 
   const colItemLabel = data.col_item_label || "Item / Process Name";
   const colQtyLabel = data.col_qty_label || "Qty.";
-  const colRateLabel = data.col_rate_label || "Rate";
+  const colRateLabel = !data.col_rate_label || data.col_rate_label === "Rate" ? "Rate / pc" : data.col_rate_label;
   const colTotalLabel = data.col_total_label || "Total Amount";
 
   const totalCostNumber = parseFloat(data.total_cost || "0") || 0;
@@ -606,9 +868,9 @@ export function DetailedCostingGrid({
           </span>
         </div>
 
-        {/* Action Buttons: Add Column & Add Row */}
+        {/* Action Buttons: Add Column, Add Comparison Qty & Add Row */}
         {!readOnly && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isAddingCol ? (
               <div className="flex items-center gap-1.5 bg-white border border-primary-500 rounded-md p-1 shadow-xs">
                 <input
@@ -626,7 +888,7 @@ export function DetailedCostingGrid({
                 <button
                   type="button"
                   onClick={handleAddCustomColumn}
-                  className="p-1 rounded bg-primary-600 text-white hover:bg-primary-700 transition"
+                  className="p-1 rounded bg-primary-600 text-white hover:bg-primary-700 transition cursor-pointer"
                   title="Add column"
                 >
                   <Check className="h-3.5 w-3.5" />
@@ -634,7 +896,7 @@ export function DetailedCostingGrid({
                 <button
                   type="button"
                   onClick={() => setIsAddingCol(false)}
-                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-sunken transition"
+                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-sunken transition cursor-pointer"
                   title="Cancel"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -650,6 +912,70 @@ export function DetailedCostingGrid({
               >
                 <Plus className="h-3.5 w-3.5 text-primary-600" />
                 <span>Add Column</span>
+              </Button>
+            )}
+
+            {/* Add Bulk Qty Button & Popover Input */}
+            {isAddingCompQty ? (
+              <div className="flex items-center gap-1.5 bg-white border border-emerald-500 rounded-md p-1 shadow-xs">
+                <input
+                  type="number"
+                  value={newCompQtyInput}
+                  onChange={(e) => setNewCompQtyInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddComparisonColumn();
+                    if (e.key === "Escape") {
+                      setIsAddingCompQty(false);
+                      setNewCompQtyInput("");
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Qty (e.g. 2000)"
+                  className="text-xs px-2 py-1 text-ink focus:outline-none w-28 font-mono"
+                />
+                <div className="hidden sm:flex items-center gap-1">
+                  {[2000, 3000, 5000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAddComparisonColumn(String(preset))}
+                      className="text-[10.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                    >
+                      +{preset.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddComparisonColumn()}
+                  className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer"
+                  title="Add bulk quantity column"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCompQty(false);
+                    setNewCompQtyInput("");
+                  }}
+                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-sunken transition cursor-pointer"
+                  title="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsAddingCompQty(true)}
+                className="text-xs h-8 gap-1.5 border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-800 font-bold"
+                title="Add a bulk rate column for 2000, 3000, 5000 pcs"
+              >
+                <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                <span>+ Add Bulk Qty</span>
               </Button>
             )}
 
@@ -670,70 +996,34 @@ export function DetailedCostingGrid({
       {/* Spreadsheet Table in CRM Theme */}
       <div className="overflow-x-auto rounded-lg border border-border shadow-2xs bg-white">
         <table className="w-full text-left text-xs border-collapse">
-          {/* Header row in CRM style */}
+          {/* Header Rows */}
           <thead>
-            <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-              {/* Sr. No. */}
-              <th className="w-12 px-3 py-2.5 text-center border-r border-border">
-                #
-              </th>
+            {comparisonCols.length === 0 ? (
+              /* Single Header Row (Clean layout when no bulk comparison columns exist) */
+              <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                {/* Sr. No. */}
+                <th className="w-12 px-3 py-2.5 text-center border-r border-border">
+                  #
+                </th>
 
-              {/* Column 1: Item / Process Name */}
-              <th className="min-w-[260px] sm:min-w-[320px] px-3.5 py-2.5 border-r border-border">
-                {editingHeaderKey === "item" ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={headerTempText}
-                      onChange={(e) => setHeaderTempText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveHeaderEdit("item");
-                        if (e.key === "Escape") setEditingHeaderKey(null);
-                      }}
-                      autoFocus
-                      className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveHeaderEdit("item")}
-                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between group">
-                    <span
-                      onClick={() => handleStartEditHeader("item", colItemLabel)}
-                      className="cursor-pointer hover:text-primary-700 flex items-center gap-1.5"
-                      title="Click to rename column header"
-                    >
-                      {colItemLabel}
-                      {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                    </span>
-                  </div>
-                )}
-              </th>
-
-              {/* Custom Columns */}
-              {customCols.map((c) => (
-                <th key={c.key} className="px-3 py-2.5 min-w-[130px] text-center border-r border-border">
-                  {editingHeaderKey === c.key ? (
+                {/* Column 1: Item / Process Name */}
+                <th className="min-w-[260px] sm:min-w-[320px] px-3.5 py-2.5 border-r border-border">
+                  {editingHeaderKey === "item" ? (
                     <div className="flex items-center gap-1">
                       <input
                         type="text"
                         value={headerTempText}
                         onChange={(e) => setHeaderTempText(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveHeaderEdit(c.key);
+                          if (e.key === "Enter") handleSaveHeaderEdit("item");
                           if (e.key === "Escape") setEditingHeaderKey(null);
                         }}
                         autoFocus
-                        className="bg-white text-ink text-xs px-1.5 py-0.5 rounded border border-primary-500 font-medium w-full"
+                        className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full"
                       />
                       <button
                         type="button"
-                        onClick={() => handleSaveHeaderEdit(c.key)}
+                        onClick={() => handleSaveHeaderEdit("item")}
                         className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -742,145 +1032,432 @@ export function DetailedCostingGrid({
                   ) : (
                     <div className="flex items-center justify-between group">
                       <span
-                        onClick={() => handleStartEditHeader(c.key, c.label)}
-                        className="cursor-pointer hover:text-primary-700"
+                        onClick={() => handleStartEditHeader("item", colItemLabel)}
+                        className="cursor-pointer hover:text-primary-700 flex items-center gap-1.5"
                         title="Click to rename column header"
                       >
-                        {c.label}
+                        {colItemLabel}
+                        {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
                       </span>
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCustomColumn(c.key)}
-                          className="p-1 text-ink-muted hover:text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Delete column"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
                     </div>
                   )}
                 </th>
-              ))}
 
-              {/* Column 2: Qty. */}
-              <th className="w-28 px-3 py-2.5 text-right border-r border-border">
-                {editingHeaderKey === "qty" ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={headerTempText}
-                      onChange={(e) => setHeaderTempText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveHeaderEdit("qty");
-                        if (e.key === "Escape") setEditingHeaderKey(null);
-                      }}
-                      autoFocus
-                      className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveHeaderEdit("qty")}
-                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-end gap-1.5 group">
-                    <span
-                      onClick={() => handleStartEditHeader("qty", colQtyLabel)}
-                      className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                      title="Click to rename column header"
-                    >
-                      {colQtyLabel}
-                      {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                    </span>
-                  </div>
-                )}
-              </th>
+                {/* Custom Columns */}
+                {customCols.map((c) => (
+                  <th key={c.key} className="px-3 py-2.5 min-w-[130px] text-center border-r border-border">
+                    {editingHeaderKey === c.key ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={headerTempText}
+                          onChange={(e) => setHeaderTempText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveHeaderEdit(c.key);
+                            if (e.key === "Escape") setEditingHeaderKey(null);
+                          }}
+                          autoFocus
+                          className="bg-white text-ink text-xs px-1.5 py-0.5 rounded border border-primary-500 font-medium w-full"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHeaderEdit(c.key)}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between group">
+                        <span
+                          onClick={() => handleStartEditHeader(c.key, c.label)}
+                          className="cursor-pointer hover:text-primary-700"
+                          title="Click to rename column header"
+                        >
+                          {c.label}
+                        </span>
+                        {!readOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomColumn(c.key)}
+                            className="p-1 text-ink-muted hover:text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete column"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </th>
+                ))}
 
-              {/* Column 3: Rate */}
-              <th className="w-32 px-3 py-2.5 text-right border-r border-border">
-                {editingHeaderKey === "rate" ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={headerTempText}
-                      onChange={(e) => setHeaderTempText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveHeaderEdit("rate");
-                        if (e.key === "Escape") setEditingHeaderKey(null);
-                      }}
-                      autoFocus
-                      className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveHeaderEdit("rate")}
-                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-end gap-1.5 group">
-                    <span
-                      onClick={() => handleStartEditHeader("rate", colRateLabel)}
-                      className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                      title="Click to rename column header"
-                    >
-                      {colRateLabel}
-                      {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                    </span>
-                  </div>
-                )}
-              </th>
-
-              {/* Column 4: Total Amount */}
-              <th className="w-36 px-3 py-2.5 text-right border-r border-border">
-                {editingHeaderKey === "total" ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={headerTempText}
-                      onChange={(e) => setHeaderTempText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveHeaderEdit("total");
-                        if (e.key === "Escape") setEditingHeaderKey(null);
-                      }}
-                      autoFocus
-                      className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveHeaderEdit("total")}
-                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-end gap-1.5 group">
-                    <span
-                      onClick={() => handleStartEditHeader("total", colTotalLabel)}
-                      className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                      title="Click to rename column header"
-                    >
-                      {colTotalLabel}
-                      {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                    </span>
-                  </div>
-                )}
-              </th>
-
-              {/* Actions Header */}
-              {!readOnly && (
-                <th className="w-10 px-2 py-2.5 text-center">
-                  <span className="sr-only">Actions</span>
+                {/* Column 2: Qty. */}
+                <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                  {editingHeaderKey === "qty" ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={headerTempText}
+                        onChange={(e) => setHeaderTempText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveHeaderEdit("qty");
+                          if (e.key === "Escape") setEditingHeaderKey(null);
+                        }}
+                        autoFocus
+                        className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveHeaderEdit("qty")}
+                        className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1.5 group">
+                      <span
+                        onClick={() => handleStartEditHeader("qty", colQtyLabel)}
+                        className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                        title="Click to rename column header"
+                      >
+                        {colQtyLabel}
+                        {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                      </span>
+                    </div>
+                  )}
                 </th>
-              )}
-            </tr>
+
+                {/* Column 3: Rate */}
+                <th className="w-32 px-3 py-2.5 text-right border-r border-border">
+                  {editingHeaderKey === "rate" ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={headerTempText}
+                        onChange={(e) => setHeaderTempText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveHeaderEdit("rate");
+                          if (e.key === "Escape") setEditingHeaderKey(null);
+                        }}
+                        autoFocus
+                        className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveHeaderEdit("rate")}
+                        className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1.5 group">
+                      <span
+                        onClick={() => handleStartEditHeader("rate", colRateLabel)}
+                        className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                        title="Click to rename column header"
+                      >
+                        {colRateLabel}
+                        {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                      </span>
+                    </div>
+                  )}
+                </th>
+
+                {/* Column 4: Total Amount */}
+                <th className="w-36 px-3 py-2.5 text-right border-r border-border">
+                  {editingHeaderKey === "total" ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={headerTempText}
+                        onChange={(e) => setHeaderTempText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveHeaderEdit("total");
+                          if (e.key === "Escape") setEditingHeaderKey(null);
+                        }}
+                        autoFocus
+                        className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveHeaderEdit("total")}
+                        className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1.5 group">
+                      <span
+                        onClick={() => handleStartEditHeader("total", colTotalLabel)}
+                        className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                        title="Click to rename column header"
+                      >
+                        {colTotalLabel}
+                        {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                      </span>
+                    </div>
+                  )}
+                </th>
+
+                {/* Actions Header */}
+                {!readOnly && (
+                  <th className="w-10 px-2 py-2.5 text-center">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                )}
+              </tr>
+            ) : (
+              /* Two-Tier Grouped Header (When Comparison Columns Exist) */
+              <>
+                <tr className="border-b border-border bg-surface-sunken/70 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  {/* Sr. No. */}
+                  <th rowSpan={2} className="w-12 px-3 py-2.5 text-center border-r border-border">
+                    #
+                  </th>
+
+                  {/* Column 1: Item / Process Name */}
+                  <th rowSpan={2} className="min-w-[220px] sm:min-w-[260px] px-3.5 py-2.5 border-r border-border">
+                    {editingHeaderKey === "item" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={headerTempText}
+                          onChange={(e) => setHeaderTempText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveHeaderEdit("item");
+                            if (e.key === "Escape") setEditingHeaderKey(null);
+                          }}
+                          autoFocus
+                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHeaderEdit("item")}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between group">
+                        <span
+                          onClick={() => handleStartEditHeader("item", colItemLabel)}
+                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1.5"
+                          title="Click to rename column header"
+                        >
+                          {colItemLabel}
+                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                        </span>
+                      </div>
+                    )}
+                  </th>
+
+                  {/* Custom Columns */}
+                  {customCols.map((c) => (
+                    <th key={c.key} rowSpan={2} className="px-3 py-2.5 min-w-[110px] text-center border-r border-border">
+                      {editingHeaderKey === c.key ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={headerTempText}
+                            onChange={(e) => setHeaderTempText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveHeaderEdit(c.key);
+                              if (e.key === "Escape") setEditingHeaderKey(null);
+                            }}
+                            autoFocus
+                            className="bg-white text-ink text-xs px-1.5 py-0.5 rounded border border-primary-500 font-medium w-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveHeaderEdit(c.key)}
+                            className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between group">
+                          <span
+                            onClick={() => handleStartEditHeader(c.key, c.label)}
+                            className="cursor-pointer hover:text-primary-700"
+                            title="Click to rename column header"
+                          >
+                            {c.label}
+                          </span>
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomColumn(c.key)}
+                              className="p-1 text-ink-muted hover:text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Delete column"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </th>
+                  ))}
+
+                  {/* Column 2: Qty. */}
+                  <th rowSpan={2} className="w-24 px-3 py-2.5 text-right border-r border-border">
+                    {editingHeaderKey === "qty" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={headerTempText}
+                          onChange={(e) => setHeaderTempText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveHeaderEdit("qty");
+                            if (e.key === "Escape") setEditingHeaderKey(null);
+                          }}
+                          autoFocus
+                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHeaderEdit("qty")}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1.5 group">
+                        <span
+                          onClick={() => handleStartEditHeader("qty", colQtyLabel)}
+                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                          title="Click to rename column header"
+                        >
+                          {colQtyLabel}
+                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                        </span>
+                      </div>
+                    )}
+                  </th>
+
+                  {/* Column 3: Rate / pc */}
+                  <th rowSpan={2} className="w-28 px-3 py-2.5 text-right border-r border-border">
+                    {editingHeaderKey === "rate" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={headerTempText}
+                          onChange={(e) => setHeaderTempText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveHeaderEdit("rate");
+                            if (e.key === "Escape") setEditingHeaderKey(null);
+                          }}
+                          autoFocus
+                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHeaderEdit("rate")}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1.5 group">
+                        <span
+                          onClick={() => handleStartEditHeader("rate", colRateLabel)}
+                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                          title="Click to rename column header"
+                        >
+                          {colRateLabel}
+                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                        </span>
+                      </div>
+                    )}
+                  </th>
+
+                  {/* Column 4: Total Amount */}
+                  <th rowSpan={2} className="w-28 px-3 py-2.5 text-right border-r border-border">
+                    {editingHeaderKey === "total" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={headerTempText}
+                          onChange={(e) => setHeaderTempText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveHeaderEdit("total");
+                            if (e.key === "Escape") setEditingHeaderKey(null);
+                          }}
+                          autoFocus
+                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHeaderEdit("total")}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1.5 group">
+                        <span
+                          onClick={() => handleStartEditHeader("total", colTotalLabel)}
+                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
+                          title="Click to rename column header"
+                        >
+                          {colTotalLabel}
+                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
+                        </span>
+                      </div>
+                    )}
+                  </th>
+
+                  {/* Group Header: BULK RATES */}
+                  <th
+                    colSpan={comparisonCols.length}
+                    className="px-3 py-2 text-center border-r border-border bg-emerald-50/80 text-emerald-950 border-b border-emerald-300"
+                  >
+                    <span className="font-extrabold uppercase tracking-wide text-emerald-900 text-[11px]">
+                      Bulk Rates
+                    </span>
+                  </th>
+
+                  {/* Actions Header */}
+                  {!readOnly && (
+                    <th rowSpan={2} className="w-10 px-2 py-2.5 text-center">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
+                </tr>
+
+                {/* Sub-Header Row: Only the added comparison quantities */}
+                <tr className="border-b border-border bg-emerald-50/40 text-[10.5px] font-bold uppercase tracking-wider text-emerald-950">
+                  {comparisonCols.map((comp) => (
+                    <th key={comp.id} className="w-28 px-2.5 py-1.5 text-right border-r border-border bg-emerald-50/60">
+                      <div className="flex items-center justify-between gap-1">
+                        {!readOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComparisonColumn(comp.id)}
+                            className="p-0.5 rounded text-neutral-400 hover:text-red-600 hover:bg-white transition cursor-pointer"
+                            title={`Remove ${comp.qty} pcs column`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                        <div className="flex items-center gap-1 ml-auto">
+                          <span className="font-mono font-black text-emerald-900">
+                            {Number(comp.qty).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </>
+            )}
           </thead>
 
           {/* Table Body in CRM theme */}
@@ -969,10 +1546,50 @@ export function DetailedCostingGrid({
                     />
                   </td>
 
-                  {/* Column 4: Total Amount (Calculated) */}
-                  <td className="p-2 border-r border-border text-right font-mono font-bold text-ink">
-                    {rowTotal > 0 ? rowTotal.toFixed(2) : "0.00"}
+                  {/* Column 4: Total Amount (Editable, updates Rate automatically) */}
+                  <td className="p-1.5 border-r border-border">
+                    <input
+                      type="number"
+                      step="any"
+                      value={row.total}
+                      disabled={readOnly}
+                      onChange={(e) => handleRowFieldChange(index, "total", e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-right font-mono font-bold text-ink bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-border/80 focus:border-primary-500 rounded px-2 py-1 text-xs focus:outline-none transition shadow-none focus:shadow-2xs focus:ring-1 focus:ring-primary-100"
+                      title="Total process cost (updates Rate if changed)"
+                    />
                   </td>
+
+                  {/* Bulk Rate Columns for Comparison Quantities (ONLY if added!) */}
+                  {comparisonCols.map((col) => {
+                    const compAmount = row.comparisons?.[col.id]?.rate ?? "";
+                    const colQtyNum = parseFloat(col.qty) || 1;
+                    const numAmount = parseFloat(compAmount) || 0;
+                    const perPcRate = colQtyNum > 0 && numAmount > 0 ? numAmount / colQtyNum : 0;
+
+                    return (
+                      <td key={col.id} className="p-1.5 border-r border-border bg-emerald-50/10 align-top">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <input
+                            type="number"
+                            step="any"
+                            value={compAmount}
+                            disabled={readOnly}
+                            onChange={(e) => handleComparisonRateChange(index, col.id, e.target.value)}
+                            placeholder="0.00"
+                            className="w-full text-right font-mono text-emerald-900 font-semibold bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-emerald-300 focus:border-emerald-500 rounded px-2 py-1 text-xs focus:outline-none transition shadow-none focus:shadow-2xs focus:ring-1 focus:ring-emerald-100"
+                            title={`Total cost for ${Number(col.qty).toLocaleString()} pcs`}
+                          />
+                          <span
+                            className="text-[10px] font-mono font-bold text-emerald-700/90 pr-1 tracking-tight"
+                            title={`Per piece rate: ${formatCurrency(perPcRate, currencyCode, 2)} / pc`}
+                          >
+                            {perPcRate > 0 ? `${formatCurrency(perPcRate, currencyCode, 2)}/pc` : "— /pc"}
+                          </span>
+                        </div>
+                      </td>
+                    );
+                  })}
 
                   {/* Delete Row Button */}
                   {!readOnly && (
@@ -980,7 +1597,7 @@ export function DetailedCostingGrid({
                       <button
                         type="button"
                         onClick={() => handleDeleteRow(index)}
-                        className="p-1.5 rounded text-ink-faint hover:text-red-600 hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
+                        className="p-1.5 rounded text-ink-faint hover:text-red-600 hover:bg-red-50 transition opacity-0 group-hover:opacity-100 cursor-pointer"
                         title="Delete row"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

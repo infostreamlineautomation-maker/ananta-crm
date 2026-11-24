@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Receipt, Search, Trash2, Image as ImageIcon } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, Copy, CreditCard, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Receipt, Search, Trash2, Zap, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { useOrganization } from "@/lib/organization-context";
@@ -12,6 +12,7 @@ import { Client, ClientGroup, Company, Country, OrderDetail, OrderImage, OrderSu
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
+import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
 import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
 import { useToast } from "@/components/ui/Toast";
@@ -21,7 +22,6 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
-import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
@@ -34,6 +34,30 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
   { header: "Project No", accessor: (o: any) => o.order_no, category: "Basic Info", defaultSelected: true },
   { header: "Project Name / Title", accessor: (o: any) => o.project_title || o.project_name || "", category: "Basic Info", defaultSelected: true },
   { header: "Product", accessor: (o: any) => o.product_names || (o.items?.map((it: any) => it.product_name).filter(Boolean).join(", ") || ""), category: "Basic Info", defaultSelected: true },
+  {
+    header: "Quantity (QTY)",
+    accessor: (o: any) => {
+      if (o.total_qty !== undefined && o.total_qty !== null && o.total_qty !== 0) return o.total_qty;
+      if (o.items && o.items.length > 0) {
+        return o.items.reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+      }
+      return "";
+    },
+    category: "Basic Info",
+    defaultSelected: true,
+  },
+  {
+    header: "Rate",
+    accessor: (o: any) => {
+      if (o.rates_preview) return o.rates_preview;
+      if (o.items && o.items.length > 0) {
+        return o.items.map((it: any) => it.rate).join(", ");
+      }
+      return "";
+    },
+    category: "Basic Info",
+    defaultSelected: true,
+  },
   { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info", defaultSelected: true },
   { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor", defaultSelected: true },
   { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor", defaultSelected: false },
@@ -84,6 +108,8 @@ const ORDERS_COLUMNS: ColumnDef[] = [
   { key: "order_no", label: "Project No", required: true },
   { key: "project_title", label: "Project Name / Title", defaultVisible: false },
   { key: "product_name", label: "Product", defaultVisible: false },
+  { key: "qty", label: "Quantity (QTY)", defaultVisible: false },
+  { key: "rate", label: "Rate", defaultVisible: false },
   { key: "images", label: "Images" },
   { key: "date", label: "Date" },
   { key: "client_name", label: "Client" },
@@ -106,13 +132,20 @@ const ORDERS_COLUMNS: ColumnDef[] = [
 ];
 
 export default function OrdersPage() {
-  const { can } = useAuth();
+  const { can, isClientUser } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const filteredColumns = useMemo(() => {
+    if (isClientUser) {
+      return ORDERS_COLUMNS.filter((col) => col.key !== "supplier_name");
+    }
+    return ORDERS_COLUMNS;
+  }, [isClientUser]);
+
   const grid = useTableGrid({
-    tableKey: "orders",
-    defaultColumns: ORDERS_COLUMNS,
+    tableKey: isClientUser ? "portal_orders" : "orders",
+    defaultColumns: filteredColumns,
     defaultVisibleKeys: [
       "select",
       "order_no",
@@ -138,6 +171,7 @@ export default function OrdersPage() {
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
   const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=300");
 
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
@@ -295,14 +329,19 @@ export default function OrdersPage() {
 
   const basePath = useMemo(() => {
     const params = new URLSearchParams();
-    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (selectedClient) {
+      params.set("client", String(selectedClient.id));
+    } else if (debouncedSearch) {
+      params.set("search", debouncedSearch);
+    }
     if (selectedGroup !== "all") params.set("client_group", String(selectedGroup));
     appendQueryParams(params);
     return `/api/orders/?${params.toString()}`;
-  }, [debouncedSearch, selectedGroup, appendQueryParams]);
+  }, [selectedClient, debouncedSearch, selectedGroup, appendQueryParams]);
 
   const {
     items: orders,
+    setItems: setOrders,
     count: totalCount,
     loading,
     loadingMore,
@@ -312,43 +351,175 @@ export default function OrdersPage() {
     extra,
   } = useInfinitePaginatedList<OrderSummary>(basePath);
 
-  const { activeOrganization } = useOrganization();
-  const displayCurrency = orders[0]?.currency_code || activeOrganization?.default_currency_code || "INR";
+  const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
+  const [bulkPaying, setBulkPaying] = useState(false);
 
-  const localTotals = useMemo(() => {
+  function handleOrderPaymentUpdated(updated: OrderSummary) {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o))
+    );
+  }
+
+  async function bulkMarkPaid() {
+    if (selected.size === 0) return;
+    setBulkPaying(true);
+    try {
+      const selectedList = orders.filter((o) => selected.has(o.id));
+      await Promise.all(
+        selectedList.map((o) =>
+          apiFetch(`/api/orders/${o.id}/`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              payment_status: "paid",
+              paid_amount: Number(o.grand_total || 0),
+            }),
+          })
+        )
+      );
+      toast.success(`${selected.size} project${selected.size === 1 ? "" : "s"} marked as Paid.`);
+      setOrders((prev) =>
+        prev.map((o) =>
+          selected.has(o.id)
+            ? {
+                ...o,
+                payment_status: "paid",
+                paid_amount: o.grand_total,
+                due_amount: "0.00",
+              }
+            : o
+        )
+      );
+      setSelected(new Set());
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't update payments.");
+    } finally {
+      setBulkPaying(false);
+    }
+  }
+
+  const { activeOrganization } = useOrganization();
+  const baseCurrency = extra?.converted_totals?.base_currency || activeOrganization?.default_currency_code || "INR";
+  const displayCurrency = orders[0]?.currency_code || baseCurrency;
+
+  // Calculates unified converted totals in base currency (e.g. INR) using exchange rates
+  const effectiveTotals = useMemo(() => {
+    // 1. If specific rows are selected via checkboxes, calculate strictly from selected rows
+    if (selected.size > 0) {
+      let grandTotal = 0;
+      let paidAmount = 0;
+      let dueAmount = 0;
+      const currencyMap = new Map<string, { grandTotal: number; paidAmount: number; dueAmount: number }>();
+
+      for (const o of orders) {
+        if (selected.has(o.id)) {
+          const curr = (o.currency_code || baseCurrency).toUpperCase();
+          const rate = Number(o.exchange_rate || (curr === baseCurrency ? 1 : (extra?.currency_totals?.[curr]?.exchange_rate || 1)));
+          const gt = Number(o.grand_total || 0);
+          const pa = Number(o.paid_amount || 0);
+          const da = Number(o.due_amount || 0);
+
+          grandTotal += gt * rate;
+          paidAmount += pa * rate;
+          dueAmount += da * rate;
+
+          const existing = currencyMap.get(curr) || { grandTotal: 0, paidAmount: 0, dueAmount: 0 };
+          existing.grandTotal += gt;
+          existing.paidAmount += pa;
+          existing.dueAmount += da;
+          currencyMap.set(curr, existing);
+        }
+      }
+
+      const breakdown = Array.from(currencyMap.entries()).map(([currency, vals]) => ({ currency, ...vals }));
+      const hasForeign = breakdown.some((b) => b.currency !== baseCurrency);
+
+      return {
+        baseCurrency,
+        grandTotal,
+        paidAmount,
+        dueAmount,
+        hasForeign,
+        breakdown,
+      };
+    }
+
+    // 2. Across all matching records from server
+    if (extra?.converted_totals) {
+      const breakdown = extra?.currency_totals
+        ? Object.entries(extra.currency_totals).map(([curr, vals]: [string, any]) => ({
+            currency: curr,
+            grandTotal: Number(vals.grand_total || 0),
+            paidAmount: Number(vals.paid_amount || 0),
+            dueAmount: Number(vals.due_amount || 0),
+          }))
+        : [];
+      const hasForeign = Boolean(extra.converted_totals.has_foreign_currency) || breakdown.some((b) => b.currency !== baseCurrency);
+
+      return {
+        baseCurrency: extra.converted_totals.base_currency || baseCurrency,
+        grandTotal: Number(extra.converted_totals.grand_total || 0),
+        paidAmount: Number(extra.converted_totals.paid_amount || 0),
+        dueAmount: Number(extra.converted_totals.due_amount || 0),
+        hasForeign,
+        breakdown,
+      };
+    }
+
+    // 3. Fallback: calculate from loaded orders
     let grandTotal = 0;
     let paidAmount = 0;
     let dueAmount = 0;
-    for (const o of orders) {
-      grandTotal += Number(o.grand_total || 0);
-      paidAmount += Number(o.paid_amount || 0);
-      dueAmount += Number(o.due_amount || 0);
-    }
-    return { grandTotal, paidAmount, dueAmount };
-  }, [orders]);
+    const currencyMap = new Map<string, { grandTotal: number; paidAmount: number; dueAmount: number }>();
 
-  const totalGrand = extra?.total_grand_total !== undefined ? Number(extra.total_grand_total) : localTotals.grandTotal;
-  const totalPaid = extra?.total_paid_amount !== undefined ? Number(extra.total_paid_amount) : localTotals.paidAmount;
-  const totalDue = extra?.total_due_amount !== undefined ? Number(extra.total_due_amount) : localTotals.dueAmount;
+    for (const o of orders) {
+      const curr = (o.currency_code || baseCurrency).toUpperCase();
+      const rate = Number(o.exchange_rate || 1);
+      const gt = Number(o.grand_total || 0);
+      const pa = Number(o.paid_amount || 0);
+      const da = Number(o.due_amount || 0);
+
+      grandTotal += gt * rate;
+      paidAmount += pa * rate;
+      dueAmount += da * rate;
+
+      const existing = currencyMap.get(curr) || { grandTotal: 0, paidAmount: 0, dueAmount: 0 };
+      existing.grandTotal += gt;
+      existing.paidAmount += pa;
+      existing.dueAmount += da;
+      currencyMap.set(curr, existing);
+    }
+
+    const breakdown = Array.from(currencyMap.entries()).map(([currency, vals]) => ({ currency, ...vals }));
+    const hasForeign = breakdown.some((b) => b.currency !== baseCurrency);
+
+    return {
+      baseCurrency,
+      grandTotal,
+      paidAmount,
+      dueAmount,
+      hasForeign,
+      breakdown,
+    };
+  }, [orders, selected, extra, baseCurrency]);
+
+  const currencyTotals = useMemo(() => effectiveTotals.breakdown, [effectiveTotals]);
+
+  const totalGrand = effectiveTotals.grandTotal;
+  const totalPaid = effectiveTotals.paidAmount;
+  const totalDue = effectiveTotals.dueAmount;
 
   const selectedTotals = useMemo(() => {
     if (selected.size === 0) return null;
-    let grandTotal = 0;
-    let paidAmount = 0;
-    let dueAmount = 0;
-    for (const o of orders) {
-      if (selected.has(o.id)) {
-        grandTotal += Number(o.grand_total || 0);
-        paidAmount += Number(o.paid_amount || 0);
-        dueAmount += Number(o.due_amount || 0);
-      }
-    }
-    return { grandTotal, paidAmount, dueAmount };
-  }, [orders, selected]);
+    return {
+      grandTotal: effectiveTotals.grandTotal,
+      paidAmount: effectiveTotals.paidAmount,
+      dueAmount: effectiveTotals.dueAmount,
+    };
+  }, [selected, effectiveTotals]);
 
-  const canAdd = can("orders", "add");
-  const canEdit = can("orders", "edit");
-  const canDelete = can("orders", "delete");
+  const canAdd = !isClientUser && can("orders", "add");
+  const canEdit = !isClientUser && can("orders", "edit");
+  const canDelete = !isClientUser && can("orders", "delete");
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -397,6 +568,18 @@ export default function OrdersPage() {
             <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer font-bold"
+                onClick={bulkMarkPaid}
+                loading={bulkPaying}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Mark Paid ({selected.size})</span>
+              </Button>
+            )}
             {canDelete && (
               <Button size="sm" variant="primary" onClick={bulkDelete} loading={bulkDeleting}>
                 Delete Selected
@@ -410,7 +593,7 @@ export default function OrdersPage() {
           onSearchChange={(val) => {
             setSearch(val);
           }}
-          searchPlaceholder="Search project no, description..."
+          searchPlaceholder="Search project no, client, description..."
           filters={filterColumns}
           activeFilters={activeFilters}
           onFilterChange={(k, v) => {
@@ -418,6 +601,13 @@ export default function OrdersPage() {
           }}
           onReset={() => {
             resetFilters();
+            setSearch("");
+            setSelectedClient(null);
+          }}
+          clientSuggestions={allClients}
+          selectedClient={selectedClient}
+          onSelectClient={(c) => {
+            setSelectedClient(c ? (allClients.find((cl) => cl.id === c.id) || (c as Client)) : null);
             setSearch("");
           }}
           actions={
@@ -451,79 +641,80 @@ export default function OrdersPage() {
       )}
 
       {/* Client Group Filter Tabs */}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 text-xs -mt-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mr-1 flex items-center gap-1">
-            <Layers className="h-3.5 w-3.5 text-primary-600" />
-            Group:
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedGroup("all");
-            }}
-            className={clsx(
-              "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
-              selectedGroup === "all"
-                ? "bg-primary-600 text-white border-primary-600 shadow-xs"
-                : "bg-white text-ink-muted hover:text-ink hover:bg-sand-50 border-border"
-            )}
-          >
-            All Clients
-          </button>
-          {clientGroups.map((grp) => {
-            const isSelected = selectedGroup === grp.id;
-            const count = grp.clients_count ?? (grp.clients?.length || 0);
-            return (
-              <button
-                key={grp.id}
-                type="button"
-                onClick={() => {
-                  setSelectedGroup(grp.id);
-                }}
-                className={clsx(
-                  "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs",
-                  isSelected
-                    ? "bg-primary-50 text-primary-800 border-primary-300 shadow-xs ring-1 ring-primary-300"
-                    : "bg-white text-ink hover:text-primary-700 hover:bg-sand-50 border-border"
-                )}
-              >
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: grp.color || "#881337" }}
-                />
-                <span>{grp.name}</span>
-                <span
+      {!isClientUser && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs -mt-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mr-1 flex items-center gap-1 shrink-0">
+              <Layers className="h-3.5 w-3.5 text-primary-600" />
+              Group:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedGroup("all");
+              }}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs cursor-pointer shrink-0",
+                selectedGroup === "all"
+                  ? "bg-primary-600 text-white border-primary-600 shadow-xs"
+                  : "bg-white text-ink-muted hover:text-ink hover:bg-sand-50 border-border"
+              )}
+            >
+              All Clients
+            </button>
+            {clientGroups.map((grp) => {
+              const isSelected = selectedGroup === grp.id;
+              const count = grp.clients_count ?? (grp.clients?.length || 0);
+              return (
+                <button
+                  key={grp.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedGroup(grp.id);
+                  }}
                   className={clsx(
-                    "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none",
+                    "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs cursor-pointer shrink-0",
                     isSelected
-                      ? "bg-primary-200/80 text-primary-900"
-                      : "bg-sand-100 text-ink-muted"
+                      ? "bg-primary-50 text-primary-800 border-primary-300 shadow-xs ring-1 ring-primary-300"
+                      : "bg-white text-ink hover:text-primary-700 hover:bg-sand-50 border-border"
                   )}
                 >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: grp.color || "#881337" }}
+                  />
+                  <span>{grp.name}</span>
+                  <span
+                    className={clsx(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none",
+                      isSelected
+                        ? "bg-primary-200/80 text-primary-900"
+                        : "bg-sand-100 text-ink-muted"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setGroupModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-hover border border-dashed border-border transition-all flex items-center gap-1 cursor-pointer shrink-0"
+              title="Create and manage client groups"
+            >
+              <Plus className="h-3.5 w-3.5 text-primary-600" />
+              <span>Manage Groups</span>
+            </button>
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setGroupModalOpen(true)}
-          className="shrink-0 text-xs text-ink font-medium h-7.5 border-dashed"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1 text-primary-600" />
-          Manage Groups
-        </Button>
-      </div>
+      )}
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+      <Card className="overflow-hidden">
+        <div className="overflow-auto max-h-[calc(100vh-210px)] relative scrollbar-thin">
+          <table className="w-full text-left text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                 {grid.columns
                   .filter((col) => grid.visibleColumns.has(col.key))
                   .map((col) => {
@@ -564,6 +755,8 @@ export default function OrdersPage() {
                     }
 
                     const isRight = ["subtotal", "tax_percent", "tax_amount", "grand_total", "paid_amount", "due_amount"].includes(col.key);
+                    const isCenter = ["qty", "rate", "currency_code", "date", "delivery_status", "payment_status", "delivery_time", "created_at", "updated_at"].includes(col.key);
+                    const colAlign: "left" | "center" | "right" = isCenter ? "center" : isRight ? "right" : "left";
                     const colFilter = getColFilter(col.key) || (col.key === "grand_total" ? getColFilter("amount") : undefined) || (col.key === "amount" ? getColFilter("grand_total") : undefined);
 
                     return (
@@ -571,10 +764,10 @@ export default function OrdersPage() {
                         key={col.key}
                         columnKey={col.key}
                         grid={grid}
-                        align={isRight ? "right" : "left"}
+                        align={colAlign}
                       >
-                        <div className={clsx("inline-flex items-center", isRight && "justify-end")}>
-                          <span>{col.label}</span>
+                        <div className={clsx("flex items-center gap-1 min-w-0 max-w-full", isCenter ? "justify-center" : isRight ? "justify-end" : "justify-start")}>
+                          <span className="truncate">{col.label}</span>
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
@@ -614,7 +807,7 @@ export default function OrdersPage() {
                       switch (col.key) {
                         case "select":
                           return (
-                            <td key="select" className="px-4 py-3">
+                            <td key="select" className="px-4 py-3 border-b border-border/60">
                               <input
                                 type="checkbox"
                                 checked={selected.has(o.id)}
@@ -648,6 +841,58 @@ export default function OrdersPage() {
                               {o.product_names || (o.items?.map((it: any) => it.product_name).filter(Boolean).join(", ") || "—")}
                             </td>
                           );
+                        case "qty": {
+                          const items = o.items || [];
+                          let displayQty: string | number = o.total_qty !== undefined && o.total_qty !== null && o.total_qty !== 0 ? o.total_qty : "—";
+                          const hasMultiple = items.length > 1;
+
+                          if (items.length > 0) {
+                            const sum = items.reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+                            displayQty = sum > 0 ? sum.toLocaleString() : "—";
+                          }
+
+                          return (
+                            <td key="qty" className={`${TD} tnum text-center font-semibold text-ink whitespace-nowrap`}>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className="inline-block px-2 py-0.5 rounded bg-surface-sunken/60 text-ink font-semibold">
+                                  {displayQty !== "—" ? displayQty : "—"}
+                                </span>
+                                {hasMultiple && (
+                                  <span
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-sunken text-ink-muted border border-border"
+                                    title={items.map((it: any, idx: number) => `Item ${idx + 1}: ${Number(it.qty || 0).toLocaleString()} pcs`).join("\n")}
+                                  >
+                                    {items.length} items
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        }
+                        case "rate": {
+                          const items = o.items || [];
+                          const curr = o.currency_code;
+                          return (
+                            <td key="rate" className={`${TD} tnum text-center font-medium text-ink whitespace-nowrap`}>
+                              <div className="flex items-center justify-center">
+                                {items.length === 1 ? (
+                                  <span>{formatCurrency(items[0].rate, curr)}</span>
+                                ) : items.length > 1 ? (
+                                  <span title={items.map((it: any, idx: number) => `Item ${idx + 1}: ${formatCurrency(it.rate, curr)}`).join("\n")}>
+                                    {formatCurrency(items[0].rate, curr)}
+                                    <span className="text-[10.5px] text-ink-muted ml-1 font-normal">
+                                      (+{items.length - 1})
+                                    </span>
+                                  </span>
+                                ) : o.rates_preview ? (
+                                  <span>{o.rates_preview}</span>
+                                ) : (
+                                  <span className="text-ink-muted">—</span>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        }
                         case "images":
                           return (
                             <td key="images" className={TD}>
@@ -681,7 +926,7 @@ export default function OrdersPage() {
                             </td>
                           );
                         case "date":
-                          return <td key="date" className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>;
+                          return <td key="date" className={`${TD} text-center text-ink-muted whitespace-nowrap`}>{formatDate(o.date)}</td>;
                         case "client_name":
                           return (
                             <td key="client_name" className={TD}>
@@ -700,11 +945,17 @@ export default function OrdersPage() {
                         case "supplier_name":
                           return <td key="supplier_name" className={`${TD} text-ink-muted`}>{o.supplier_name || "—"}</td>;
                         case "delivery_time":
-                          return <td key="delivery_time" className={`${TD} text-ink-muted max-w-[160px] truncate`} title={o.delivery_time || ""}>{o.delivery_time || "—"}</td>;
+                          return <td key="delivery_time" className={`${TD} text-center text-ink-muted max-w-[160px] truncate`} title={o.delivery_time || ""}>{o.delivery_time || "—"}</td>;
                         case "description":
                           return <td key="description" className={`${TD} text-ink-muted max-w-[180px] truncate`} title={o.description || ""}>{o.description || "—"}</td>;
                         case "currency_code":
-                          return <td key="currency_code" className={`${TD} font-mono text-xs text-ink-muted`}>{o.currency_code || "INR"}</td>;
+                          return (
+                            <td key="currency_code" className={`${TD} text-center font-mono text-xs whitespace-nowrap`}>
+                              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-surface-sunken text-ink-muted border border-border/70 font-semibold text-[11px]">
+                                {o.currency_code || "INR"}
+                              </span>
+                            </td>
+                          );
                         case "subtotal":
                           return <td key="subtotal" className={`${TD} tnum text-right text-ink-muted`}>{formatCurrency(o.subtotal || o.grand_total, o.currency_code)}</td>;
                         case "tax_percent":
@@ -731,8 +982,10 @@ export default function OrdersPage() {
                           );
                         case "delivery_status":
                           return (
-                            <td key="delivery_status" className={TD}>
-                              <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                            <td key="delivery_status" className={`${TD} text-center`}>
+                              <div className="flex justify-center">
+                                <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                              </div>
                             </td>
                           );
                         case "payment_status": {
@@ -742,31 +995,59 @@ export default function OrdersPage() {
                               key="payment_status"
                               className={clsx(
                                 TD,
+                                "text-center",
                                 isFullPaid && "bg-emerald-50/90 font-medium transition-colors"
                               )}
                             >
-                              <StatusPill
-                                label={
-                                  o.payment_status === "partial" && o.due_amount
-                                    ? `Partial (Due: ${formatCurrency(o.due_amount, o.currency_code)})`
-                                    : labelize(o.payment_status)
-                                }
-                                tone={PAYMENT_STATUS_TONE[o.payment_status]}
-                              />
+                              <div className="flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => canEdit && setPaymentOrder(o)}
+                                  title={canEdit ? "Click to record / update payment" : undefined}
+                                  className={clsx(
+                                    "group relative inline-flex items-center gap-1.5 transition-all text-center",
+                                    canEdit && "cursor-pointer hover:opacity-90 active:scale-95"
+                                  )}
+                                >
+                                  <StatusPill
+                                    label={
+                                      o.payment_status === "partial" && o.due_amount
+                                        ? `Partial (Due: ${formatCurrency(o.due_amount, o.currency_code)})`
+                                        : labelize(o.payment_status)
+                                    }
+                                    tone={PAYMENT_STATUS_TONE[o.payment_status]}
+                                  />
+                                  {canEdit && (
+                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-primary-600 underline font-semibold">
+                                      Edit
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
                             </td>
                           );
                         }
                         case "created_at":
-                          return <td key="created_at" className={`${TD} text-xs text-ink-muted`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>;
+                          return <td key="created_at" className={`${TD} text-center text-xs text-ink-muted whitespace-nowrap`}>{o.created_at ? formatDate(o.created_at) : "—"}</td>;
                         case "updated_at":
-                          return <td key="updated_at" className={`${TD} text-xs text-ink-muted`}>{o.updated_at ? formatDate(o.updated_at) : "—"}</td>;
+                          return <td key="updated_at" className={`${TD} text-center text-xs text-ink-muted whitespace-nowrap`}>{o.updated_at ? formatDate(o.updated_at) : "—"}</td>;
                         case "actions":
                           return (
                             <td key="actions" className={`${TD} text-right`}>
                               <div className="flex justify-end gap-1">
-                                <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingOrder(o)}>
-                                  <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
-                                </RowActionButton>
+                                {!isClientUser && (
+                                  <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingOrder(o)}>
+                                    <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                                  </RowActionButton>
+                                )}
+                                {canEdit && (
+                                  <RowActionButton
+                                    label="Record / Update Payment"
+                                    onClick={() => setPaymentOrder(o)}
+                                  >
+                                    <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+                                  </RowActionButton>
+                                )}
                                 {canAdd && (
                                   <RowActionButton
                                     label="Duplicate / Copy Project"
@@ -782,8 +1063,8 @@ export default function OrdersPage() {
                                   </RowActionButton>
                                 </Link>
                                 <Link href={`/orders/${o.id}`}>
-                                  <RowActionButton label="View / Edit" onClick={() => {}}>
-                                    {canEdit ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                  <RowActionButton label={isClientUser ? "View Project Details" : "View / Edit"} onClick={() => {}}>
+                                    {canEdit ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5 text-primary-600" />}
                                   </RowActionButton>
                                 </Link>
                                 {canDelete && (
@@ -802,162 +1083,114 @@ export default function OrdersPage() {
                 );
               })}
             </tbody>
-            {orders.length > 0 && (
-              <tfoot className="border-t-2 border-border-strong bg-surface-sunken/80">
-                <tr className="font-semibold text-xs text-ink divide-x divide-border/40">
-                  {grid.columns
-                    .filter((col) => grid.visibleColumns.has(col.key))
-                    .map((col) => {
-                      if (col.key === "select") {
-                        return <td key="select" className="px-3 py-3 text-center text-ink-muted">—</td>;
-                      }
-                      if (col.key === "order_no") {
-                        return (
-                          <td key="order_no" className="px-3 py-3 font-bold uppercase tracking-wider text-[11px] text-ink whitespace-nowrap">
-                            TOTAL ({selected.size > 0 ? `${selected.size} sel` : totalCount})
-                          </td>
-                        );
-                      }
-                      if (col.key === "grand_total") {
-                        const val = selectedTotals ? selectedTotals.grandTotal : totalGrand;
-                        return (
-                          <td key="grand_total" className="px-3 py-3 text-right font-bold text-ink tnum whitespace-nowrap">
-                            {formatCurrency(val, displayCurrency)}
-                          </td>
-                        );
-                      }
-                      if (col.key === "paid_amount") {
-                        const val = selectedTotals ? selectedTotals.paidAmount : totalPaid;
-                        return (
-                          <td key="paid_amount" className="px-3 py-3 text-right font-bold text-emerald-700 tnum whitespace-nowrap">
-                            {formatCurrency(val, displayCurrency)}
-                          </td>
-                        );
-                      }
-                      if (col.key === "due_amount") {
-                        const val = selectedTotals ? selectedTotals.dueAmount : totalDue;
-                        return (
-                          <td
-                            key="due_amount"
-                            className={clsx(
-                              "px-3 py-3 text-right font-extrabold tnum whitespace-nowrap text-sm",
-                              val > 0 ? "text-rose-600 bg-rose-50/70" : "text-emerald-700 bg-emerald-50/70"
-                            )}
-                          >
-                            {formatCurrency(val, displayCurrency)}
-                          </td>
-                        );
-                      }
-                      if (col.key === "payment_status") {
-                        const val = selectedTotals ? selectedTotals.dueAmount : totalDue;
-                        return (
-                          <td key="payment_status" className="px-3 py-3 text-center whitespace-nowrap">
-                            {val > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">
-                                Pending Due
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                                All Cleared
-                              </span>
-                            )}
-                          </td>
-                        );
-                      }
-                      return <td key={col.key} className="px-3 py-3 text-ink-muted text-xs text-center">—</td>;
-                    })}
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
 
         {orders.length > 0 && (
-          <div className="border-t border-border bg-gradient-to-r from-surface-sunken/40 via-surface to-surface-sunken/40 px-5 py-3.5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-100 border border-primary-200 text-primary-700 shadow-2xs">
-                <Receipt className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-ink">
-                    {selected.size > 0
-                      ? `Selected Projects Summary (${selected.size} of ${totalCount})`
-                      : debouncedSearch
-                      ? `Client / Search Summary: "${debouncedSearch}"`
-                      : "Total Projects Summary"}
-                  </p>
-                  {debouncedSearch && !selected.size && (
-                    <span className="text-[10px] font-semibold bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
-                      Search Filter Active
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-ink-muted">
+          <div className="border-t border-border bg-gradient-to-r from-surface-sunken/60 via-surface to-surface-sunken/60 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Left side: Project counts, search/selection indicator, and load-more trigger */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] text-ink">
+                <Receipt className="h-3.5 w-3.5 text-primary-600" />
+                <span>
                   {selected.size > 0
-                    ? `Showing totals for ${selected.size} selected project(s)`
-                    : `Showing totals across all ${totalCount} matching project(s)`}
-                </p>
+                    ? `Selected (${selected.size} of ${totalCount})`
+                    : debouncedSearch
+                    ? `Search: "${debouncedSearch}"`
+                    : "Total Projects"}
+                </span>
               </div>
+              <span className="text-border">|</span>
+              <span className="text-ink-muted text-[11.5px]">
+                Showing <strong className="text-ink">{orders.length}</strong> of{" "}
+                <strong className="text-ink">{totalCount}</strong>
+              </span>
+
+              {hasMore ? (
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-1 rounded-md bg-white hover:bg-primary-50 text-primary-700 hover:text-primary-800 border border-primary-200 px-2.5 py-1 text-[11px] font-semibold transition-all shadow-2xs hover:shadow-xs active:scale-[0.98] disabled:opacity-60 cursor-pointer ml-1"
+                >
+                  {loadingMore ? (
+                    <span>Loading...</span>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3 text-primary-600" />
+                      <span>Load More ({totalCount - orders.length})</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium ml-1">
+                  <Check className="h-3 w-3 text-emerald-600" /> All loaded
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-              <div className="flex flex-col sm:items-end">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Total Amount</span>
-                <span className="text-sm sm:text-base font-bold text-ink tnum">
-                  {formatCurrency(selectedTotals ? selectedTotals.grandTotal : totalGrand, displayCurrency)}
+            {/* Right side: Unified Converted Totals in Base Currency (with breakdown if multi-currency) */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap ml-auto">
+              {/* Total Amount */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-ink-muted">Total:</span>
+                <span className="font-bold text-ink font-mono text-[13px]">
+                  {formatCurrency(effectiveTotals.grandTotal, effectiveTotals.baseCurrency)}
                 </span>
+                {effectiveTotals.hasForeign && (
+                  <span className="text-[11px] text-ink-muted hidden sm:inline" title="Original Currency Breakdown">
+                    ({effectiveTotals.breakdown.map((b) => formatCurrency(b.grandTotal, b.currency)).join(" + ")})
+                  </span>
+                )}
               </div>
 
-              <div className="h-8 w-px bg-border hidden sm:block" />
+              <div className="h-3.5 w-px bg-border hidden sm:block" />
 
-              <div className="flex flex-col sm:items-end">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Paid Amount</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-600 tnum">
-                  {formatCurrency(selectedTotals ? selectedTotals.paidAmount : totalPaid, displayCurrency)}
+              {/* Paid Amount */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-ink-muted">Paid:</span>
+                <span className="font-bold text-emerald-700 font-mono text-[13px]">
+                  {formatCurrency(effectiveTotals.paidAmount, effectiveTotals.baseCurrency)}
                 </span>
+                {effectiveTotals.hasForeign && effectiveTotals.paidAmount > 0 && (
+                  <span className="text-[11px] text-ink-muted hidden sm:inline" title="Original Paid Breakdown">
+                    ({effectiveTotals.breakdown.map((b) => formatCurrency(b.paidAmount, b.currency)).join(" + ")})
+                  </span>
+                )}
               </div>
 
-              <div className="h-8 w-px bg-border hidden sm:block" />
+              <div className="h-3.5 w-px bg-border hidden sm:block" />
 
+              {/* Pending Balance Due */}
               <div
                 className={clsx(
-                  "flex items-center gap-3 rounded-xl border px-4 py-2 shadow-2xs transition-all",
-                  (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0
-                    ? "bg-rose-50 border-rose-300 ring-2 ring-rose-500/10 text-rose-950"
-                    : "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/10 text-emerald-950"
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold shadow-2xs transition-all",
+                  effectiveTotals.dueAmount > 0
+                    ? "bg-rose-50 border-rose-200 text-rose-800 ring-1 ring-rose-400/20"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-800 ring-1 ring-emerald-400/20"
                 )}
               >
-                <div className="flex flex-col sm:items-end">
+                <span className="text-[10px] uppercase font-bold text-ink-muted">Due:</span>
+                <span
+                  className={clsx(
+                    "font-mono font-extrabold text-[13px]",
+                    effectiveTotals.dueAmount > 0 ? "text-rose-700" : "text-emerald-700"
+                  )}
+                >
+                  {formatCurrency(effectiveTotals.dueAmount, effectiveTotals.baseCurrency)}
+                </span>
+                {effectiveTotals.hasForeign && effectiveTotals.dueAmount > 0 && (
                   <span
-                    className={clsx(
-                      "text-[11px] font-extrabold uppercase tracking-wider",
-                      (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0 ? "text-rose-700" : "text-emerald-700"
-                    )}
+                    className="text-[10.5px] text-rose-600/80 font-normal hidden sm:inline"
+                    title="Original Due Breakdown"
                   >
-                    Total Pending Bill Amount (Balance Due)
+                    ({effectiveTotals.breakdown.map((b) => formatCurrency(b.dueAmount, b.currency)).join(" + ")})
                   </span>
-                  <span
-                    className={clsx(
-                      "text-lg sm:text-xl font-black tnum",
-                      (selectedTotals ? selectedTotals.dueAmount : totalDue) > 0 ? "text-rose-600" : "text-emerald-600"
-                    )}
-                  >
-                    {formatCurrency(selectedTotals ? selectedTotals.dueAmount : totalDue, displayCurrency)}
-                  </span>
-                </div>
+                )}
               </div>
             </div>
           </div>
         )}
-        <LoadMorePagination
-          loadedCount={orders.length}
-          totalCount={totalCount}
-          hasMore={hasMore}
-          loadingMore={loadingMore}
-          onLoadMore={loadMore}
-          itemName="projects"
-        />
       </Card>
 
       {activeLightboxImages && (
@@ -1018,6 +1251,14 @@ export default function OrdersPage() {
           reload();
         }}
       />
+
+      {paymentOrder && (
+        <QuickPaymentModal
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSuccess={handleOrderPaymentUpdated}
+        />
+      )}
     </div>
   );
 }

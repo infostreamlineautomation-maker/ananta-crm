@@ -6,12 +6,15 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { QuotationDetail } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
 import { QuotationForm } from "../QuotationForm";
+import { ClientQuotationPortalView } from "@/components/quotations/ClientQuotationPortalView";
 import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function EditQuotationPage() {
   const params = useParams<{ id: string }>();
   const quotationId = Number(params.id);
+  const { isClientUser } = useAuth();
   const [quotation, setQuotation] = useState<QuotationDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +34,11 @@ export default function EditQuotationPage() {
           <LoadingState size="lg" label="Loading Quotation..." sublabel="Preparing pricing & item breakdown" />
         </div>
       ) : quotation ? (
-        <QuotationForm quotation={quotation} />
+        isClientUser ? (
+          <ClientQuotationPortalView quotation={quotation} onUpdate={(updated) => setQuotation(updated)} />
+        ) : (
+          <QuotationForm quotation={quotation} />
+        )
       ) : (
         <p className="text-sm text-ink-faint">Quotation not found.</p>
       )}

@@ -8,11 +8,12 @@ class Quotation(AuditedModel, SoftDeleteModel):
     an accepted quotation is turned into an order via a one-off "create order
     from this quotation" action in the API, not a stored link."""
 
-    DRAFT, SENT, ACCEPTED, REJECTED = "draft", "sent", "accepted", "rejected"
+    DRAFT, SENT, ACCEPTED, REJECTED, REVISION_REQUESTED = "draft", "sent", "accepted", "rejected", "revision_requested"
     STATUS_CHOICES = [
         (DRAFT, "Draft"),
         (SENT, "Sent"),
         (ACCEPTED, "Accepted"),
+        (REVISION_REQUESTED, "Revision Requested"),
         (REJECTED, "Rejected"),
     ]
 
@@ -86,6 +87,8 @@ class Quotation(AuditedModel, SoftDeleteModel):
     base_currency_code = models.CharField(max_length=3, default="INR", help_text="Organization base currency at quotation creation")
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=DRAFT)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    client_feedback = models.TextField(blank=True, help_text="Feedback or revision notes from client")
 
     class Meta:
         ordering = ["-quotation_date", "-id"]

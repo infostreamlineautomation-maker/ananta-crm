@@ -110,7 +110,7 @@ const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
 ];
 
 export default function QuotationsPage() {
-  const { can } = useAuth();
+  const { can, isClientUser } = useAuth();
   const toast = useToast();
   const [search, setSearch] = useState("");
   const grid = useTableGrid({
@@ -139,6 +139,7 @@ export default function QuotationsPage() {
   const router = useRouter();
   const { items: allClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: allSuppliers } = useList<Supplier>("/api/suppliers/?page_size=300");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const debouncedSearch = useDebouncedValue(search);
 
   const toggleExpand = (id: number) => {
@@ -237,10 +238,14 @@ export default function QuotationsPage() {
 
   const basePath = useMemo(() => {
     const params = new URLSearchParams();
-    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (selectedClient) {
+      params.set("client", String(selectedClient.id));
+    } else if (debouncedSearch) {
+      params.set("search", debouncedSearch);
+    }
     appendQueryParams(params);
     return `/api/quotations/?${params.toString()}`;
-  }, [debouncedSearch, appendQueryParams]);
+  }, [selectedClient, debouncedSearch, appendQueryParams]);
 
   const {
     items: quotations,
@@ -252,9 +257,9 @@ export default function QuotationsPage() {
     reload,
   } = useInfinitePaginatedList<QuotationSummary>(basePath);
 
-  const canAdd = can("quotations", "add");
-  const canEdit = can("quotations", "edit");
-  const canDelete = can("quotations", "delete");
+  const canAdd = !isClientUser && can("quotations", "add");
+  const canEdit = !isClientUser && can("quotations", "edit");
+  const canDelete = !isClientUser && can("quotations", "delete");
 
   const getColFilter = (key: string) => filterColumns.find((c) => c.key === key);
 
@@ -332,6 +337,13 @@ export default function QuotationsPage() {
           }}
           onReset={() => {
             resetFilters();
+            setSearch("");
+            setSelectedClient(null);
+          }}
+          clientSuggestions={allClients}
+          selectedClient={selectedClient}
+          onSelectClient={(c) => {
+            setSelectedClient(c ? (allClients.find((cl) => cl.id === c.id) || (c as Client)) : null);
             setSearch("");
           }}
           actions={
@@ -504,7 +516,7 @@ export default function QuotationsPage() {
                                     <Link href={`/quotations/${q.id}`} className="font-mono text-[13px] font-semibold text-ink hover:text-primary-500">
                                       {q.quotation_no}
                                     </Link>
-                                    {q.quote_format === "costing" && (
+                                    {!isClientUser && q.quote_format === "costing" && (
                                       <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold tracking-tight" title="Costing & Margin Quote">
                                         <Calculator className="h-2.5 w-2.5" /> Costing
                                       </span>
@@ -595,14 +607,23 @@ export default function QuotationsPage() {
                               return (
                                 <td key="actions" className={`${TD} text-right`}>
                                   <div className="flex justify-end gap-1">
-                                    <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingQuotation(q)}>
-                                      <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
-                                    </RowActionButton>
+                                    {!isClientUser && (
+                                      <RowActionButton label="Send Notification (WhatsApp / Email)" onClick={() => setNotifyingQuotation(q)}>
+                                        <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                                      </RowActionButton>
+                                    )}
                                     <Link href={`/quotations/${q.id}/print`} target="_blank">
                                       <RowActionButton label="Print / Save PDF" onClick={() => {}}>
                                         <Printer className="h-3.5 w-3.5 text-primary-600" />
                                       </RowActionButton>
                                     </Link>
+                                    {isClientUser && (
+                                      <Link href={`/quotations/${q.id}`}>
+                                        <RowActionButton label="Review & Approve Quotation" onClick={() => {}}>
+                                          <Eye className="h-3.5 w-3.5 text-primary-600" />
+                                        </RowActionButton>
+                                      </Link>
+                                    )}
                                     {canAdd && (
                                       <RowActionButton
                                         label="Duplicate / Copy Quotation"
@@ -692,7 +713,7 @@ export default function QuotationsPage() {
                                               {col.label}
                                             </th>
                                           ))}
-                                          {q.quote_format === "costing" ? (
+                                          {!isClientUser && q.quote_format === "costing" ? (
                                             <>
                                               <th className="w-20 px-3 py-2 text-right">{q.col_labels?.supplier_qty || q.col_qty_label || "Qty"}</th>
                                               <th className="w-24 px-3 py-2 text-right">{q.col_labels?.supplier_rate || "Supplier Rate"}</th>
@@ -740,7 +761,7 @@ export default function QuotationsPage() {
                                                   {item.extra_data?.[col.key] || item.extra_data?.[col.label] || "—"}
                                                 </td>
                                               ))}
-                                              {q.quote_format === "costing" ? (
+                                              {!isClientUser && q.quote_format === "costing" ? (
                                                 <>
                                                   <td className="px-3 py-2.5 text-right font-medium text-ink tnum">
                                                     {item.qty || "0"}
@@ -816,7 +837,7 @@ export default function QuotationsPage() {
                                         })}
                                       </tbody>
                                     </table>
-                                    {q.quote_format === "costing" && (
+                                    {!isClientUser && q.quote_format === "costing" && (
                                       <div className="flex items-center justify-end gap-6 px-4 py-2.5 bg-surface-sunken/60 border-t border-border/60 text-xs">
                                         <div>
                                           <span className="text-ink-muted">Supplier Total Cost: </span>

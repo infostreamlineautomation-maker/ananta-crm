@@ -49,13 +49,15 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     due_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     product_names = serializers.SerializerMethodField()
+    total_qty = serializers.SerializerMethodField()
+    rates_preview = serializers.SerializerMethodField()
     same_organization_fields = ["client", "project", "supplier"]
 
     class Meta:
         model = Order
         fields = [
             "id", "order_no", "date", "client", "client_name", "company_name", "project", "project_name",
-            "project_title", "product_names", "supplier", "supplier_name", "delivery_time",
+            "project_title", "product_names", "total_qty", "rates_preview", "supplier", "supplier_name", "delivery_time",
             "description", "columns_config", "tax_percent", "subtotal", "tax_amount", "grand_total",
             "currency_code", "exchange_rate", "base_currency_code",
             "delivery_status", "payment_status", "paid_amount", "due_amount", "is_visible_to_staff",
@@ -63,12 +65,39 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
         ]
         read_only_fields = [
             "order_no", "subtotal", "tax_amount", "grand_total", "due_amount",
+            "total_qty", "rates_preview",
             "copied_from", "created_by", "created_at", "updated_at",
         ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and getattr(getattr(request, "user", None), "is_portal_client", False):
+            # Mask internal supplier identity and internal flags for portal clients
+            ret.pop("supplier", None)
+            ret.pop("supplier_name", None)
+            ret.pop("is_visible_to_staff", None)
+            ret.pop("copied_from", None)
+        return ret
 
     def get_product_names(self, obj):
         names = [item.product.product_name for item in obj.items.all() if item.product]
         return ", ".join(names) if names else (obj.project_title or "")
+
+    def get_total_qty(self, obj):
+        items = list(obj.items.all())
+        if not items:
+            return 0
+        from decimal import Decimal
+        return sum((item.qty for item in items if item.qty is not None), Decimal("0"))
+
+    def get_rates_preview(self, obj):
+        items = list(obj.items.all())
+        if not items:
+            return ""
+        if len(items) == 1:
+            return f"{items[0].rate}"
+        return ", ".join(f"{it.rate}" for it in items[:3])
 
 
     def validate_items(self, value):
@@ -132,6 +161,8 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        if instance.payment_status == Order.PAYMENT_PAID and (instance.paid_amount is None or instance.paid_amount == 0):
+            instance.paid_amount = instance.grand_total or Decimal("0")
         instance.save()
         if items_data is not None:
             instance.items.all().delete()

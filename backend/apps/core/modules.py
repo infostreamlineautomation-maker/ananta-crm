@@ -37,7 +37,11 @@ VIEW = "view"
 ADD = "add"
 EDIT = "edit"
 DELETE = "delete"
-ACTIONS = (VIEW, ADD, EDIT, DELETE)
+SUBMIT = "submit"
+CANCEL = "cancel"
+PRINT = "print"
+EXPORT = "export"
+ACTIONS = (VIEW, ADD, EDIT, DELETE, SUBMIT, CANCEL, PRINT, EXPORT)
 
 # Maps HTTP methods to the action they require, for the DRF permission class.
 METHOD_ACTION_MAP = {

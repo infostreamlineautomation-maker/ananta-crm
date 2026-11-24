@@ -1,7 +1,7 @@
 import { LoadingState } from "./LoadingState";
 
 export const TH = "px-5 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-ink-faint";
-export const TD = "px-5 py-3 text-[13.5px] text-ink";
+export const TD = "px-5 py-3 text-[13.5px] text-ink border-b border-border/60";
 export const TR = "border-b border-border last:border-b-0 hover:bg-surface-hover";
 
 export function TableState({

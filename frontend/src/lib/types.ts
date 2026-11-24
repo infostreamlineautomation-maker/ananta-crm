@@ -57,6 +57,8 @@ export interface OrderDetail {
   project_name?: string | null;
   project_title?: string;
   product_names?: string;
+  total_qty?: number | string;
+  rates_preview?: string;
   supplier: number | null;
   supplier_name: string | null;
   delivery_time?: string;
@@ -91,6 +93,13 @@ export interface RolePermissionRow {
   can_add: boolean;
   can_edit: boolean;
   can_delete: boolean;
+  can_submit?: boolean;
+  can_cancel?: boolean;
+  can_print?: boolean;
+  can_export?: boolean;
+  apply_user_permissions?: boolean;
+  only_if_creator?: boolean;
+  permlevel?: number;
 }
 
 export interface Role {
@@ -109,6 +118,12 @@ export interface AppUser {
   last_name: string;
   email: string;
   phone: string;
+  user_type?: "system_user" | "portal_user";
+  linked_client?: number | null;
+  linked_client_name?: string | null;
+  organization_id?: number | null;
+  organization_name?: string | null;
+  is_portal_client?: boolean;
   role: number | null;
   role_name: string | null;
   is_active: boolean;
@@ -246,7 +261,7 @@ export interface QuotationItemDetail {
   sort_order?: number;
 }
 
-export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected";
+export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "revision_requested";
 
 export interface QuotationAttachment {
   id?: number;
@@ -273,6 +288,23 @@ export interface DetailedCostingCustomColumn {
   label: string;
 }
 
+export interface DetailedCostingComparisonColumn {
+  id: string;
+  qty: string;
+  label?: string;
+  total_cost?: string;
+  cost_per_unit?: string;
+  client_rate?: string;
+  client_subtotal?: string;
+}
+
+export interface DetailedCostingRowComparisonItem {
+  qty: string;
+  rate: string;
+  total?: string;
+  is_custom?: boolean;
+}
+
 export interface DetailedCostingRow {
   id: string;
   item_name: string;
@@ -280,6 +312,7 @@ export interface DetailedCostingRow {
   rate: string;
   total?: string;
   custom_fields?: Record<string, string>;
+  comparisons?: Record<string, DetailedCostingRowComparisonItem>;
 }
 
 export interface DetailedCostingQuantityTier {
@@ -301,6 +334,7 @@ export interface DetailedCostingData {
   col_rate_label?: string;
   col_total_label?: string;
   custom_columns?: DetailedCostingCustomColumn[];
+  comparison_columns?: DetailedCostingComparisonColumn[];
   rows: DetailedCostingRow[];
   total_cost?: string;
   cost_per_unit?: string;
@@ -340,7 +374,11 @@ export interface QuotationDetail {
   detailed_costing_data?: DetailedCostingData;
   quote_format?: "standard" | "costing" | "detailed";
   currency_code: string;
+  exchange_rate?: string | number;
+  base_currency_code?: string;
   status: QuotationStatus;
+  accepted_at?: string | null;
+  client_feedback?: string;
   subtotal: string;
   total_supplier_cost?: string;
   total_profit?: string;
@@ -371,7 +409,11 @@ export interface QuotationSummary {
   notes?: string;
   footer_content?: string;
   status: QuotationStatus;
+  accepted_at?: string | null;
+  client_feedback?: string;
   currency_code: string;
+  exchange_rate?: string | number;
+  base_currency_code?: string;
   subtotal: string;
   total_supplier_cost?: string;
   total_profit?: string;
@@ -442,6 +484,8 @@ export interface OrderSummary {
   project_name?: string | null;
   project_title?: string;
   product_names?: string;
+  total_qty?: number | string;
+  rates_preview?: string;
   supplier: number | null;
   supplier_name: string | null;
   delivery_time?: string;
@@ -452,6 +496,8 @@ export interface OrderSummary {
   tax_amount?: string;
   grand_total: string;
   currency_code?: string;
+  exchange_rate?: string | number;
+  base_currency_code?: string;
   delivery_status: "pending" | "in_process" | "ready" | "delivered";
   payment_status: "pending" | "advance" | "partial" | "paid";
   paid_amount?: string;
@@ -627,6 +673,8 @@ export interface ClientGroup {
 
 export interface Client {
   id: number;
+  organization?: number | null;
+  organization_name?: string | null;
   client_name: string;
   client_type: ClientType;
   company: number | null;

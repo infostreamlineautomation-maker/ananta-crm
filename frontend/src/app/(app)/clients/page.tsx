@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveRedirect, setJustCreated, getCreationOrigin, clearCreationOrigin } from "@/lib/creation-redirect";
-import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Eye, Layers, MessageSquare, Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError, Paginated } from "@/lib/api";
@@ -608,6 +608,13 @@ export default function ClientsPage() {
                           return (
                             <td key="actions" className={`${TD} text-right`}>
                               <div className="flex justify-end gap-1">
+                                <Link
+                                  href={`/users?new=true&client_id=${c.id}&client_name=${encodeURIComponent(c.client_name)}&client_email=${encodeURIComponent(c.email || "")}&client_phone=${encodeURIComponent(c.phone || "")}&organization_id=${c.organization || ""}`}
+                                >
+                                  <RowActionButton label="Create / Manage Portal Access" onClick={() => {}}>
+                                    <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                                  </RowActionButton>
+                                </Link>
                                 <RowActionButton
                                   label="Send Notification (WhatsApp / Email)"
                                   onClick={() => setNotifyingClient(c)}

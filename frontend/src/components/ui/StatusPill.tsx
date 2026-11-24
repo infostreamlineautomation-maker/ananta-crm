@@ -43,6 +43,7 @@ export const QUOTATION_STATUS_TONE: Record<string, Tone> = {
   sent: "info",
   accepted: "success",
   rejected: "danger",
+  revision_requested: "warning",
 };
 
 export const PROJECT_STATUS_TONE: Record<string, Tone> = {

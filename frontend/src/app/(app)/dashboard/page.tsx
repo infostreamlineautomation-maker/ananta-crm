@@ -26,6 +26,7 @@ import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { DatePresets } from "@/components/charts/DatePresets";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { ClientPortalDashboard } from "@/components/dashboard/ClientPortalDashboard";
 
 interface Notification {
   id: number;
@@ -45,7 +46,12 @@ function getInitialMonth() {
 }
 
 export default function DashboardPage() {
-  const { user, can } = useAuth();
+  const { user, can, isClientUser } = useAuth();
+
+  if (isClientUser) {
+    return <ClientPortalDashboard />;
+  }
+
   const initial = useMemo(() => getInitialMonth(), []);
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);

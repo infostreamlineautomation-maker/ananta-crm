@@ -111,6 +111,24 @@ export async function apiFetch<T = unknown>(path: string, options: RequestInit =
   return data as T;
 }
 
+export interface CurrencyTotalItem {
+  grand_total: string;
+  paid_amount: string;
+  due_amount: string;
+  exchange_rate?: string;
+  converted_grand_total?: string;
+  converted_paid_amount?: string;
+  converted_due_amount?: string;
+}
+
+export interface ConvertedTotals {
+  base_currency: string;
+  grand_total: string;
+  paid_amount: string;
+  due_amount: string;
+  has_foreign_currency?: boolean;
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;
@@ -119,4 +137,6 @@ export interface Paginated<T> {
   total_grand_total?: string;
   total_paid_amount?: string;
   total_due_amount?: string;
+  currency_totals?: Record<string, CurrencyTotalItem>;
+  converted_totals?: ConvertedTotals;
 }

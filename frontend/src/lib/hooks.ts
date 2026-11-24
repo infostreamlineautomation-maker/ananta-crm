@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch, ApiError, Paginated } from "./api";
+import { apiFetch, ApiError, ConvertedTotals, CurrencyTotalItem, Paginated } from "./api";
 
 function isPaginated<T>(res: T[] | Paginated<T>): res is Paginated<T> {
   return !Array.isArray(res);
@@ -56,6 +56,8 @@ export function useInfinitePaginatedList<T>(basePath: string) {
     total_grand_total?: string;
     total_paid_amount?: string;
     total_due_amount?: string;
+    currency_totals?: Record<string, CurrencyTotalItem>;
+    converted_totals?: ConvertedTotals;
   }>({});
 
   useEffect(() => {
@@ -76,6 +78,8 @@ export function useInfinitePaginatedList<T>(basePath: string) {
             total_grand_total: res.total_grand_total,
             total_paid_amount: res.total_paid_amount,
             total_due_amount: res.total_due_amount,
+            currency_totals: res.currency_totals,
+            converted_totals: res.converted_totals,
           });
         }
       })
@@ -119,7 +123,7 @@ export function useInfinitePaginatedList<T>(basePath: string) {
   const hasMore = items.length < count;
   const reload = () => setReloadKey((k) => k + 1);
 
-  return { items, count, page, loading, loadingMore, hasMore, loadMore, reload, error, extra };
+  return { items, setItems, count, setCount, page, loading, loadingMore, hasMore, loadMore, reload, error, extra, setExtra };
 }
 
 /** Fetches a list once and unwraps it into a flat array, whether the endpoint

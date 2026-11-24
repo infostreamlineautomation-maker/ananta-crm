@@ -178,7 +178,7 @@ export function QuotationForm({
   const { activeOrganization } = useOrganization();
   const baseCurrency = activeOrganization?.default_currency_code || "INR";
   const { rates, getRate } = useForex();
-  const { can } = useAuth();
+  const { can, isClientUser } = useAuth();
 
   const { items: rawClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: companies } = useList<Company>("/api/companies/?page_size=200");
@@ -375,6 +375,47 @@ export function QuotationForm({
   const [savedQuotationModal, setSavedQuotationModal] = useState<QuotationDetail | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ index: number; name: string } | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] = useState<{ index: number; att: QuotationAttachment } | null>(null);
+
+  // Client Portal Action states
+  const [acceptingQuote, setAcceptingQuote] = useState(false);
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState("");
+  const [submittingRevision, setSubmittingRevision] = useState(false);
+
+  async function handleAcceptQuote() {
+    if (!quotation) return;
+    setAcceptingQuote(true);
+    try {
+      await apiFetch(`/api/quotations/${quotation.id}/accept/`, { method: "POST" });
+      toast.success("Quotation accepted & confirmed! Our team will begin processing your order.");
+      setStatus("accepted");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't accept quotation.");
+    } finally {
+      setAcceptingQuote(false);
+    }
+  }
+
+  async function handleRequestRevision() {
+    if (!quotation) return;
+    setSubmittingRevision(true);
+    try {
+      await apiFetch(`/api/quotations/${quotation.id}/request-revision/`, {
+        method: "POST",
+        body: JSON.stringify({ notes: revisionNote }),
+      });
+      toast.success("Revision requested. Our team has been notified.");
+      setRevisionModalOpen(false);
+      setRevisionNote("");
+      setStatus("sent");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't submit revision request.");
+    } finally {
+      setSubmittingRevision(false);
+    }
+  }
 
   // Form Draft Caching & Auto-restore
   const draftKey = quotation ? `crm_draft_quote_${quotation.id}` : "crm_draft_quote_new";
@@ -1361,37 +1402,80 @@ export function QuotationForm({
           </p>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-end gap-2 shrink-0">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setImportModalOpen(true)}
-            className="gap-1.5"
-          >
-            <FileUp className="h-4 w-4 text-primary-600" /> Import PDF / Excel
-          </Button>
-          {quotation && (
+          {isClientUser ? (
+            <>
+              {quotation && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => router.push(`/quotations/${quotation.id}/print?view=standard`)}
+                  className="gap-1.5"
+                >
+                  <Printer className="h-4 w-4" /> Download / Print PDF
+                </Button>
+              )}
+              {status === "accepted" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300">
+                  <Check className="h-4 w-4 text-emerald-600" />
+                  <span>Quotation Confirmed &amp; Approved</span>
+                </span>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setRevisionModalOpen(true)}
+                    className="gap-1.5 text-xs text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Request Changes
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleAcceptQuote}
+                    loading={acceptingQuote}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    <Check className="h-4 w-4" /> Accept &amp; Confirm Quote
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
             <>
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => router.push(`/quotations/${quotation.id}/print`)}
+                onClick={() => setImportModalOpen(true)}
                 className="gap-1.5"
               >
-                <Printer className="h-4 w-4" /> Print / PDF
+                <FileUp className="h-4 w-4 text-primary-600" /> Import PDF / Excel
               </Button>
-              <Button type="button" variant="secondary" onClick={handleCopy} loading={copying} className="gap-1.5">
-                <Copy className="h-4 w-4" /> Copy Quote
-              </Button>
-              {can("orders", "add") && (
-                <Button type="button" variant="secondary" onClick={handleCreateOrder} loading={creatingOrder} className="gap-1.5">
-                  <Check className="h-4 w-4 text-success-700" /> Convert to Order
-                </Button>
+              {quotation && (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => router.push(`/quotations/${quotation.id}/print`)}
+                    className="gap-1.5"
+                  >
+                    <Printer className="h-4 w-4" /> Print / PDF
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={handleCopy} loading={copying} className="gap-1.5">
+                    <Copy className="h-4 w-4" /> Copy Quote
+                  </Button>
+                  {can("orders", "add") && (
+                    <Button type="button" variant="secondary" onClick={handleCreateOrder} loading={creatingOrder} className="gap-1.5">
+                      <Check className="h-4 w-4 text-success-700" /> Convert to Order
+                    </Button>
+                  )}
+                </>
               )}
+              <Button variant="primary" type="submit" loading={saving} className="px-5 shrink-0">
+                Save Quotation
+              </Button>
             </>
           )}
-          <Button variant="primary" type="submit" loading={saving} className="px-5 shrink-0">
-            Save Quotation
-          </Button>
         </div>
       </div>
 
@@ -1659,62 +1743,64 @@ export function QuotationForm({
           </div>
 
           {/* Segmented Format Switcher Toggle (3 Tabs) */}
-          <div className="inline-flex items-center rounded-lg border border-border bg-surface-sunken p-1 shadow-2xs shrink-0 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setQuoteFormat("standard")}
-              className={clsx(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
-                quoteFormat === "standard"
-                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-primary-700"
-                  : "text-ink-muted hover:text-ink"
-              )}
-              title="Switch to Standard Direct Rate format (Description, Qty, Rate, Amount)"
-            >
-              <FileText className="h-3.5 w-3.5 text-primary-600" />
-              <span>Standard Quote</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setQuoteFormat("costing")}
-              className={clsx(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
-                quoteFormat === "costing"
-                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-success-700"
-                  : "text-ink-muted hover:text-ink"
-              )}
-              title="Switch to Costing & Margin Calculator format (Supplier Cost, Margin %, Client Rate, Profit)"
-            >
-              <Calculator className="h-3.5 w-3.5 text-success-600" />
-              <span>Costing &amp; Margin</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setQuoteFormat("detailed");
-                const clientName = selectedClient?.client_name || toName || "Sir/Madam";
-                const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
-                const waMsg = buildDetailedCostingWhatsappMessage(
-                  detailedCostingData,
-                  clientName,
-                  city,
-                  subject,
-                  activeOrganization?.name || "Meewa Industries"
-                );
-                setWhatsappText(waMsg);
-              }}
-              className={clsx(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
-                quoteFormat === "detailed"
-                  ? "bg-surface text-ink shadow-2xs border border-border font-bold text-emerald-700"
-                  : "text-ink-muted hover:text-ink"
-              )}
-              title="Switch to Detailed Costing Spreadsheet (Item/Process calculation, Batch Qty, Unit Cost)"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Detailed Costing</span>
-            </button>
-          </div>
+          {!isClientUser && (
+            <div className="inline-flex items-center rounded-lg border border-border bg-surface-sunken p-1 shadow-2xs shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("standard")}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                  quoteFormat === "standard"
+                    ? "bg-surface text-ink shadow-2xs border border-border font-bold text-primary-700"
+                    : "text-ink-muted hover:text-ink"
+                )}
+                title="Switch to Standard Direct Rate format (Description, Qty, Rate, Amount)"
+              >
+                <FileText className="h-3.5 w-3.5 text-primary-600" />
+                <span>Standard Quote</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuoteFormat("costing")}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                  quoteFormat === "costing"
+                    ? "bg-surface text-ink shadow-2xs border border-border font-bold text-success-700"
+                    : "text-ink-muted hover:text-ink"
+                )}
+                title="Switch to Costing & Margin Calculator format (Supplier Cost, Margin %, Client Rate, Profit)"
+              >
+                <Calculator className="h-3.5 w-3.5 text-success-600" />
+                <span>Costing &amp; Margin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuoteFormat("detailed");
+                  const clientName = selectedClient?.client_name || toName || "Sir/Madam";
+                  const city = selectedCompany?.city || selectedClient?.address?.split(",")?.[0] || "";
+                  const waMsg = buildDetailedCostingWhatsappMessage(
+                    detailedCostingData,
+                    clientName,
+                    city,
+                    subject,
+                    activeOrganization?.name || "Meewa Industries"
+                  );
+                  setWhatsappText(waMsg);
+                }}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer",
+                  quoteFormat === "detailed"
+                    ? "bg-surface text-ink shadow-2xs border border-border font-bold text-emerald-700"
+                    : "text-ink-muted hover:text-ink"
+                )}
+                title="Switch to Detailed Costing Spreadsheet (Item/Process calculation, Batch Qty, Unit Cost)"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Detailed Costing</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Toolbar Strip: Client, Supplier & Spec Column Action */}
@@ -3100,6 +3186,44 @@ export function QuotationForm({
                 className="text-xs"
               >
                 Continue Editing
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {revisionModalOpen && (
+        <Modal
+          open={revisionModalOpen}
+          onClose={() => setRevisionModalOpen(false)}
+          title="Request Quotation Changes / Revision"
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-ink-muted">
+              Please enter your revision feedback, requested quantity changes, or special instructions. Our sales team will update your quotation accordingly.
+            </p>
+            <Field label="Revision Feedback / Instructions" required>
+              <Textarea
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
+                rows={4}
+                placeholder="e.g. Please update quantity from 1,000 to 2,500 pcs and include matte lamination..."
+                required
+                autoFocus
+              />
+            </Field>
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+              <Button type="button" variant="secondary" onClick={() => setRevisionModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleRequestRevision}
+                loading={submittingRevision}
+                disabled={!revisionNote.trim()}
+              >
+                Submit Revision Request
               </Button>
             </div>
           </div>

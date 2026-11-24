@@ -32,6 +32,8 @@ def can_view_all_orders(user) -> bool:
         return False
     if user.is_superuser:
         return True
+    if getattr(user, "is_portal_client", False):
+        return False
     if getattr(user, "role_id", None) and user.role:
         from apps.accounts.permissions import has_permission
         from apps.core.modules import ORDERS, VIEW
@@ -156,6 +158,14 @@ class OrderViewSet(ModuleViewSet):
     filterset_class = OrderFilter
     search_fields = ["order_no", "description", "client__client_name", "client__company__company_name", "items__product__product_name", "project_title"]
 
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if getattr(request.user, "is_portal_client", False):
+            if request.method in ["PUT", "PATCH", "DELETE"]:
+                self.permission_denied(request, message="Client portal users cannot modify or delete orders directly.")
+            if request.method == "POST":
+                self.permission_denied(request, message="Client portal users cannot create orders directly.")
+
     def get_queryset(self):
         due_expr = db_models.functions.Greatest(
             db_models.F("grand_total") - db_models.functions.Coalesce(db_models.F("paid_amount"), db_models.Value(0, output_field=db_models.DecimalField())),
@@ -174,6 +184,12 @@ class OrderViewSet(ModuleViewSet):
             qs = qs.filter(project__isnull=True)
 
         user = self.request.user
+        if getattr(user, "is_portal_client", False):
+            client = getattr(user, "linked_client", None)
+            if not client:
+                return qs.none()
+            return qs.filter(client=client)
+
         if can_view_all_orders(user):
             return qs
         return qs.filter(
@@ -212,21 +228,85 @@ class OrderViewSet(ModuleViewSet):
             ),
         )
 
+        currency_breakdown = Order.objects.filter(id__in=subquery).annotate(
+            annotated_due_amount=due_expr,
+        ).values("currency_code").annotate(
+            grand_total=db_models.functions.Coalesce(
+                db_models.Sum("grand_total"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+            paid_amount=db_models.functions.Coalesce(
+                db_models.Sum("paid_amount"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+            due_amount=db_models.functions.Coalesce(
+                db_models.Sum("annotated_due_amount"),
+                db_models.Value(Decimal("0.00")),
+                output_field=db_models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+        )
+        from apps.core.forex import get_exchange_rate
+
+        org = getattr(self.request, "organization", None)
+        base_curr = (getattr(org, "default_currency_code", "INR") or "INR").upper()
+
+        converted_grand = Decimal("0.00")
+        converted_paid = Decimal("0.00")
+        converted_due = Decimal("0.00")
+
+        currency_totals = {}
+        for item in currency_breakdown:
+            c_code = (item["currency_code"] or base_curr).upper()
+            rate = Decimal(str(get_exchange_rate(c_code, base_curr, org)))
+            gt = item["grand_total"]
+            pa = item["paid_amount"]
+            da = item["due_amount"]
+            conv_gt = round(gt * rate, 2)
+            conv_pa = round(pa * rate, 2)
+            conv_da = round(da * rate, 2)
+            currency_totals[c_code] = {
+                "grand_total": str(gt),
+                "paid_amount": str(pa),
+                "due_amount": str(da),
+                "exchange_rate": str(rate),
+                "converted_grand_total": str(conv_gt),
+                "converted_paid_amount": str(conv_pa),
+                "converted_due_amount": str(conv_da),
+            }
+            converted_grand += conv_gt
+            converted_paid += conv_pa
+            converted_due += conv_da
+
+        has_foreign = any(c != base_curr for c in currency_totals.keys())
+        converted_totals = {
+            "base_currency": base_curr,
+            "grand_total": str(round(converted_grand, 2)),
+            "paid_amount": str(round(converted_paid, 2)),
+            "due_amount": str(round(converted_due, 2)),
+            "has_foreign_currency": has_foreign,
+        }
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
-            response.data["total_grand_total"] = str(aggregates["total_grand_total"])
-            response.data["total_paid_amount"] = str(aggregates["total_paid_amount"])
-            response.data["total_due_amount"] = str(aggregates["total_due_amount"])
+            response.data["total_grand_total"] = str(round(converted_grand, 2))
+            response.data["total_paid_amount"] = str(round(converted_paid, 2))
+            response.data["total_due_amount"] = str(round(converted_due, 2))
+            response.data["currency_totals"] = currency_totals
+            response.data["converted_totals"] = converted_totals
             return response
 
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             "results": serializer.data,
-            "total_grand_total": str(aggregates["total_grand_total"]),
-            "total_paid_amount": str(aggregates["total_paid_amount"]),
-            "total_due_amount": str(aggregates["total_due_amount"]),
+            "total_grand_total": str(round(converted_grand, 2)),
+            "total_paid_amount": str(round(converted_paid, 2)),
+            "total_due_amount": str(round(converted_due, 2)),
+            "currency_totals": currency_totals,
+            "converted_totals": converted_totals,
         })
 
     def perform_create(self, serializer):

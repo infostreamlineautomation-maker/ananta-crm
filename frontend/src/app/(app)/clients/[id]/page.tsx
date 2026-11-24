@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  CreditCard,
   Eye,
   FileText,
   FolderKanban,
@@ -38,6 +39,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
@@ -137,6 +139,8 @@ const TYPE_LABEL: Record<string, string> = {
 
 const ORDER_COLUMNS: ColumnDef[] = [
   { key: "order_no", label: "Project No", required: true },
+  { key: "qty", label: "Quantity (QTY)", defaultVisible: false },
+  { key: "rate", label: "Rate", defaultVisible: false },
   { key: "date", label: "Date" },
   { key: "grand_total", label: "Grand Total" },
   { key: "delivery_status", label: "Delivery Status" },
@@ -178,6 +182,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
 
   // Tab Column Visibility States
   const [orderCols, setOrderCols] = useState<Set<string>>(new Set(ORDER_COLUMNS.map((c) => c.key)));
@@ -796,6 +801,18 @@ export default function ClientDetailPage() {
                           </Link>
                         </td>
                       )}
+                      {orderCols.has("qty") && (
+                        <td className={`${TD} tnum text-right font-medium text-ink whitespace-nowrap`}>
+                          {o.total_qty ? Number(o.total_qty).toLocaleString() : (o.items && o.items.length > 0 ? o.items.reduce((acc, it) => acc + Number(it.qty || 0), 0).toLocaleString() : "—")}
+                        </td>
+                      )}
+                      {orderCols.has("rate") && (
+                        <td className={`${TD} tnum text-right font-medium text-ink whitespace-nowrap`}>
+                          {o.items && o.items.length === 1
+                            ? formatCurrency(o.items[0].rate, o.currency_code || client.currency_code || undefined)
+                            : o.rates_preview || (o.items && o.items.length > 1 ? `${formatCurrency(o.items[0].rate, o.currency_code || client.currency_code || undefined)} (+${o.items.length - 1})` : "—")}
+                        </td>
+                      )}
                       {orderCols.has("date") && <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>}
                       {orderCols.has("grand_total") && (
                         <td className={`${TD} tnum text-right font-mono font-bold text-ink`}>{formatCurrency(o.grand_total, o.currency_code || client.currency_code || undefined)}</td>
@@ -807,16 +824,38 @@ export default function ClientDetailPage() {
                       )}
                       {orderCols.has("payment_status") && (
                         <td className={TD}>
-                          <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                          <button
+                            type="button"
+                            onClick={() => setPaymentOrder(o as any)}
+                            title="Click to record / update payment"
+                            className="group inline-flex items-center gap-1.5 cursor-pointer hover:opacity-90 active:scale-95 text-left"
+                          >
+                            <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-primary-600 underline font-semibold">
+                              Edit
+                            </span>
+                          </button>
                         </td>
                       )}
                       {orderCols.has("actions") && (
                         <td className={`${TD} text-right`}>
-                          <Link href={`/orders/${o.id}?viewOnly=true`}>
-                            <Button size="sm" variant="secondary">
-                              <Eye className="h-3.5 w-3.5" /> View
+                          <div className="flex justify-end items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-1 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer font-semibold"
+                              onClick={() => setPaymentOrder(o as any)}
+                              title="Record Payment"
+                            >
+                              <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+                              <span>Pay</span>
                             </Button>
-                          </Link>
+                            <Link href={`/orders/${o.id}?viewOnly=true`}>
+                              <Button size="sm" variant="secondary">
+                                <Eye className="h-3.5 w-3.5" /> View
+                              </Button>
+                            </Link>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1259,6 +1298,18 @@ export default function ClientDetailPage() {
             } catch (e) {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this client.");
             }
+          }}
+        />
+      )}
+
+      {paymentOrder && (
+        <QuickPaymentModal
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSuccess={(updated) => {
+            setOrders((prev) =>
+              prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o))
+            );
           }}
         />
       )}

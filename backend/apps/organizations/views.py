@@ -69,9 +69,18 @@ def settings_view(request):
         return Response({"detail": "No active organization."}, status=400)
 
     if request.method == "GET":
-        if not has_permission(request.user, SETTINGS, VIEW):
-            return Response({"detail": "You do not have permission to view settings."}, status=403)
-        return Response(OrganizationSettingsSerializer(request.organization, context={"request": request}).data)
+        has_settings_view = has_permission(request.user, SETTINGS, VIEW)
+        data = OrganizationSettingsSerializer(request.organization, context={"request": request}).data
+        if not has_settings_view:
+            # Mask administrative credentials for non-admin users (clients, operators, etc.)
+            # but allow them to read company branding & quotation/invoice details
+            for sensitive_key in [
+                "smtp_host", "smtp_port", "smtp_user", "smtp_password",
+                "smtp_use_tls", "smtp_use_ssl", "smtp_from_email", "smtp_from_name",
+                "notify_admin_email",
+            ]:
+                data.pop(sensitive_key, None)
+        return Response(data)
 
     if not has_permission(request.user, SETTINGS, EDIT):
         return Response({"detail": "You do not have permission to edit settings."}, status=403)

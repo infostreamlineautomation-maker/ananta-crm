@@ -12,6 +12,11 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   email: string;
+  phone?: string;
+  user_type?: "system_user" | "portal_user";
+  linked_client?: number | null;
+  linked_client_name?: string | null;
+  is_portal_client?: boolean;
   role: number | null;
   role_name: string | null;
   is_superuser: boolean;
@@ -20,6 +25,7 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  isClientUser: boolean;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -76,7 +82,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, can }}>{children}</AuthContext.Provider>;
+  const isClientUser = Boolean(
+    user?.is_portal_client ||
+    user?.user_type === "portal_user" ||
+    user?.role_name?.toLowerCase() === "client" ||
+    user?.role_name?.toLowerCase() === "customer"
+  );
+
+  return <AuthContext.Provider value={{ user, isClientUser, loading, login, logout, can }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

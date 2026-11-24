@@ -28,9 +28,16 @@ export function mediaUrl(path: string | null | undefined): string | null {
   if (path.startsWith("blob:") || path.startsWith("data:")) {
     return path;
   }
-  if (path.startsWith("http://") || path.startsWith("https://")) {
+  let cleaned = path;
+  while (cleaned.startsWith("/media/media/")) {
+    cleaned = cleaned.replace("/media/media/", "/media/");
+  }
+  while (cleaned.startsWith("media/media/")) {
+    cleaned = cleaned.replace("media/media/", "media/");
+  }
+  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
     try {
-      const url = new URL(path);
+      const url = new URL(cleaned);
       // If frontend dev server (:3000) was baked into a media/uploads URL, direct it to Django backend (:8000)
       if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && url.port === "3000") {
         url.port = "8000";
@@ -39,10 +46,10 @@ export function mediaUrl(path: string | null | undefined): string | null {
     } catch {
       // ignore parse error
     }
-    return path;
+    return cleaned;
   }
   const baseUrl = getApiBaseUrl();
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+  return `${baseUrl.replace(/\/+$/, "")}/${cleaned.replace(/^\/+/, "")}`;
 }
 
 export function getBrandLogo(nameOrOrg?: string | null, customLogoPath?: string | null): string {

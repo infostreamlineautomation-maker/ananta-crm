@@ -94,6 +94,13 @@ class QuotationItemSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         if instance.product:
             ret["product_name"] = instance.product.product_name
+        request = self.context.get("request")
+        if request and getattr(getattr(request, "user", None), "is_portal_client", False):
+            # Mask internal supplier rates and profit margins for external clients
+            ret.pop("supplier_rate", None)
+            ret.pop("profit", None)
+            ret.pop("margin_percent", None)
+            ret.pop("total_profit", None)
         return ret
 
 
@@ -118,10 +125,47 @@ class QuotationSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializ
             "subject", "intro_text", "notes", "footer_content", "whatsapp_message", "admin_remarks", "attachments",
             "col_qty_label", "col_rate_label", "col_labels",
             "columns_config", "detailed_costing_data", "currency_code", "exchange_rate", "base_currency_code", "status",
+            "accepted_at", "client_feedback",
             "subtotal", "total_supplier_cost", "total_profit", "items",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
-        read_only_fields = ["quotation_no", "is_deleted", "created_by", "created_at", "updated_at"]
+        read_only_fields = ["quotation_no", "is_deleted", "created_by", "created_at", "updated_at", "accepted_at"]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and getattr(getattr(request, "user", None), "is_portal_client", False):
+            # Mask internal financial, supplier and internal margin data for portal clients
+            costing_data = ret.get("detailed_costing_data")
+            if isinstance(costing_data, dict):
+                # Preserve client-facing bulk quantity comparison options, but strip internal cost breakdowns
+                quantity_tiers = costing_data.get("quantity_tiers", [])
+                job_title = costing_data.get("job_title", "")
+                costing_notes = costing_data.get("costing_notes", "")
+                ret["detailed_costing_data"] = {
+                    "job_title": job_title,
+                    "costing_notes": costing_notes,
+                    "quantity_tiers": [
+                        {
+                            "id": t.get("id"),
+                            "qty": t.get("qty"),
+                            "unit_rate": t.get("unit_rate"),
+                            "total_amount": t.get("total_amount"),
+                            "notes": t.get("notes", ""),
+                            "include_in_whatsapp": t.get("include_in_whatsapp", True),
+                        }
+                        for t in quantity_tiers
+                    ],
+                }
+            else:
+                ret.pop("detailed_costing_data", None)
+
+            ret.pop("total_supplier_cost", None)
+            ret.pop("total_profit", None)
+            ret.pop("supplier", None)
+            ret.pop("supplier_name", None)
+            ret.pop("admin_remarks", None)
+        return ret
 
     def validate_items(self, value):
         quote_format = self.initial_data.get("quote_format") or getattr(self.instance, "quote_format", "")

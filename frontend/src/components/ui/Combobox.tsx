@@ -191,7 +191,9 @@ export function Combobox({
                 >
                   <span className="min-w-0 truncate">
                     {o.label}
-                    {o.sublabel && <span className="ml-1.5 text-xs text-ink-faint">({o.sublabel})</span>}
+                    {o.sublabel && !o.label.includes(o.sublabel) && (
+                      <span className="ml-1.5 text-xs text-ink-faint">({o.sublabel})</span>
+                    )}
                   </span>
                   {isSelected && <Check className="h-3.5 w-3.5 flex-none text-primary-600" />}
                 </button>

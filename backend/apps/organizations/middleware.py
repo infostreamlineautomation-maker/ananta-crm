@@ -40,6 +40,18 @@ class OrganizationMiddleware:
 def _available_organizations(user):
     if user.is_superuser:
         return Organization.objects.all().order_by("name")
+
+    # External portal clients must strictly only access their designated company (Meewa or Ananta)
+    if getattr(user, "is_portal_client", False):
+        org_ids = OrganizationMembership.objects.filter(user=user).values_list("organization_id", flat=True)
+        if org_ids:
+            return Organization.objects.filter(id__in=org_ids).order_by("name")
+        if getattr(user, "linked_client", None) and user.linked_client.organization_id:
+            org = user.linked_client.organization
+            OrganizationMembership.objects.get_or_create(user=user, organization=org)
+            return Organization.objects.filter(id=org.id)
+        return Organization.objects.none()
+
     org_ids = OrganizationMembership.objects.filter(user=user).values_list("organization_id", flat=True)
     if not org_ids:
         all_orgs = list(Organization.objects.all().order_by("name"))

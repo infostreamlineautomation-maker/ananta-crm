@@ -51,12 +51,12 @@ export default function ProjectPrintPage() {
     Promise.all([
       apiFetch<ProjectDetail>(`/api/projects/${projectId}/`),
       apiFetch<OrderSummary[]>(`/api/orders/?project=${projectId}`),
-      apiFetch<AppSettings>("/api/settings/"),
+      apiFetch<AppSettings>("/api/settings/").catch(() => null),
     ])
       .then(async ([proj, ords, s]) => {
         setProject(proj);
         setOrders(ords);
-        setSettings(s);
+        if (s) setSettings(s);
         if (proj.client_id) {
           try {
             const cl = await apiFetch<Client>(`/api/clients/${proj.client_id}/`);

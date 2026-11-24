@@ -28,11 +28,11 @@ export default function OrderPrintPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<OrderDetail>(`/api/orders/${orderId}/`),
-      apiFetch<AppSettings>("/api/settings/"),
+      apiFetch<AppSettings>("/api/settings/").catch(() => null),
     ])
       .then(async ([ord, s]) => {
         setOrder(ord);
-        setSettings(s);
+        if (s) setSettings(s);
         if (ord.client) {
           try {
             const cl = await apiFetch<Client>(`/api/clients/${ord.client}/`);
@@ -40,7 +40,9 @@ export default function OrderPrintPage() {
           } catch {}
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error("Failed to load order for invoice:", err);
+      })
       .finally(() => setLoading(false));
   }, [orderId]);
 

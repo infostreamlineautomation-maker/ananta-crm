@@ -68,9 +68,22 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
   },
 ];
 
+const CLIENT_NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
+  {
+    label: "Client Portal",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: null },
+      { href: "/quotations", label: "My Quotations", icon: FileText, module: MODULES.QUOTATIONS },
+      { href: "/orders", label: "My Orders & Tracking", icon: FolderKanban, module: MODULES.ORDERS },
+      { href: "/products", label: "Product Catalog", icon: Package, module: MODULES.CATALOG },
+      { href: "/companies", label: "My Company Profile", icon: Building2, module: MODULES.COMPANIES },
+    ],
+  },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
-  const { can } = useAuth();
+  const { can, user, isClientUser } = useAuth();
   const { isCollapsed, toggleSidebar } = useSidebar();
 
   // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar
@@ -95,9 +108,24 @@ export function Sidebar() {
       {/* Top Organization Branding Header */}
       <OrgSwitcher isCollapsed={isCollapsed} />
 
+      {/* Frappe Portal Badge when Client User */}
+      {!isCollapsed && isClientUser && (
+        <div className="mx-3 my-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs select-none">
+          <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Client Portal</span>
+          </div>
+          {user?.linked_client_name && (
+            <div className="text-[11px] text-emerald-700 font-semibold truncate mt-0.5">
+              {user.linked_client_name}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Navigation List */}
       <nav className={clsx("flex-1 overflow-y-auto pb-4 overflow-x-hidden", isCollapsed ? "px-2" : "px-3")}>
-        {NAV_GROUPS.map((group, gi) => {
+        {(isClientUser ? CLIENT_NAV_GROUPS : NAV_GROUPS).map((group, gi) => {
           const items = group.items.filter((item) => item.module === null || can(item.module, "view"));
           if (items.length === 0) return null;
           return (

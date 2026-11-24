@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   Check,
   ChevronDown,
+  ChevronRight,
   DollarSign,
   Filter,
   Plus,
@@ -12,6 +13,8 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  User,
+  Users,
   X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -37,6 +40,13 @@ export interface FilterGroupConfig {
   isCustom?: boolean;
 }
 
+export interface FilterBarClient {
+  id: number;
+  client_name: string;
+  company_name?: string | null;
+  phone?: string | null;
+}
+
 interface FilterBarProps {
   search?: string;
   onSearchChange?: (val: string) => void;
@@ -47,6 +57,9 @@ interface FilterBarProps {
   onReset?: () => void;
   actions?: React.ReactNode;
   className?: string;
+  clientSuggestions?: FilterBarClient[];
+  selectedClient?: FilterBarClient | null;
+  onSelectClient?: (client: FilterBarClient | null) => void;
 }
 
 export function FilterBar({
@@ -59,12 +72,34 @@ export function FilterBar({
   onReset,
   actions,
   className,
+  clientSuggestions,
+  selectedClient,
+  onSelectClient,
 }: FilterBarProps) {
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [addFilterOpen, setAddFilterOpen] = useState(false);
   const [searchFilterText, setSearchFilterText] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [highlightedClientIdx, setHighlightedClientIdx] = useState<number>(-1);
+
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const addFilterRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Compute matching clients for client disambiguation popup
+  const matchingClients: FilterBarClient[] = useMemo(() => {
+    if (!clientSuggestions || !search || search.trim().length < 1) return [];
+    const q = search.trim().toLowerCase();
+    return clientSuggestions
+      .filter((c: FilterBarClient) => {
+        const nameMatch = c.client_name ? c.client_name.toLowerCase().includes(q) : false;
+        const compMatch = c.company_name ? c.company_name.toLowerCase().includes(q) : false;
+        const phoneMatch = c.phone ? c.phone.includes(q) : false;
+        return nameMatch || compMatch || phoneMatch;
+      })
+      .slice(0, 8);
+  }, [clientSuggestions, search]);
 
   // Compute how many filters are currently active (grouping range min/max & from/to)
   const activeCount = Object.entries(activeFilters).filter(([k, v]) => {
@@ -80,12 +115,41 @@ export function FilterBar({
       if (addFilterRef.current && !addFilterRef.current.contains(e.target as Node)) {
         setAddFilterOpen(false);
       }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchFocused(false);
+      }
     }
-    if (filterMenuOpen || addFilterOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [filterMenuOpen, addFilterOpen]);
+  }, []);
+
+  function handleSelectClient(client: FilterBarClient) {
+    onSelectClient?.(client);
+    setIsSearchFocused(false);
+    setHighlightedClientIdx(-1);
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!isSearchFocused || matchingClients.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedClientIdx((prev) => (prev < matchingClients.length ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedClientIdx((prev) => (prev > 0 ? prev - 1 : matchingClients.length));
+    } else if (e.key === "Enter") {
+      if (highlightedClientIdx >= 0 && highlightedClientIdx < matchingClients.length) {
+        e.preventDefault();
+        handleSelectClient(matchingClients[highlightedClientIdx]);
+      } else {
+        // Normal enter key submits standard global search
+        setIsSearchFocused(false);
+      }
+    } else if (e.key === "Escape") {
+      setIsSearchFocused(false);
+    }
+  }
 
   // Filter columns inside the filter modal if searching
   const filteredConfigList = filters.filter((f) =>
@@ -100,27 +164,132 @@ export function FilterBar({
       {/* Primary Toolbar Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search Input */}
-          {onSearchChange && (
-            <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="h-9 w-full rounded-lg border border-border bg-white pl-9 pr-8 text-[13px] text-ink placeholder:text-ink-faint shadow-xs transition-colors focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-100"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => onSearchChange("")}
-                  className="absolute top-1/2 right-2.5 -translate-y-1/2 text-ink-faint hover:text-ink cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+          {/* Search Input or Selected Client Pill */}
+          {selectedClient ? (
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-primary-500 bg-primary-50/80 pl-2.5 pr-2 py-1 text-[13px] font-semibold text-primary-950 shadow-xs ring-2 ring-primary-100 max-w-full">
+              <User className="h-3.5 w-3.5 text-primary-600 flex-none" />
+              <span className="truncate max-w-[220px] sm:max-w-[320px]">
+                Client: <strong className="font-bold text-primary-950">{selectedClient.client_name}</strong>
+                {selectedClient.company_name && (
+                  <span className="text-primary-700 font-normal ml-1">({selectedClient.company_name})</span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => onSelectClient?.(null)}
+                className="ml-auto flex items-center justify-center h-5 w-5 rounded-full text-primary-600 hover:text-primary-950 hover:bg-primary-200/60 cursor-pointer transition-colors"
+                title="Clear client filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
+          ) : (
+            onSearchChange && (
+              <div className="relative w-full sm:w-80" ref={searchContainerRef}>
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={search}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onFocus={() => setIsSearchFocused(true)}
+                  onChange={(e) => {
+                    onSearchChange(e.target.value);
+                    setIsSearchFocused(true);
+                    setHighlightedClientIdx(-1);
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder={searchPlaceholder}
+                  className="h-9 w-full rounded-lg border border-border bg-white pl-9 pr-8 text-[13px] text-ink placeholder:text-ink-faint shadow-xs transition-colors focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-100"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSearchChange("");
+                      setIsSearchFocused(false);
+                    }}
+                    className="absolute top-1/2 right-2.5 -translate-y-1/2 text-ink-faint hover:text-ink cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                {/* Client disambiguation listbox dropdown */}
+                {isSearchFocused && search.trim().length >= 1 && matchingClients.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-2 w-80 sm:w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border/90 bg-white p-2 shadow-2xl ring-1 ring-black/5 animate-in fade-in-50 slide-in-from-top-1">
+                    <div className="px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-faint flex items-center justify-between border-b border-border/60 pb-2 mb-1.5">
+                      <span className="flex items-center gap-1.5 text-primary-700">
+                        <Users className="h-3.5 w-3.5" />
+                        Matching Clients ({matchingClients.length})
+                      </span>
+                      <span className="text-[10px] lowercase text-ink-muted">select to filter client</span>
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto space-y-1 py-0.5">
+                      {matchingClients.map((client: FilterBarClient, idx: number) => {
+                        const isHighlighted = idx === highlightedClientIdx;
+                        return (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => handleSelectClient(client)}
+                            onMouseEnter={() => setHighlightedClientIdx(idx)}
+                            className={clsx(
+                              "w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left rounded-xl transition-all group cursor-pointer",
+                              isHighlighted
+                                ? "bg-primary-50/90 text-primary-950 border border-primary-200/90 shadow-2xs"
+                                : "text-ink hover:bg-surface-hover/80 border border-transparent"
+                            )}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={clsx("font-bold text-[13px] truncate", isHighlighted ? "text-primary-950" : "text-ink")}>
+                                  {client.client_name}
+                                </span>
+                                {client.company_name && (
+                                  <span className="text-[11px] font-medium text-ink-muted bg-surface-sunken/80 px-2 py-0.5 rounded-md border border-border/60 truncate max-w-[160px]">
+                                    {client.company_name}
+                                  </span>
+                                )}
+                              </div>
+                              {client.phone && (
+                                <div className="text-[11px] text-ink-muted mt-0.5 font-mono">
+                                  {client.phone}
+                                </div>
+                              )}
+                            </div>
+                            <ChevronRight className={clsx("h-4 w-4 flex-none transition-all", isHighlighted ? "text-primary-600 translate-x-0.5" : "text-ink-faint opacity-40 group-hover:opacity-100")} />
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="border-t border-border/60 mt-1.5 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsSearchFocused(false)}
+                        className={clsx(
+                          "w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold rounded-xl transition-colors cursor-pointer",
+                          highlightedClientIdx === matchingClients.length
+                            ? "bg-primary-50 text-primary-950 font-bold border border-primary-200"
+                            : "text-primary-700 hover:bg-primary-50/70 border border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Search className="h-3.5 w-3.5 text-primary-600 flex-none" />
+                          <span className="truncate">Search all orders/projects for &ldquo;{search}&rdquo;</span>
+                        </div>
+                        <span className="flex-none shrink-0 text-[10px] font-medium font-mono bg-white border border-border px-2 py-0.5 rounded text-ink-muted shadow-2xs">
+                          ↵ Enter
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* Unified Filters Tab Button */}

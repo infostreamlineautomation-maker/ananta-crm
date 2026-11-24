@@ -42,7 +42,7 @@ class ClientViewSet(SoftDeleteModuleViewSet):
     module_name = CLIENTS
     filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
     filterset_fields = ["client_type", "company", "country", "groups"]
-    search_fields = ["client_name", "phone", "email"]
+    search_fields = ["client_name", "phone", "email", "company__company_name"]
 
     def perform_create(self, serializer):
         extra = {}
