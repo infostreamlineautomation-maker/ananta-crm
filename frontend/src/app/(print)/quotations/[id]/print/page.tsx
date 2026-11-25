@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn, ZoomOut, Maximize2, Calculator, TrendingUp } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, FileText, Loader2, Printer, ZoomIn, ZoomOut, Maximize2, Calculator, TrendingUp, Eye } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { AppSettings, Client, QuotationAnnexure, QuotationDetail } from "@/lib/types";
@@ -45,6 +45,7 @@ export default function QuotationPrintPage() {
   const [useAnnexures, setUseAnnexures] = useState(true);
   const [showSubtotal, setShowSubtotal] = useState(true);
   const [showProfit, setShowProfit] = useState(false);
+  const [showAmount, setShowAmount] = useState(true);
   const [printViewMode, setPrintViewMode] = useState<"standard" | "detailed">("standard");
   const [zoom, setZoom] = useState(1);
   const [lightboxImages, setLightboxImages] = useState<{ image: string; caption?: string }[]>([]);
@@ -141,6 +142,9 @@ export default function QuotationPrintPage() {
         }
         if (q.col_labels?.show_profit !== undefined) {
           setShowProfit(String(q.col_labels.show_profit) === "true" || q.col_labels.show_profit === true);
+        }
+        if (q.col_labels?.show_amount !== undefined) {
+          setShowAmount(String(q.col_labels.show_amount) === "true" || q.col_labels.show_amount === true);
         }
         if (annexureRes?.annexures) {
           setAnnexures(annexureRes.annexures);
@@ -507,6 +511,23 @@ export default function QuotationPrintPage() {
 
                 <button
                   type="button"
+                  onClick={() => setShowAmount(!showAmount)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    showAmount
+                      ? "border-primary-200 bg-white text-ink shadow-2xs"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 opacity-60"
+                  }`}
+                  title="Toggle Amount column on quotation PDF"
+                >
+                  <Eye className={`h-3 w-3 ${showAmount ? "text-primary-600" : "text-neutral-400"}`} />
+                  <span>Amount</span>
+                  <span className={`text-[10px] font-bold px-1 rounded ${showAmount ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-600"}`}>
+                    {showAmount ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setShowSubtotal(!showSubtotal)}
                   className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
                     showSubtotal
@@ -642,22 +663,22 @@ export default function QuotationPrintPage() {
             {/* Row 1: To & Quotation No / Date */}
             <div className="flex items-start justify-between gap-6 text-[13.5px] print:text-[13px]">
               {/* Left: To */}
-              <div className="max-w-[420px]">
+              <div className="min-w-0 flex-1 max-w-[420px]">
                 <p className="font-semibold text-black">To,</p>
                 {toCompanyOrClient && (
-                  <p className="mt-0.5 font-black text-[14.5px] print:text-[13.5px] uppercase tracking-wide text-black">
+                  <p className="mt-0.5 font-black text-[14.5px] print:text-[13.5px] uppercase tracking-wide text-black break-words">
                     {toCompanyOrClient}
                   </p>
                 )}
                 {toAddress && (
-                  <div className="mt-0.5 whitespace-pre-line text-[13px] print:text-[12px] font-medium leading-snug text-neutral-900">
+                  <div className="mt-0.5 whitespace-pre-line text-[13px] print:text-[12px] font-medium leading-snug text-neutral-900 break-words">
                     {toAddress}
                   </div>
                 )}
               </div>
 
               {/* Right: Quotation No & Date */}
-              <div className="text-right whitespace-nowrap text-[13.5px] print:text-[13px]">
+              <div className="text-right whitespace-nowrap shrink-0 text-[13.5px] print:text-[13px]">
                 <p className="font-bold text-black">
                   Quotation No. : <span className="font-black">{quotation.quotation_no}</span>
                 </p>
@@ -755,38 +776,86 @@ export default function QuotationPrintPage() {
                         {formatCurrency(parseFloat(quotation.detailed_costing_data.total_cost || "0"), currency, 2)}
                       </td>
                     </tr>
-                    {/* Summary row 2: Total Qty */}
-                    <tr className="border-t border-black font-bold text-[12.5px] print:text-[12px]">
-                      <td
-                        colSpan={2 + (quotation.detailed_costing_data.custom_columns?.length || 0) + 2}
-                        className="border-r border-black px-3 py-1.5 print:py-1 text-right uppercase tracking-wider font-extrabold text-neutral-900"
-                      >
-                        TOTAL BATCH QTY.:
-                      </td>
-                      <td className="px-3 py-1.5 print:py-1 text-right font-black tnum text-neutral-900">
-                        {quotation.detailed_costing_data.total_qty || "0"} pcs
-                      </td>
-                    </tr>
-                    {/* Summary row 3: Product Cost Per Piece */}
-                    <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
-                      <td
-                        colSpan={2 + (quotation.detailed_costing_data.custom_columns?.length || 0) + 2}
-                        className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
-                      >
-                        PRODUCT COST / RATE PER PC:
-                      </td>
-                      <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
-                        {formatCurrency(
-                          parseFloat(
-                            quotation.detailed_costing_data.client_rate ||
-                              quotation.detailed_costing_data.cost_per_unit ||
-                              "0"
-                          ),
-                          currency,
-                          2
-                        )}
-                      </td>
-                    </tr>
+                    {(() => {
+                      const dData = quotation.detailed_costing_data!;
+                      const compCols = dData.comparison_columns || [];
+                      const activeCol =
+                        compCols.find((c) => c.id === dData.selected_comparison_id) ||
+                        compCols[0] ||
+                        null;
+                      if (activeCol) {
+                        return (
+                          <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
+                            <td
+                              colSpan={2 + (dData.custom_columns?.length || 0) + 2}
+                              className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
+                            >
+                              SELECTED QUOTE ({Number(activeCol.qty).toLocaleString()} PCS @{" "}
+                              {formatCurrency(parseFloat(activeCol.client_rate || activeCol.cost_per_unit || "0"), currency, 2)}/PC):
+                            </td>
+                            <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
+                              {formatCurrency(
+                                parseFloat(activeCol.client_subtotal || activeCol.total_cost || "0"),
+                                currency,
+                                2
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      if (dData.total_qty && parseFloat(dData.total_qty) > 0) {
+                        return (
+                          <>
+                            <tr className="border-t border-black font-bold text-[12.5px] print:text-[12px]">
+                              <td
+                                colSpan={2 + (dData.custom_columns?.length || 0) + 2}
+                                className="border-r border-black px-3 py-1.5 print:py-1 text-right uppercase tracking-wider font-extrabold text-neutral-900"
+                              >
+                                TOTAL BATCH QTY.:
+                              </td>
+                              <td className="px-3 py-1.5 print:py-1 text-right font-black tnum text-neutral-900">
+                                {dData.total_qty} pcs
+                              </td>
+                            </tr>
+                            <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
+                              <td
+                                colSpan={2 + (dData.custom_columns?.length || 0) + 2}
+                                className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
+                              >
+                                PRODUCT COST / RATE PER PC:
+                              </td>
+                              <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
+                                {formatCurrency(
+                                  parseFloat(dData.client_rate || dData.cost_per_unit || "0"),
+                                  currency,
+                                  2
+                                )}
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      }
+                      if (parseFloat(dData.margin_percent || "0") > 0) {
+                        return (
+                          <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
+                            <td
+                              colSpan={2 + (dData.custom_columns?.length || 0) + 2}
+                              className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
+                            >
+                              CLIENT QUOTATION SUBTOTAL (+{dData.margin_percent}%):
+                            </td>
+                            <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
+                              {formatCurrency(
+                                parseFloat(dData.client_subtotal || dData.total_cost || "0"),
+                                currency,
+                                2
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return null;
+                    })()}
                   </tfoot>
                 </table>
 
@@ -834,39 +903,41 @@ export default function QuotationPrintPage() {
                 )}
                 </>
               ) : (
-                <table className="w-full border-collapse border-2 border-black text-[13px] print:text-[12px]">
+                <table className="w-full table-fixed border-collapse border-2 border-black text-[13px] print:text-[12px]">
                 <thead>
-                  <tr className="border-b-2 border-black text-[12px] print:text-[11.5px] font-bold uppercase tracking-wider text-black">
-                    <th className="border-r border-black w-14 px-2 py-2 print:py-1.5 text-center">
+                  <tr className="border-b-2 border-black text-[12px] print:text-[11.5px] font-bold uppercase tracking-wide text-black">
+                    <th className="border-r border-black w-[52px] px-2 py-2 print:py-1.5 text-center">
                       SR. NO.
                     </th>
-                    <th className="border-r border-black px-3 py-2 print:py-1.5 text-left">
+                    <th className="border-r border-black min-w-0 px-3 py-2 print:py-1.5 text-left break-words">
                       {colNameItem.toUpperCase()}
                     </th>
                     {columns.map((col) => (
-                      <th key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center">
+                      <th key={col.key} className="border-r border-black w-[88px] px-2 py-2 print:py-1.5 text-center break-words">
                         {col.label.toUpperCase()}
                       </th>
                     ))}
                     {hasAnyItemImage && (
-                      <th className="border-r border-black w-24 px-2 py-2 print:py-1.5 text-center">
+                      <th className="border-r border-black w-[90px] px-2 py-2 print:py-1.5 text-center">
                         {colNameReference.toUpperCase()}
                       </th>
                     )}
-                    <th className="border-r border-black w-24 px-2 py-2 print:py-1.5 text-center">
+                    <th className="border-r border-black w-[84px] px-2 py-2 print:py-1.5 text-center">
                       {colNameQty.toUpperCase()}
                     </th>
-                    <th className="border-r border-black w-36 px-3 py-2 print:py-1.5 text-center">
+                    <th className={`${showProfit || showAmount ? "border-r border-black " : ""}w-[106px] px-2 py-2 print:py-1.5 text-center break-words`}>
                       {colNameRate.toUpperCase()}
                     </th>
                     {showProfit && (
-                      <th className="border-r border-black w-32 px-3 py-2 print:py-1.5 text-right">
+                      <th className={`${showAmount ? "border-r border-black " : ""}w-[108px] px-2 py-2 print:py-1.5 text-center break-words`}>
                         {(quotation.col_labels?.total_profit || "TOTAL PROFIT").toUpperCase()}
                       </th>
                     )}
-                    <th className="w-32 px-3 py-2 print:py-1.5 text-right">
-                      {colNameAmount.toUpperCase()}
-                    </th>
+                    {showAmount && (
+                      <th className="w-[112px] px-2 py-2 print:py-1.5 text-center break-words">
+                        {colNameAmount.toUpperCase()}
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -886,7 +957,7 @@ export default function QuotationPrintPage() {
                         <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
                           {idx + 1}
                         </td>
-                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-left font-medium">
+                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-left font-medium break-words">
                           {it.product_name && (
                             <div className="font-bold text-black">{it.product_name}</div>
                           )}
@@ -898,7 +969,7 @@ export default function QuotationPrintPage() {
                           {!it.product_name && !it.description && "—"}
                         </td>
                         {columns.map((col) => (
-                          <td key={col.key} className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium">
+                          <td key={col.key} className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium break-words">
                             {it.extra_data?.[col.key] ?? "—"}
                           </td>
                         ))}
@@ -938,20 +1009,22 @@ export default function QuotationPrintPage() {
                             )}
                           </td>
                         )}
-                        <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium">
+                        <td className="border-r border-black px-2 py-2 print:py-1.5 text-center font-medium break-words">
                           {it.qty}
                         </td>
-                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-center font-medium tnum">
+                        <td className={`${showProfit || showAmount ? "border-r border-black " : ""}px-2 py-2 print:py-1.5 text-center font-medium tnum break-words`}>
                           {itemRate > 0 ? formatCurrency(itemRate, currency, 2) : (it.rate ? formatCurrency(it.rate, currency, 2) : "—")}
                         </td>
                         {showProfit && (
-                          <td className="border-r border-black px-3 py-2 print:py-1.5 text-right font-medium tnum">
+                          <td className={`${showAmount ? "border-r border-black " : ""}px-2 py-2 print:py-1.5 text-center font-medium tnum break-words`}>
                             {itemTotalProfit !== 0 ? formatCurrency(itemTotalProfit, currency) : "—"}
                           </td>
                         )}
-                        <td className="px-3 py-2 print:py-1.5 text-right font-medium tnum">
-                          {itemAmount > 0 ? formatCurrency(itemAmount, currency) : "—"}
-                        </td>
+                        {showAmount && (
+                          <td className="px-2 py-2 print:py-1.5 text-center font-medium tnum break-words">
+                            {itemAmount > 0 ? formatCurrency(itemAmount, currency) : "—"}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -959,29 +1032,42 @@ export default function QuotationPrintPage() {
                 {(showSubtotal || showProfit) && (
                   <tfoot>
                     <tr className="border-t-2 border-black font-bold text-[12.5px] print:text-[12px]">
-                      <td
-                        colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
-                        className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-bold"
-                      >
-                        {showProfit && showSubtotal
-                          ? "TOTAL"
-                          : showProfit
-                          ? (quotation.col_labels?.total_profit || "TOTAL PROFIT").toUpperCase()
-                          : "SUBTOTAL"}
-                      </td>
-                      {showProfit && (
-                        <td className="border-r border-black px-3 py-2 print:py-1.5 text-right font-black tnum">
-                          {formatCurrency(totalProfitValue, currency)}
-                        </td>
-                      )}
-                      {showSubtotal ? (
-                        <td className="px-3 py-2 print:py-1.5 text-right font-black tnum">
-                          {formatCurrency(subtotalValue, currency)}
+                      {!showAmount && !showProfit ? (
+                        <td
+                          colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
+                          className="px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-bold"
+                        >
+                          SUBTOTAL : <span className="ml-2 font-black tnum">{formatCurrency(subtotalValue, currency)}</span>
                         </td>
                       ) : (
-                        <td className="px-3 py-2 print:py-1.5 text-right font-normal text-neutral-400">
-                          —
-                        </td>
+                        <>
+                          <td
+                            colSpan={4 + columns.length + (hasAnyItemImage ? 1 : 0)}
+                            className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-bold"
+                          >
+                            {showProfit && showSubtotal && showAmount
+                              ? "TOTAL"
+                              : showProfit
+                              ? (quotation.col_labels?.total_profit || "TOTAL PROFIT").toUpperCase()
+                              : "SUBTOTAL"}
+                          </td>
+                          {showProfit && (
+                            <td className={`${showAmount ? "border-r border-black " : ""}px-2 py-2 print:py-1.5 text-center font-black tnum break-words`}>
+                              {formatCurrency(totalProfitValue, currency)}
+                            </td>
+                          )}
+                          {showAmount && (
+                            showSubtotal ? (
+                              <td className="px-2 py-2 print:py-1.5 text-center font-black tnum break-words">
+                                {formatCurrency(subtotalValue, currency)}
+                              </td>
+                            ) : (
+                              <td className="px-2 py-2 print:py-1.5 text-center font-normal text-neutral-400">
+                                —
+                              </td>
+                            )
+                          )}
+                        </>
                       )}
                     </tr>
                   </tfoot>

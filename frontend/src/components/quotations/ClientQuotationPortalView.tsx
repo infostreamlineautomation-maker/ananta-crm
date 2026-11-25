@@ -49,6 +49,14 @@ export function ClientQuotationPortalView({
   const [showAcceptModal, setShowAcceptModal] = useState(false);
 
   const currency = quotation.currency_code || "INR";
+  const showSubtotal =
+    quotation.col_labels?.show_subtotal === undefined
+      ? true
+      : String(quotation.col_labels.show_subtotal) === "true" || quotation.col_labels.show_subtotal === true;
+  const showAmount =
+    quotation.col_labels?.show_amount === undefined
+      ? true
+      : String(quotation.col_labels.show_amount) === "true" || quotation.col_labels.show_amount === true;
 
   const statusConfig: Record<
     string,
@@ -377,7 +385,9 @@ export function ClientQuotationPortalView({
                 <th className="w-32 px-4 py-3 text-right">
                   {quotation.col_rate_label || "Unit Rate"}
                 </th>
-                <th className="w-36 px-4 py-3 text-right">Total ({currency})</th>
+                {showAmount && (
+                  <th className="w-36 px-4 py-3 text-right">Total ({currency})</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -428,15 +438,17 @@ export function ClientQuotationPortalView({
                       <td className="tnum px-4 py-3.5 text-right font-mono text-ink">
                         {formatCurrency(rateNum, currency)}
                       </td>
-                      <td className="tnum px-4 py-3.5 text-right font-mono font-bold text-ink">
-                        {formatCurrency(itemAmount, currency)}
-                      </td>
+                      {showAmount && (
+                        <td className="tnum px-4 py-3.5 text-right font-mono font-bold text-ink">
+                          {formatCurrency(itemAmount, currency)}
+                        </td>
+                      )}
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-ink-faint">
+                  <td colSpan={showAmount ? 5 : 4} className="py-6 text-center text-ink-faint">
                     No items specified in this quotation.
                   </td>
                 </tr>
@@ -508,23 +520,25 @@ export function ClientQuotationPortalView({
         })()}
 
         {/* Financial Summary */}
-        <div className="mt-6 flex flex-col justify-end border-t border-line pt-6 sm:flex-row">
-          <div className="w-full sm:w-80 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-ink-muted">
-              <span>Subtotal</span>
-              <span className="font-mono font-semibold text-ink">
-                {formatCurrency(quotation.subtotal || 0, currency)}
-              </span>
-            </div>
+        {showSubtotal && (
+          <div className="mt-6 flex flex-col justify-end border-t border-line pt-6 sm:flex-row">
+            <div className="w-full sm:w-80 space-y-2.5">
+              <div className="flex items-center justify-between text-xs text-ink-muted">
+                <span>Subtotal</span>
+                <span className="font-mono font-semibold text-ink">
+                  {formatCurrency(quotation.subtotal || 0, currency)}
+                </span>
+              </div>
 
-            <div className="flex items-center justify-between border-t border-line pt-2 text-sm">
-              <span className="font-bold text-ink">Total Amount</span>
-              <span className="font-mono text-base font-extrabold text-primary-600">
-                {formatCurrency(quotation.subtotal || 0, currency)}
-              </span>
+              <div className="flex items-center justify-between border-t border-line pt-2 text-sm">
+                <span className="font-bold text-ink">Total Amount</span>
+                <span className="font-mono text-base font-extrabold text-primary-600">
+                  {formatCurrency(quotation.subtotal || 0, currency)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Notes & Terms */}
         {(quotation.notes || quotation.footer_content) && (

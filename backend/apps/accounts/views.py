@@ -108,7 +108,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.select_related("role", "linked_client").all()
+    queryset = User.objects.select_related("role", "linked_client", "linked_client__company").all()
     permission_classes = [ModulePermission]
     module_name = USERS
 

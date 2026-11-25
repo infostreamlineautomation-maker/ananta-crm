@@ -121,6 +121,7 @@ export interface AppUser {
   user_type?: "system_user" | "portal_user";
   linked_client?: number | null;
   linked_client_name?: string | null;
+  linked_client_company_name?: string | null;
   organization_id?: number | null;
   organization_name?: string | null;
   is_portal_client?: boolean;
@@ -335,6 +336,7 @@ export interface DetailedCostingData {
   col_total_label?: string;
   custom_columns?: DetailedCostingCustomColumn[];
   comparison_columns?: DetailedCostingComparisonColumn[];
+  selected_comparison_id?: string | null;
   rows: DetailedCostingRow[];
   total_cost?: string;
   cost_per_unit?: string;
@@ -423,17 +425,22 @@ export interface QuotationSummary {
   columns_config?: QuotationColumn[];
   detailed_costing_data?: DetailedCostingData;
   items?: QuotationItemDetail[];
+  attachments?: QuotationAttachment[];
   created_at?: string;
   updated_at?: string;
 }
 
 export interface CostingItemDetail {
   id?: number;
+  product?: number | null;
+  product_name?: string | null;
+  description?: string;
   supplier_rate: string;
   quantity: string;
-  client_rate: string;
+  client_rate?: string;
   profit?: string;
   extra_data: Record<string, string>;
+  sort_order?: number;
 }
 
 export interface CostingFile {
@@ -455,8 +462,10 @@ export interface CostingDetail {
   supplier_display: string | null;
   product: number | null;
   product_display: string | null;
+  product_names?: string | null;
   client: number | null;
   client_display: string | null;
+  company_name?: string | null;
   file?: string | null;
   file_name?: string | null;
   files?: CostingFile[];
@@ -512,6 +521,7 @@ export interface ProjectSummary {
   name: string;
   client: number;
   client_name: string;
+  company_name?: string | null;
   description: string;
   status: "active" | "on_hold" | "completed" | "cancelled";
   extra_data?: Record<string, any>;

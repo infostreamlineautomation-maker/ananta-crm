@@ -35,6 +35,7 @@ class RoleSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source="role.name", read_only=True)
     linked_client_name = serializers.CharField(source="linked_client.client_name", read_only=True)
+    linked_client_company_name = serializers.CharField(source="linked_client.company.company_name", read_only=True, default=None)
     organization_id = serializers.SerializerMethodField()
     organization_name = serializers.SerializerMethodField()
 
@@ -42,7 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "first_name", "last_name", "email", "phone",
-            "user_type", "linked_client", "linked_client_name", "is_portal_client",
+            "user_type", "linked_client", "linked_client_name", "linked_client_company_name", "is_portal_client",
             "organization_id", "organization_name",
             "role", "role_name", "is_active", "is_superuser", "date_joined",
         ]
@@ -81,13 +82,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class MeSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source="role.name", read_only=True)
     linked_client_name = serializers.CharField(source="linked_client.client_name", read_only=True)
+    linked_client_company_name = serializers.CharField(source="linked_client.company.company_name", read_only=True, default=None)
     permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "first_name", "last_name", "email", "phone",
-            "user_type", "linked_client", "linked_client_name", "is_portal_client",
+            "user_type", "linked_client", "linked_client_name", "linked_client_company_name", "is_portal_client",
             "role", "role_name", "is_superuser", "permissions",
         ]
 

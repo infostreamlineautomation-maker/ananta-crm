@@ -37,7 +37,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
-import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportColumn } from "@/lib/export-utils";
 import { formatDate, mediaUrl } from "@/lib/format";
@@ -167,12 +167,17 @@ export default function SuppliersPage() {
     columns: filterColumns,
     customFields,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     resetFilters,
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "supplier",
     baseColumns: baseFilterColumns,
+    initialOrdering: "supplier_name",
   });
 
   const allColumns: ColumnDef[] = useMemo(() => {
@@ -409,10 +414,10 @@ export default function SuppliersPage() {
       )}
 
       <Card className="overflow-hidden">
-        <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-[12.5px]">
-            <thead>
-              <tr className="border-b border-border text-left">
+        <div className="w-full overflow-auto max-h-[calc(100vh-210px)] relative scrollbar-thin">
+          <table className="w-full min-w-[1100px] text-[12.5px] border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20">
+              <tr className="text-left">
                 {grid.columns
                   .filter((col) => grid.visibleColumns.has(col.key))
                   .map((col) => {
@@ -495,6 +500,9 @@ export default function SuppliersPage() {
                       ? `custom__${col.key.replace("extra_", "")}`
                       : col.key;
                     const colFilter = getColFilter(filterKey);
+                    const isSortable = !["select", "actions", "files"].includes(col.key);
+                    const sortKey = col.key === "company_name" ? "company" : col.key;
+                    const sortDirection = isSortable ? getOrderingFor(sortKey) : null;
 
                     return (
                       <ResizableTh
@@ -503,14 +511,37 @@ export default function SuppliersPage() {
                         grid={grid}
                         className={TH_CELL}
                       >
-                        <div className="inline-flex items-center gap-1">
-                          <span>{col.label}</span>
+                        <div className="flex items-center gap-1 min-w-0 max-w-full">
+                          {isSortable ? (
+                            <span
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              className="truncate cursor-pointer hover:text-primary-600 transition-colors select-none font-semibold"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              {col.label}
+                            </span>
+                          ) : (
+                            <span className="truncate">{col.label}</span>
+                          )}
+                          {isSortable && (
+                            <SortButton
+                              direction={sortDirection}
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              title={`Sort by ${col.label}`}
+                            />
+                          )}
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
+                              }}
+                              currentSort={sortDirection}
+                              onSortChange={(dir) => {
+                                if (!dir) setOrdering(null);
+                                else if (dir === "asc") setOrdering(sortKey);
+                                else setOrdering(`-${sortKey}`);
                               }}
                             />
                           )}

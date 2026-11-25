@@ -16,6 +16,7 @@ export interface AuthUser {
   user_type?: "system_user" | "portal_user";
   linked_client?: number | null;
   linked_client_name?: string | null;
+  linked_client_company_name?: string | null;
   is_portal_client?: boolean;
   role: number | null;
   role_name: string | null;

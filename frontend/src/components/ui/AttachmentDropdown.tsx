@@ -6,6 +6,8 @@ import {
   BookOpen,
   ChevronDown,
   Download,
+  Eye,
+  ExternalLink,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -14,6 +16,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { mediaUrl } from "@/lib/format";
+import { QuotationAttachment } from "@/lib/types";
+import { AttachmentViewerModal } from "./AttachmentViewerModal";
 
 export interface AttachmentItem {
   id?: number;
@@ -21,7 +25,19 @@ export interface AttachmentItem {
   file_url?: string | null;
   file_name?: string | null;
   file_size?: number | null;
+  file_type?: string | null;
   category?: "catalogue" | "rate_list" | string;
+}
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "svg", "gif"]);
+
+function inferFileType(fileName?: string | null, existing?: string | null): string {
+  if (existing) return existing;
+  const ext = fileName?.split(".").pop()?.toLowerCase() || "";
+  if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  if (["xlsx", "xls", "csv"].includes(ext)) return "excel";
+  return "other";
 }
 
 function getFileIcon(name?: string | null) {
@@ -32,7 +48,7 @@ function getFileIcon(name?: string | null) {
   if (["xlsx", "xls", "csv"].includes(ext)) {
     return <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />;
   }
-  if (["png", "jpg", "jpeg", "webp", "svg", "gif"].includes(ext)) {
+  if (IMAGE_EXTENSIONS.has(ext)) {
     return <ImageIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />;
   }
   return <Paperclip className="h-3.5 w-3.5 text-primary-600 shrink-0" />;
@@ -55,15 +71,37 @@ export function AttachmentDropdown({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [previewAttachment, setPreviewAttachment] = useState<QuotationAttachment | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const cleanFiles = (files || []).filter((f) => Boolean(f.file || f.file_url));
+  const hasCategoryTags = cleanFiles.some(
+    (f) => f.category === "catalogue" || f.category === "rate_list"
+  );
   const catalogueFiles = cleanFiles.filter((f) => f.category !== "rate_list");
   const rateListFiles = cleanFiles.filter((f) => f.category === "rate_list");
-  const hasBothCategories = catalogueFiles.length > 0 && rateListFiles.length > 0;
+  const hasBothCategories = hasCategoryTags && catalogueFiles.length > 0 && rateListFiles.length > 0;
+
+  const handleOpenFile = (f: AttachmentItem, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    const path = f.file_url || f.file || "";
+    const name = f.file_name || (path ? path.split("/").pop() : "") || "attachment";
+    if (!path || path === "#") return;
+
+    setPreviewAttachment({
+      id: f.id,
+      file: f.file ?? null,
+      file_url: f.file_url ?? null,
+      file_name: name,
+      file_size: f.file_size ?? undefined,
+      file_type: inferFileType(name, f.file_type),
+    });
+    setOpen(false);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -143,17 +181,35 @@ export function AttachmentDropdown({
 
   if (cleanFiles.length === 1) {
     return (
-      <a
-        href={firstUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        download={firstFileName || "attachment"}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-sunken/60 hover:bg-surface px-2 py-1 text-[11.5px] font-medium text-ink hover:border-primary-400 hover:text-primary-600 transition-colors shadow-2xs"
-        title={`Download / View: ${firstFileName}`}
-      >
-        {getFileIcon(firstFileName)}
-        <span className={clsx("truncate", maxDisplayWidth)}>{firstFileName}</span>
-      </a>
+      <>
+        <div className="inline-flex items-center rounded-md border border-border bg-surface-sunken/60 hover:bg-surface text-[11.5px] font-medium text-ink hover:border-primary-400 transition-colors shadow-2xs group">
+          <button
+            type="button"
+            onClick={(e) => handleOpenFile(first, e)}
+            className="inline-flex items-center gap-1.5 px-2 py-1 hover:text-primary-600 transition-colors cursor-pointer text-left"
+            title={`Preview / View: ${firstFileName}`}
+          >
+            {getFileIcon(firstFileName)}
+            <span className={clsx("truncate font-medium", maxDisplayWidth)}>{firstFileName}</span>
+          </button>
+          <a
+            href={firstUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={firstFileName || "attachment"}
+            onClick={(e) => e.stopPropagation()}
+            className="px-1.5 py-1 text-ink-muted/50 hover:text-primary-600 hover:bg-surface-sunken rounded-r-md transition-colors border-l border-border/50"
+            title={`Download ${firstFileName}`}
+          >
+            <Download className="h-3 w-3" />
+          </a>
+        </div>
+        <AttachmentViewerModal
+          open={Boolean(previewAttachment)}
+          onClose={() => setPreviewAttachment(null)}
+          attachment={previewAttachment}
+        />
+      </>
     );
   }
 
@@ -165,30 +221,44 @@ export function AttachmentDropdown({
     const name = f.file_name || (path ? path.split("/").pop() : `File #${idx + 1}`);
 
     return (
-      <a
+      <div
         key={f.id ? `${prefix}-f-${f.id}` : `${prefix}-f-${idx}`}
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        download={name || "attachment"}
-        onClick={() => setOpen(false)}
-        className="flex items-center justify-between gap-2.5 rounded-lg border border-transparent hover:border-border hover:bg-surface-hover p-1.5 text-xs text-ink transition-colors group"
+        onClick={(e) => handleOpenFile(f, e)}
+        className="flex items-center justify-between gap-2.5 rounded-lg border border-transparent hover:border-border hover:bg-surface-hover p-1.5 text-xs text-ink transition-colors group cursor-pointer"
       >
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-sunken border border-border/60">
             {getFileIcon(name)}
           </div>
           <div className="min-w-0">
-            <p className="truncate font-semibold text-ink group-hover:text-primary-600 text-xs" title={name}>
+            <p className="truncate font-semibold text-ink group-hover:text-primary-600 text-xs" title={`Click to view: ${name}`}>
               {name}
             </p>
             {f.file_size ? <p className="text-[10px] text-ink-muted">{formatFileSize(f.file_size)}</p> : null}
           </div>
         </div>
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface border border-border/60 text-ink-muted group-hover:text-primary-600 group-hover:border-primary-300 transition-colors shadow-2xs">
-          <Download className="h-3 w-3" />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => handleOpenFile(f, e)}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface border border-border/60 text-ink-muted group-hover:text-primary-600 group-hover:border-primary-300 transition-colors shadow-2xs cursor-pointer"
+            title="Preview file"
+          >
+            <Eye className="h-3 w-3" />
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={name || "attachment"}
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface border border-border/60 text-ink-muted hover:text-primary-600 hover:border-primary-300 transition-colors shadow-2xs"
+            title="Download file"
+          >
+            <Download className="h-3 w-3" />
+          </a>
         </div>
-      </a>
+      </div>
     );
   };
 
@@ -241,7 +311,7 @@ export function AttachmentDropdown({
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : hasCategoryTags ? (
               <div className="max-h-[280px] overflow-y-auto space-y-1 px-0.5">
                 {catalogueFiles.length > 0 && (
                   <div>
@@ -266,6 +336,10 @@ export function AttachmentDropdown({
                   </div>
                 )}
               </div>
+            ) : (
+              <div className="max-h-[280px] overflow-y-auto space-y-1 px-0.5">
+                {cleanFiles.map((f, idx) => renderFileRow(f, idx, "att"))}
+              </div>
             )}
           </div>,
           document.body
@@ -273,41 +347,60 @@ export function AttachmentDropdown({
       : null;
 
   return (
-    <div className="relative inline-flex items-center" ref={containerRef}>
-      {/* Primary file pill */}
-      <a
-        href={firstUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        download={firstFileName || "attachment"}
-        className="inline-flex items-center gap-1.5 rounded-l-md border border-border bg-surface-sunken/60 hover:bg-surface px-2 py-1 text-[11.5px] font-medium text-ink hover:border-primary-400 hover:text-primary-600 transition-colors shadow-2xs border-r-0"
-        title={`Download / View: ${firstFileName}`}
-      >
-        {getFileIcon(firstFileName)}
-        <span className={clsx("truncate", maxDisplayWidth)}>{firstFileName}</span>
-      </a>
+    <>
+      <div className="relative inline-flex items-center" ref={containerRef}>
+        {/* Primary file pill */}
+        <div className="inline-flex items-center rounded-l-md border border-border bg-surface-sunken/60 hover:bg-surface text-[11.5px] font-medium text-ink hover:border-primary-400 transition-colors shadow-2xs border-r-0 group">
+          <button
+            type="button"
+            onClick={(e) => handleOpenFile(first, e)}
+            className="inline-flex items-center gap-1.5 px-2 py-1 hover:text-primary-600 transition-colors cursor-pointer text-left"
+            title={`Preview / View: ${firstFileName}`}
+          >
+            {getFileIcon(firstFileName)}
+            <span className={clsx("truncate font-medium", maxDisplayWidth)}>{firstFileName}</span>
+          </button>
+          <a
+            href={firstUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={firstFileName || "attachment"}
+            onClick={(e) => e.stopPropagation()}
+            className="px-1.5 py-1 text-ink-muted/50 hover:text-primary-600 hover:bg-surface-sunken transition-colors border-l border-border/50"
+            title={`Download ${firstFileName}`}
+          >
+            <Download className="h-3 w-3" />
+          </a>
+        </div>
 
-      {/* Dropdown toggle for additional files */}
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
-        className={clsx(
-          "inline-flex items-center gap-0.5 rounded-r-md border border-border px-1.5 py-1 text-[11px] font-bold transition-colors shadow-2xs cursor-pointer",
-          open
-            ? "bg-primary-50 text-primary-700 border-primary-400"
-            : "bg-surface-sunken/80 text-ink-muted hover:text-ink hover:bg-surface hover:border-primary-400"
-        )}
-        title={`${cleanFiles.length} attachments. Click to view list.`}
-      >
-        <span>+{extraCount}</span>
-        <ChevronDown className={clsx("h-3 w-3 transition-transform duration-150", open && "rotate-180 text-primary-600")} />
-      </button>
+        {/* Dropdown toggle for additional files */}
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((prev) => !prev);
+          }}
+          className={clsx(
+            "inline-flex items-center gap-0.5 rounded-r-md border border-border px-1.5 py-1 text-[11px] font-bold transition-colors shadow-2xs cursor-pointer",
+            open
+              ? "bg-primary-50 text-primary-700 border-primary-400"
+              : "bg-surface-sunken/80 text-ink-muted hover:text-ink hover:bg-surface hover:border-primary-400"
+          )}
+          title={`${cleanFiles.length} attachments. Click to view list.`}
+        >
+          <span>+{extraCount}</span>
+          <ChevronDown className={clsx("h-3 w-3 transition-transform duration-150", open && "rotate-180 text-primary-600")} />
+        </button>
 
-      {popoverMenu}
-    </div>
+        {popoverMenu}
+      </div>
+
+      <AttachmentViewerModal
+        open={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+        attachment={previewAttachment}
+      />
+    </>
   );
 }

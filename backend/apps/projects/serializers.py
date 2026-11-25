@@ -13,6 +13,7 @@ class ProjectSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
     summary counts for a project list/detail header."""
 
     client_name = serializers.CharField(source="client.client_name", read_only=True)
+    company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
     orders_count = serializers.SerializerMethodField()
     quotations_count = serializers.SerializerMethodField()
     costings_count = serializers.SerializerMethodField()
@@ -22,7 +23,7 @@ class ProjectSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
     class Meta:
         model = Project
         fields = [
-            "id", "name", "client", "client_name", "description", "status", "extra_data",
+            "id", "name", "client", "client_name", "company_name", "description", "status", "extra_data",
             "orders_count", "quotations_count", "costings_count", "total_order_value",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]

@@ -134,13 +134,13 @@ export function ResizableTh({
     >
       <div
         className={clsx(
-          "flex items-center gap-1 w-full min-w-0 max-w-full overflow-hidden",
+          "flex items-center gap-1 w-full min-w-0 max-w-full py-0.5",
           align === "center" && "justify-center text-center",
           align === "right" && "justify-end text-right",
           align === "left" && "justify-start text-left"
         )}
       >
-        <div className="min-w-0 max-w-full truncate">{children}</div>
+        <div className="min-w-0 max-w-full">{children}</div>
         {isDraggable && (
           <GripVertical className="h-3 w-3 text-ink-faint/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 cursor-grab ml-0.5" />
         )}

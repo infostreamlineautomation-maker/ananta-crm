@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { TextFilterAutocomplete } from "./TextFilterAutocomplete";
 
 export interface FilterOption {
   value: string;
@@ -279,7 +280,7 @@ export function FilterBar({
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Search className="h-3.5 w-3.5 text-primary-600 flex-none" />
-                          <span className="truncate">Search all orders/projects for &ldquo;{search}&rdquo;</span>
+                          <span className="truncate">Search all records for &ldquo;{search}&rdquo;</span>
                         </div>
                         <span className="flex-none shrink-0 text-[10px] font-medium font-mono bg-white border border-border px-2 py-0.5 rounded text-ink-muted shadow-2xs">
                           ↵ Enter
@@ -477,13 +478,17 @@ export function FilterBar({
                                 </span>
                               )}
                             </label>
-                            <input
-                              type="text"
+                            <TextFilterAutocomplete
+                              columnKey={fg.key}
+                              columnLabel={fg.label}
                               value={currentVal}
-                              onChange={(e) => onFilterChange(fg.key, e.target.value)}
+                              onChange={(val) => onFilterChange(fg.key, val)}
+                              onSelectSuggestion={(val) => onFilterChange(fg.key, val)}
+                              suggestions={"suggestions" in fg ? fg.suggestions : undefined}
                               placeholder={`Filter ${fg.label}...`}
-                              className={clsx(
-                                "h-8.5 w-full rounded-lg border px-2.5 text-xs font-medium transition-colors focus:border-primary-500 focus:outline-hidden",
+                              openOnFocusOnly
+                              inputClassName={clsx(
+                                "h-8.5 w-full rounded-lg border pl-8 pr-7 text-xs font-medium transition-colors focus:border-primary-500 focus:outline-hidden",
                                 currentVal
                                   ? "border-primary-400 bg-primary-50/70 font-semibold text-primary-800"
                                   : "border-border bg-white text-ink hover:border-border-strong",

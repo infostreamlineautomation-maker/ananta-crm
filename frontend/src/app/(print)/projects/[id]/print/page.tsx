@@ -96,7 +96,8 @@ export default function ProjectPrintPage() {
   const totalPaid = orders.filter((o) => o.payment_status === "paid").reduce((sum, o) => sum + Number(o.grand_total || 0), 0);
   const balanceDue = totalBilled - totalPaid;
 
-  const clientDisplayName = client?.company_name || project.client_name || "";
+  const clientDisplayName = project.client_name || client?.client_name || "";
+  const clientCompanyName = client?.company_name || project.company_name || "";
   const clientAddress = client?.address || "";
 
   return (
@@ -188,6 +189,11 @@ export default function ProjectPrintPage() {
                   {clientDisplayName && (
                     <p className="mt-0.5 font-black text-[14.5px] uppercase tracking-wide text-black">
                       {clientDisplayName}
+                    </p>
+                  )}
+                  {clientCompanyName && (
+                    <p className="text-[12.5px] font-bold text-neutral-800">
+                      ({clientCompanyName})
                     </p>
                   )}
                   {clientAddress && (

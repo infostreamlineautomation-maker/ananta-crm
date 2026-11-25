@@ -33,6 +33,7 @@ export interface SendNotificationTarget {
   id: number;
   title: string;
   clientName: string;
+  companyName?: string | null;
   clientPhone?: string;
   clientEmail?: string;
   orderNo?: string;
@@ -576,7 +577,7 @@ export function SendNotificationModal({ open, onClose, target, onSuccess }: Send
     <Modal
       open={open}
       onClose={onClose}
-      title={`Send Notification — ${target.title}`}
+      title={`Send Notification — ${target.title}${target.companyName && !target.title.includes(target.companyName) ? ` (${target.companyName})` : ""}`}
       width="max-w-4xl"
     >
       <div className="flex flex-col gap-4">

@@ -14,8 +14,9 @@ import {
   FileText,
   RotateCcw,
   Sparkles,
-  Copy,
   Settings2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -75,7 +76,7 @@ export function createInitialDetailedCostingData(
 ): DetailedCostingData {
   return {
     job_title: initialJobTitle || "",
-    total_qty: "1000",
+    total_qty: "",
     col_item_label: "Item / Process Name",
     col_qty_label: "Qty.",
     col_rate_label: "Rate / pc",
@@ -124,7 +125,7 @@ export function buildDetailedCostingWhatsappMessage(
   orgName: string = "Meewa Industries"
 ): string {
   const jobTitle = data.job_title || jobSubject || "Job";
-  const totalQty = data.total_qty || "1000";
+  const totalQtyNum = parseFloat(data.total_qty || "0") || 0;
   const totalCost = parseFloat(data.total_cost || "0") || 0;
   const unitCost = parseFloat(data.cost_per_unit || "0") || 0;
   const clientRate = parseFloat(data.client_rate || "0") || unitCost;
@@ -153,12 +154,10 @@ export function buildDetailedCostingWhatsappMessage(
     });
     lines.push("");
   } else {
-    lines.push(`📦 *Quantity:* ${Number(totalQty || 0).toLocaleString() || totalQty} pcs`);
-    lines.push(
-      `🏷️ *Product Rate:* Rs. ${
-        clientRate > 0 ? clientRate.toFixed(2) : unitCost.toFixed(2)
-      }/- + GST per pc`
-    );
+    if (totalQtyNum > 0 && clientRate > 0) {
+      lines.push(`📦 *Quantity:* ${totalQtyNum.toLocaleString()} pcs`);
+      lines.push(`🏷️ *Product Rate:* Rs. ${clientRate.toFixed(2)}/- + GST per pc`);
+    }
     lines.push(
       `💰 *Total Amount:* Rs. ${
         clientSubtotal > 0 ? clientSubtotal.toFixed(2) : totalCost.toFixed(2)
@@ -263,6 +262,27 @@ export function DetailedCostingGrid({
   const [isAddingProcess, setIsAddingProcess] = useState(false);
   const [newProcessInput, setNewProcessInput] = useState("");
   const [isManagingProcesses, setIsManagingProcesses] = useState(false);
+  const [showQuickProcesses, setShowQuickProcesses] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("ananta_crm_show_quick_processes");
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return true;
+  });
+
+  function toggleQuickProcesses() {
+    setShowQuickProcesses((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("ananta_crm_show_quick_processes", String(next));
+        } catch {}
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (data.custom_process_templates && data.custom_process_templates.length > 0) {
@@ -374,22 +394,8 @@ export function DetailedCostingGrid({
     nextData.rows = computedRows;
     nextData.total_cost = totalCost.toFixed(2);
 
-    // Total quantity is user-entered and independent of process row quantities
-    let activeQty = parseFloat(nextData.total_qty || "0") || 0;
-    if (activeQty <= 0) {
-      activeQty = 1000;
-      nextData.total_qty = "1000";
-    }
-
-    const unitCost = activeQty > 0 ? totalCost / activeQty : 0;
-    nextData.cost_per_unit = unitCost > 0 ? unitCost.toFixed(2) : "0.00";
-
     const marginPct = parseFloat(nextData.margin_percent || "0") || 0;
-    const clientRate = unitCost * (1 + marginPct / 100);
-    nextData.client_rate = clientRate > 0 ? clientRate.toFixed(2) : "0.00";
-
-    const clientSubtotal = activeQty * clientRate;
-    nextData.client_subtotal = clientSubtotal > 0 ? clientSubtotal.toFixed(2) : nextData.total_cost;
+    const baseClientSubtotal = totalCost * (1 + marginPct / 100);
 
     // Recalculate each comparison column's summary metrics
     const computedCompCols = compCols.map((col) => {
@@ -414,21 +420,18 @@ export function DetailedCostingGrid({
     });
     nextData.comparison_columns = computedCompCols;
 
-    // Keep quantity_tiers in sync if comparison columns exist
+    // Sync active bulk column selection & summary metrics
     if (computedCompCols.length > 0) {
+      const existingSelected = computedCompCols.find((c) => c.id === nextData.selected_comparison_id);
+      const activeCol = existingSelected || computedCompCols[0];
+      nextData.selected_comparison_id = activeCol.id;
+      nextData.total_qty = activeCol.qty;
+      nextData.cost_per_unit = activeCol.cost_per_unit || "0.00";
+      nextData.client_rate = activeCol.client_rate || "0.00";
+      nextData.client_subtotal = activeCol.client_subtotal || "0.00";
+
       const existingTiers = nextData.quantity_tiers || [];
-
-      const existingBase = existingTiers.find((t) => t.id === "tier_base");
-      const baseTier: DetailedCostingQuantityTier = {
-        id: "tier_base",
-        qty: nextData.total_qty || "1000",
-        total_amount: nextData.client_subtotal || "0.00",
-        unit_rate: nextData.client_rate || "0.00",
-        include_in_whatsapp: existingBase ? existingBase.include_in_whatsapp : true,
-        notes: existingBase?.notes || "Base Volume",
-      };
-
-      const compTiers: DetailedCostingQuantityTier[] = computedCompCols.map((col) => {
+      nextData.quantity_tiers = computedCompCols.map((col) => {
         const existing = existingTiers.find((t) => t.id === `tier_${col.id}`);
         return {
           id: `tier_${col.id}`,
@@ -439,16 +442,13 @@ export function DetailedCostingGrid({
           notes: existing?.notes || `${Number(col.qty).toLocaleString()} pcs Bulk Tier`,
         };
       });
-
-      const extraTiers = existingTiers.filter(
-        (t) => t.id !== "tier_base" && !computedCompCols.some((c) => `tier_${c.id}` === t.id)
-      );
-
-      const baseQtyNum = parseFloat(nextData.total_qty || "1000");
-      const hasCompMatchingBase = computedCompCols.some((c) => parseFloat(c.qty) === baseQtyNum);
-      const baseTierList = hasCompMatchingBase ? [] : [baseTier];
-
-      nextData.quantity_tiers = [...baseTierList, ...compTiers, ...extraTiers];
+    } else {
+      nextData.selected_comparison_id = null;
+      nextData.total_qty = "";
+      nextData.cost_per_unit = "0.00";
+      nextData.client_rate = "0.00";
+      nextData.client_subtotal = baseClientSubtotal > 0 ? baseClientSubtotal.toFixed(2) : nextData.total_cost;
+      nextData.quantity_tiers = [];
     }
 
     onChange(nextData);
@@ -727,114 +727,24 @@ export function DetailedCostingGrid({
     });
   }
 
-  function handleAddQuantityTier(presetQty?: string) {
-    const existing = data.quantity_tiers || [];
-    let nextQty = presetQty;
-    if (!nextQty) {
-      if (existing.length === 0) {
-        nextQty = data.total_qty || "1000";
-      } else {
-        const highest = existing.reduce((max, t) => Math.max(max, parseFloat(t.qty) || 0), 0);
-        nextQty = String(highest > 0 ? highest + 1000 : 2000);
-      }
-    }
-
-    const qNum = parseFloat(nextQty) || 1000;
-    const baseRate = parseFloat(data.client_rate || data.cost_per_unit || "0") || 0;
-    const estTotal = (qNum * baseRate).toFixed(2);
-    const estRate = baseRate > 0 ? baseRate.toFixed(2) : "0.00";
-
-    const newTier = createBlankQuantityTier(nextQty, estTotal, estRate);
-    updateDataAndRecalculate({
-      quantity_tiers: [...existing, newTier],
-    });
-  }
-
-  function handleUpdateQuantityTier(
-    tierId: string,
-    field: "qty" | "total_amount" | "unit_rate" | "include_in_whatsapp" | "notes",
-    val: any
-  ) {
-    let toggledQty = "";
-    let toggledState = false;
-
-    const tiers = (data.quantity_tiers || []).map((t) => {
-      if (t.id !== tierId) return t;
-
-      const updated = { ...t };
-      if (field === "total_amount") {
-        updated.total_amount = val;
-        const q = parseFloat(updated.qty) || 0;
-        const tot = parseFloat(val) || 0;
-        if (q > 0) {
-          updated.unit_rate = (tot / q).toFixed(2);
-        }
-      } else if (field === "unit_rate") {
-        updated.unit_rate = val;
-        const q = parseFloat(updated.qty) || 0;
-        const r = parseFloat(val) || 0;
-        updated.total_amount = (q * r).toFixed(2);
-      } else if (field === "qty") {
-        updated.qty = val;
-        const q = parseFloat(val) || 0;
-        const r = parseFloat(updated.unit_rate) || 0;
-        if (q > 0 && r > 0) {
-          updated.total_amount = (q * r).toFixed(2);
-        } else if (q > 0 && parseFloat(updated.total_amount) > 0) {
-          updated.unit_rate = (parseFloat(updated.total_amount) / q).toFixed(2);
-        }
-      } else if (field === "include_in_whatsapp") {
-        updated.include_in_whatsapp = Boolean(val);
-        toggledQty = updated.qty;
-        toggledState = Boolean(val);
-      } else if (field === "notes") {
-        updated.notes = val;
-      }
-      return updated;
-    });
-
-    updateDataAndRecalculate({ quantity_tiers: tiers });
-
-    if (field === "include_in_whatsapp") {
-      const qFormatted = Number(toggledQty || 0).toLocaleString();
-      if (toggledState) {
-        toast.success(`${qFormatted} pcs variant included in WhatsApp proposal.`);
-      } else {
-        toast.success(`${qFormatted} pcs variant removed from WhatsApp proposal.`);
-      }
-    }
-  }
-
-  function handleDeleteQuantityTier(tierId: string) {
-    const tiers = (data.quantity_tiers || []).filter((t) => t.id !== tierId);
-    updateDataAndRecalculate({ quantity_tiers: tiers });
-    toast.success("Quantity comparison tier removed.");
-  }
-
-  function handleCopyWhatsappCosting() {
-    const message = buildDetailedCostingWhatsappMessage(
-      data,
-      "Sir/Madam",
-      "",
-      data.job_title || ""
-    );
-
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(message);
-      toast.success("Detailed Costing WhatsApp proposal copied to clipboard!");
-    }
-  }
-
   const colItemLabel = data.col_item_label || "Item / Process Name";
   const colQtyLabel = data.col_qty_label || "Qty.";
   const colRateLabel = !data.col_rate_label || data.col_rate_label === "Rate" ? "Rate / pc" : data.col_rate_label;
   const colTotalLabel = data.col_total_label || "Total Amount";
 
   const totalCostNumber = parseFloat(data.total_cost || "0") || 0;
-  const totalQtyNumber = parseFloat(data.total_qty || "0") || 0;
-  const unitCostNumber = parseFloat(data.cost_per_unit || "0") || 0;
-  const clientSubtotalNumber = parseFloat(data.client_subtotal || "0") || totalCostNumber;
-  const clientRateNumber = parseFloat(data.client_rate || "0") || unitCostNumber;
+  const marginPctNumber = parseFloat(data.margin_percent || "0") || 0;
+  const baseClientSubtotalNumber = totalCostNumber * (1 + marginPctNumber / 100);
+  const activeCompCol =
+    comparisonCols.find((c) => c.id === data.selected_comparison_id) ??
+    comparisonCols[0] ??
+    null;
+  const clientSubtotalNumber = activeCompCol
+    ? parseFloat(activeCompCol.client_subtotal || activeCompCol.total_cost || "0") || 0
+    : baseClientSubtotalNumber;
+  const clientRateNumber = activeCompCol
+    ? parseFloat(activeCompCol.client_rate || activeCompCol.cost_per_unit || "0") || 0
+    : 0;
 
   // Active non-empty processes for distribution analytics
   const activeProcesses = useMemo(() => {
@@ -856,16 +766,189 @@ export function DetailedCostingGrid({
   }, [rows, totalCostNumber]);
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Top Action Toolbar (Clean CRM style, no job title box, no Table 1) */}
+    <div className="flex flex-col gap-3.5">
+      {/* Quick Add Common Processes Recommendation Stripe (Default unhidden, toggleable) */}
+      {!readOnly && showQuickProcesses && (
+        <div className="rounded-xl border border-border bg-surface-sunken/40 px-4 py-2.5 shadow-2xs flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-ink uppercase tracking-wide">
+              Quick Add Common Process Rows:
+            </span>
+            <div className="flex items-center gap-2">
+              {!isAddingProcess && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingProcess(true)}
+                  className="inline-flex items-center gap-0.5 text-[11px] font-bold text-primary-600 hover:text-primary-700 cursor-pointer"
+                  title="Add a custom process to this quick list"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add</span>
+                </button>
+              )}
+              <span className="text-border">|</span>
+              <button
+                type="button"
+                onClick={() => setIsManagingProcesses((prev) => !prev)}
+                className={clsx(
+                  "inline-flex items-center gap-1 text-[11px] font-semibold transition cursor-pointer",
+                  isManagingProcesses
+                    ? "text-amber-800 font-bold underline"
+                    : "text-ink-muted hover:text-ink"
+                )}
+                title={isManagingProcesses ? "Finish managing" : "Remove processes from this quick list"}
+              >
+                {isManagingProcesses ? "Done" : "Manage / Remove"}
+              </button>
+              <span className="text-border">|</span>
+              <button
+                type="button"
+                onClick={toggleQuickProcesses}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-muted hover:text-ink transition cursor-pointer"
+                title="Hide Quick Add process suggestions"
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+                <span>Hide</span>
+              </button>
+            </div>
+          </div>
+
+          {isAddingProcess && (
+            <div className="flex items-center gap-1.5 p-1 rounded-lg border border-primary-300 bg-white shadow-2xs max-w-md">
+              <input
+                type="text"
+                value={newProcessInput}
+                onChange={(e) => setNewProcessInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSaveNewProcess();
+                  } else if (e.key === "Escape") {
+                    setIsAddingProcess(false);
+                    setNewProcessInput("");
+                  }
+                }}
+                placeholder="e.g. UV Varnish, Box Making, Embossing..."
+                className="flex-1 text-xs px-2 py-1 border border-border rounded focus:border-primary-500 focus:outline-none"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveNewProcess}
+                className="px-2.5 py-1 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded transition cursor-pointer"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingProcess(false);
+                  setNewProcessInput("");
+                }}
+                className="p-1 text-ink-muted hover:text-ink cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-1.5">
+            {quickProcesses.map((tmpl) => (
+              <div
+                key={tmpl}
+                className={clsx(
+                  "group inline-flex items-center rounded-md border text-[11px] font-medium transition shadow-2xs",
+                  isManagingProcesses
+                    ? "border-amber-400 bg-amber-50 text-amber-950 font-semibold"
+                    : "border-border bg-surface hover:bg-surface-hover hover:border-primary-400 text-ink"
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isManagingProcesses) {
+                      handleRemoveQuickProcess(tmpl);
+                    } else {
+                      handleAddRow(tmpl);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 cursor-pointer"
+                  title={
+                    isManagingProcesses
+                      ? `Click to remove "${tmpl}" from quick list`
+                      : `Add "${tmpl}" process row to table`
+                  }
+                >
+                  {!isManagingProcesses && <Plus className="h-3 w-3 text-primary-600" />}
+                  <span>{tmpl}</span>
+                </button>
+
+                {isManagingProcesses ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveQuickProcess(tmpl);
+                    }}
+                    className="pr-1.5 pl-0.5 text-red-600 hover:text-red-800 transition cursor-pointer"
+                    title={`Remove "${tmpl}" from quick list`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveQuickProcess(tmpl);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 pr-1 pl-0.5 text-neutral-400 hover:text-red-600 transition cursor-pointer"
+                    title={`Remove "${tmpl}" from quick list`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {isManagingProcesses && (
+            <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10.5px]">
+              <span className="text-amber-800">
+                Click ✕ on any process to remove it from quick list.
+              </span>
+              <button
+                type="button"
+                onClick={handleResetQuickProcesses}
+                className="text-ink-muted hover:text-ink underline cursor-pointer"
+              >
+                Reset Defaults
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detailed Costing Sheet Action Toolbar (Directly above table) */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-sunken/40 px-5 py-2.5 rounded-lg">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-ink">
             Detailed Costing Sheet
           </span>
           <span className="text-[11px] font-semibold text-ink-muted bg-surface px-2 py-0.5 rounded-full border border-border">
             {rows.filter((r) => r.item_name && r.item_name.trim()).length} processes entered
           </span>
+          {!readOnly && !showQuickProcesses && (
+            <button
+              type="button"
+              onClick={toggleQuickProcesses}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted hover:text-primary-700 hover:border-primary-300 transition cursor-pointer"
+              title="Show Quick Add Common Process Rows"
+            >
+              <Eye className="h-3 w-3 text-primary-600" />
+              <span>Quick Add Processes</span>
+            </button>
+          )}
         </div>
 
         {/* Action Buttons: Add Column, Add Comparison Qty & Add Row */}
@@ -1608,484 +1691,188 @@ export function DetailedCostingGrid({
               );
             })}
           </tbody>
+          <tfoot>
+            {/* Footer Row 1: Total Cost (& Cost/pc under Bulk Columns) */}
+            <tr className="border-t-2 border-border bg-surface-sunken/70 text-xs">
+              <td
+                colSpan={4 + customCols.length}
+                className="px-3 py-2 text-right font-extrabold uppercase tracking-wide text-ink border-r border-border"
+              >
+                Total Cost
+              </td>
+              <td className="px-2.5 py-2 text-right font-extrabold font-mono text-red-700 border-r border-border tnum">
+                {formatCurrency(totalCostNumber, currencyCode, 2)}
+              </td>
+              {comparisonCols.map((col) => {
+                const colCost = parseFloat(col.total_cost || "0") || 0;
+                const colPerPc = parseFloat(col.cost_per_unit || "0") || 0;
+                return (
+                  <td
+                    key={col.id}
+                    className="px-2.5 py-2 text-right border-r border-border bg-emerald-50/30 align-middle"
+                  >
+                    <div className="font-extrabold font-mono text-ink tnum">
+                      {formatCurrency(colCost, currencyCode, 2)}
+                    </div>
+                    <div className="text-[10.5px] font-bold font-mono text-emerald-700 tnum">
+                      {colPerPc > 0 ? `${formatCurrency(colPerPc, currencyCode, 2)} / pc` : "— / pc"}
+                    </div>
+                  </td>
+                );
+              })}
+              {!readOnly && <td className="px-2 py-2" />}
+            </tr>
+
+            {/* Footer Row 2: Client Quote with Margin (only displayed when Margin % > 0) */}
+            {marginPctNumber > 0 && (
+              <tr className="border-t border-border bg-primary-50/40 text-xs">
+                <td
+                  colSpan={4 + customCols.length}
+                  className="px-3 py-2 text-right font-extrabold uppercase tracking-wide text-primary-700 border-r border-border"
+                >
+                  Client Quote (+{marginPctNumber}%)
+                </td>
+                <td className="px-2.5 py-2 text-right font-extrabold font-mono text-primary-700 border-r border-border tnum">
+                  {formatCurrency(baseClientSubtotalNumber, currencyCode, 2)}
+                </td>
+                {comparisonCols.map((col) => {
+                  const colClientTot = parseFloat(col.client_subtotal || "0") || 0;
+                  const colClientPc = parseFloat(col.client_rate || "0") || 0;
+                  return (
+                    <td
+                      key={col.id}
+                      className="px-2.5 py-2 text-right border-r border-border bg-emerald-50/60 align-middle"
+                    >
+                      <div className="font-black font-mono text-primary-700 tnum">
+                        {formatCurrency(colClientTot, currencyCode, 2)}
+                      </div>
+                      <div className="text-[10.5px] font-bold font-mono text-emerald-800 tnum">
+                        {colClientPc > 0 ? `${formatCurrency(colClientPc, currencyCode, 2)} / pc` : "— / pc"}
+                      </div>
+                    </td>
+                  );
+                })}
+                {!readOnly && <td className="px-2 py-2" />}
+              </tr>
+            )}
+          </tfoot>
         </table>
       </div>
 
-      {/* Bottom 2-Column Responsive Section: Quantity Comparison on Left, Calculator on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column (7 cols): Quantity Comparisons Table & Specs */}
-        <div className="lg:col-span-7 flex flex-col gap-4">
-          {/* Card A: Multi-Quantity Comparison & Tier Pricing Table */}
-          <div className="rounded-xl border border-border bg-white p-4 shadow-2xs flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-primary-600" />
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wide text-ink">
-                    Quantity &amp; Rate Comparisons
-                  </h3>
-                  <p className="text-[11px] text-ink-muted">
-                    Compare tiered pricing for 1,000, 2,000, 5,000 pcs etc. (editable amounts &amp; rates)
-                  </p>
-                </div>
-              </div>
-
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => handleAddQuantityTier()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50/80 hover:bg-primary-100 text-primary-700 px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Quantity Tier</span>
-                </button>
-              )}
-            </div>
-
-            {/* Comparison Tiers Table */}
-            {(data.quantity_tiers || []).length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="bg-surface-sunken/60 border-b border-border text-[11px] font-bold text-ink-muted uppercase">
-                      <th className="w-10 px-2.5 py-2 text-center" title="Check to include in WhatsApp proposal">
-                        WA
-                      </th>
-                      <th className="px-2.5 py-2 text-center">Qty (pcs)</th>
-                      <th className="px-2.5 py-2 text-right">Total Amount ({currencyCode})</th>
-                      <th className="px-2.5 py-2 text-right">Rate / pc ({currencyCode})</th>
-                      <th className="px-2.5 py-2 text-left">Remarks</th>
-                      {!readOnly && <th className="w-8 px-2 py-2 text-center" />}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {(data.quantity_tiers || []).map((tier) => (
-                      <tr key={tier.id} className={tier.include_in_whatsapp !== false ? "bg-white" : "bg-neutral-50/60 opacity-60"}>
-                        {/* Checkbox for WhatsApp */}
-                        <td className="px-2.5 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={tier.include_in_whatsapp !== false}
-                            disabled={readOnly}
-                            onChange={(e) => handleUpdateQuantityTier(tier.id, "include_in_whatsapp", e.target.checked)}
-                            className="h-3.5 w-3.5 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            title="Include this tier in WhatsApp proposal"
-                          />
-                        </td>
-
-                        {/* Quantity */}
-                        <td className="px-2.5 py-2">
-                          <input
-                            type="number"
-                            min="1"
-                            step="any"
-                            disabled={readOnly}
-                            value={tier.qty}
-                            onChange={(e) => handleUpdateQuantityTier(tier.id, "qty", e.target.value)}
-                            placeholder="1000"
-                            className="w-20 text-center font-bold font-mono text-ink bg-surface-sunken/30 border border-border rounded px-1.5 py-1 focus:border-primary-500 focus:outline-none"
-                          />
-                        </td>
-
-                        {/* Total Amount (Editable!) */}
-                        <td className="px-2.5 py-2 text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            disabled={readOnly}
-                            value={tier.total_amount}
-                            onChange={(e) => handleUpdateQuantityTier(tier.id, "total_amount", e.target.value)}
-                            placeholder="0.00"
-                            className="w-24 text-right font-black font-mono text-primary-700 bg-surface-sunken/30 border border-border rounded px-1.5 py-1 focus:border-primary-500 focus:outline-none"
-                          />
-                        </td>
-
-                        {/* Rate / pc (Editable!) */}
-                        <td className="px-2.5 py-2 text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            disabled={readOnly}
-                            value={tier.unit_rate}
-                            onChange={(e) => handleUpdateQuantityTier(tier.id, "unit_rate", e.target.value)}
-                            placeholder="0.00"
-                            className="w-20 text-right font-bold font-mono text-emerald-700 bg-surface-sunken/30 border border-border rounded px-1.5 py-1 focus:border-emerald-500 focus:outline-none"
-                          />
-                        </td>
-
-                        {/* Remarks */}
-                        <td className="px-2.5 py-2">
-                          <input
-                            type="text"
-                            disabled={readOnly}
-                            value={tier.notes || ""}
-                            onChange={(e) => handleUpdateQuantityTier(tier.id, "notes", e.target.value)}
-                            placeholder="e.g. Standard"
-                            className="w-full text-xs text-ink bg-transparent border-b border-transparent hover:border-border focus:border-primary-500 focus:outline-none px-1 py-0.5"
-                          />
-                        </td>
-
-                        {/* Delete */}
-                        {!readOnly && (
-                          <td className="px-2 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteQuantityTier(tier.id)}
-                              className="text-neutral-400 hover:text-red-600 transition cursor-pointer p-1"
-                              title="Delete this comparison tier"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                <p className="text-xs text-ink-muted">
-                  No quantity comparisons added yet.
-                </p>
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => handleAddQuantityTier()}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-700 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add First Comparison Tier (e.g. 1,000 pcs)</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Quick Add Preset Chips */}
-            {!readOnly && (
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-semibold text-ink-muted">Quick Add:</span>
-                  {[1000, 2000, 3000, 5000, 10000].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleAddQuantityTier(String(preset))}
-                      className="px-2 py-0.5 rounded text-[11px] font-medium border border-border bg-neutral-50 hover:bg-white hover:border-primary-400 text-ink cursor-pointer transition shadow-2xs"
-                    >
-                      +{preset.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>
-                    {(data.quantity_tiers || []).filter((t) => t.include_in_whatsapp !== false).length} checked for WhatsApp
-                  </span>
-                </span>
-              </div>
-            )}
+      {/* Compact 1-Row Bulk & Margin Summary Bar */}
+      <div className="rounded-xl border border-border bg-surface-sunken/60 px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-1.5 font-extrabold uppercase tracking-wide text-ink">
+            <Calculator className="h-4 w-4 text-primary-600 shrink-0" />
+            <span>Summary</span>
+            <span className="text-[10.5px] font-bold text-ink-muted">({currencyCode})</span>
           </div>
 
-          {/* Card B: Costing Production Notes */}
-          <div className="rounded-xl border border-border bg-surface-sunken/40 p-4 shadow-2xs flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary-600" />
-              <label className="text-xs font-bold text-ink uppercase tracking-wide">
-                Production Specs &amp; Internal Notes
-              </label>
-            </div>
-            <textarea
-              rows={3}
+          <div className="h-4 w-px bg-border hidden sm:block" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-red-600 uppercase text-[11px]">Base Cost:</span>
+            <span className="font-extrabold font-mono text-red-600 text-sm tnum">
+              {formatCurrency(totalCostNumber, currencyCode, 2)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-ink">Margin %:</span>
+            <input
+              type="number"
+              step="any"
+              min="0"
               disabled={readOnly}
-              value={data.costing_notes || ""}
-              onChange={(e) => updateDataAndRecalculate({ costing_notes: e.target.value })}
-              placeholder="e.g. Paper 300 GSM Art Card, 4-color offset printing, plate size 20x30, matte thermal lamination front only, punch die ready with vendor..."
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-xs text-ink placeholder:italic placeholder:text-ink-faint focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-100 transition shadow-2xs resize-y"
+              value={data.margin_percent || "0"}
+              onChange={(e) => updateDataAndRecalculate({ margin_percent: e.target.value })}
+              placeholder="0"
+              className="w-16 text-right font-mono text-xs text-ink bg-white border border-border rounded px-2 py-1 focus:border-primary-500 focus:outline-none"
             />
           </div>
         </div>
 
-        {/* Right Column (5 cols): The Base Calculator Card & Process Tools */}
-        <div className="lg:col-span-5 flex flex-col gap-3">
-          <div className="rounded-xl border border-border bg-surface-sunken/60 p-4 shadow-2xs flex flex-col gap-3">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <div className="flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary-600" />
-                <h3 className="text-xs font-extrabold uppercase tracking-wide text-ink">
-                  Calculation Summary
-                </h3>
-              </div>
-              <span className="text-[11px] font-bold text-ink-muted uppercase">
-                {currencyCode}
-              </span>
-            </div>
-
-            {/* Metric 1: Total Production Cost (Total Rs.) */}
-            <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-border shadow-2xs">
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-red-600 uppercase tracking-wide">
-                  Total Rs.
-                </span>
-                <span className="text-[10px] text-ink-muted">
-                  Sum of all row amounts
-                </span>
-              </div>
-              <span className="text-base font-extrabold font-mono text-red-600">
-                {formatCurrency(totalCostNumber, currencyCode, 2)}
-              </span>
-            </div>
-
-            {/* Metric 2: Total Qty (Directly entered by user, not sum of rows!) */}
-            <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-border shadow-2xs">
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-wide">
-                  Total Qty.
-                </span>
-                <span className="text-[10px] text-ink-muted">
-                  Production batch quantity
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  step="any"
-                  min="1"
-                  disabled={readOnly}
-                  value={data.total_qty || "1000"}
-                  onChange={(e) => updateDataAndRecalculate({ total_qty: e.target.value })}
-                  placeholder="1000"
-                  className="w-24 text-right font-black font-mono text-sm text-blue-600 bg-surface-sunken/40 border border-border rounded px-2 py-1 focus:border-blue-500 focus:outline-none"
-                />
-                <span className="text-xs font-bold text-ink-muted">pcs</span>
-              </div>
-            </div>
-
-            {/* Metric 3: Product Cost Per Piece */}
-            <div className="flex items-center justify-between rounded-lg bg-red-50/50 p-3 border border-red-200 shadow-2xs">
-              <div className="flex flex-col">
-                <span className="text-xs font-extrabold text-red-700 uppercase tracking-wide">
-                  Product Cost
-                </span>
-                <span className="text-[10px] text-red-600/80">
-                  Total Rs. ÷ Total Qty ({totalCostNumber.toFixed(2)} ÷ {totalQtyNumber || 1})
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-base font-black font-mono text-red-700">
-                  {formatCurrency(unitCostNumber, currencyCode, 2)}
-                </span>
-                <span className="text-[11px] font-bold text-red-600/80 ml-1">/ pc</span>
-              </div>
-            </div>
-
-            {/* Client Markup & Final Quotation Rate Section */}
-            <div className="rounded-lg bg-white p-3 border border-border shadow-2xs flex flex-col gap-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-ink">Client Margin / Markup %:</span>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
+        {/* Right Cluster: Individual Bulk Qty Pills (when added) + Active Quote Subtotal */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {comparisonCols.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {comparisonCols.map((col) => {
+                const isSelected = activeCompCol?.id === col.id;
+                const cTot = parseFloat(col.client_subtotal || col.total_cost || "0") || 0;
+                const cPc = parseFloat(col.client_rate || col.cost_per_unit || "0") || 0;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
                     disabled={readOnly}
-                    value={data.margin_percent || "0"}
-                    onChange={(e) => updateDataAndRecalculate({ margin_percent: e.target.value })}
-                    placeholder="0"
-                    className="w-20 text-right font-mono text-xs text-ink bg-surface-sunken/40 border border-border rounded px-2 py-1 focus:border-primary-500 focus:outline-none"
-                  />
-                  <span className="text-xs text-ink-muted font-bold">%</span>
-                </div>
-              </div>
+                    onClick={() => updateDataAndRecalculate({ selected_comparison_id: col.id })}
+                    className={clsx(
+                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs",
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-950 font-bold ring-1 ring-emerald-200"
+                        : "border-border bg-white text-ink hover:border-emerald-300 hover:bg-emerald-50/40"
+                    )}
+                    title={`Select ${Number(col.qty).toLocaleString()} pcs as active client quote`}
+                  >
+                    <span className="font-mono font-extrabold text-emerald-800">
+                      {Number(col.qty).toLocaleString()} pcs
+                    </span>
+                    <span className="text-ink-faint">·</span>
+                    <span className="font-mono tnum">
+                      {formatCurrency(cPc, currencyCode, 2)}/pc
+                    </span>
+                    <span className="text-ink-faint">·</span>
+                    <span className="font-mono font-bold text-primary-700 tnum">
+                      {formatCurrency(cTot, currencyCode, 2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border">
-                <span className="font-bold text-ink">Client Given Rate:</span>
-                <div className="flex items-center gap-1 font-mono font-bold text-emerald-700 text-sm">
-                  <span>{formatCurrency(clientRateNumber, currencyCode, 2)}</span>
-                  <span className="text-[10px] text-ink-muted font-normal">/ pc</span>
-                </div>
+          {activeCompCol ? (
+            <div className="flex items-center gap-3 pl-2 border-l border-border">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-ink-muted">Active Rate:</span>
+                <span className="font-mono font-bold text-emerald-700 tnum">
+                  {formatCurrency(clientRateNumber, currencyCode, 2)}/pc
+                </span>
               </div>
-
-              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-dashed border-border">
-                <span className="font-extrabold text-primary-700">Client Quotation Subtotal:</span>
-                <span className="font-mono font-extrabold text-primary-700 text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-primary-700">Client Quote:</span>
+                <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
                   {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
                 </span>
               </div>
-
-              <button
-                type="button"
-                onClick={handleCopyWhatsappCosting}
-                className="w-full mt-1.5 inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 px-3 py-1.5 text-xs font-semibold shadow-2xs transition cursor-pointer"
-                title="Copy detailed component costing breakdown & checked quantity comparisons for WhatsApp"
-              >
-                <Copy className="h-3.5 w-3.5 text-emerald-700" />
-                <span>Copy Costing WhatsApp Proposal</span>
-              </button>
             </div>
-          </div>
-
-          {/* Quick Add Common Processes Chips with Add & Remove functionality */}
-          {!readOnly && (
-            <div className="rounded-xl border border-border bg-surface-sunken/40 p-3 shadow-2xs flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-ink uppercase tracking-wide">
-                  Quick Add Common Process Rows:
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {!isAddingProcess && (
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingProcess(true)}
-                      className="inline-flex items-center gap-0.5 text-[11px] font-bold text-primary-600 hover:text-primary-700 cursor-pointer"
-                      title="Add a custom process to this quick list"
-                    >
-                      <Plus className="h-3 w-3" />
-                      <span>Add</span>
-                    </button>
-                  )}
-                  <span className="text-border">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsManagingProcesses((prev) => !prev)}
-                    className={clsx(
-                      "inline-flex items-center gap-1 text-[11px] font-semibold transition cursor-pointer",
-                      isManagingProcesses
-                        ? "text-amber-800 font-bold underline"
-                        : "text-ink-muted hover:text-ink"
-                    )}
-                    title={isManagingProcesses ? "Finish managing" : "Remove processes from this quick list"}
-                  >
-                    {isManagingProcesses ? "Done" : "Manage / Remove"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Inline input to add a new process */}
-              {isAddingProcess && (
-                <div className="flex items-center gap-1.5 p-1 rounded-lg border border-primary-300 bg-white shadow-2xs">
-                  <input
-                    type="text"
-                    value={newProcessInput}
-                    onChange={(e) => setNewProcessInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveNewProcess();
-                      } else if (e.key === "Escape") {
-                        setIsAddingProcess(false);
-                        setNewProcessInput("");
-                      }
-                    }}
-                    placeholder="e.g. UV Varnish, Box Making, Embossing..."
-                    className="flex-1 text-xs px-2 py-1 border border-border rounded focus:border-primary-500 focus:outline-none"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveNewProcess}
-                    className="px-2.5 py-1 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded transition cursor-pointer"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingProcess(false);
-                      setNewProcessInput("");
-                    }}
-                    className="p-1 text-ink-muted hover:text-ink cursor-pointer"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Process Chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {quickProcesses.map((tmpl) => (
-                  <div
-                    key={tmpl}
-                    className={clsx(
-                      "group inline-flex items-center rounded-md border text-[11px] font-medium transition shadow-2xs",
-                      isManagingProcesses
-                        ? "border-amber-400 bg-amber-50 text-amber-950 font-semibold"
-                        : "border-border bg-surface hover:bg-surface-hover hover:border-primary-400 text-ink"
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isManagingProcesses) {
-                          handleRemoveQuickProcess(tmpl);
-                        } else {
-                          handleAddRow(tmpl);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 cursor-pointer"
-                      title={
-                        isManagingProcesses
-                          ? `Click to remove "${tmpl}" from quick list`
-                          : `Add "${tmpl}" process row to table`
-                      }
-                    >
-                      {!isManagingProcesses && <Plus className="h-3 w-3 text-primary-600" />}
-                      <span>{tmpl}</span>
-                    </button>
-
-                    {/* Delete button (visible always in manage mode, or on hover in normal mode) */}
-                    {isManagingProcesses ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveQuickProcess(tmpl);
-                        }}
-                        className="pr-1.5 pl-0.5 text-red-600 hover:text-red-800 transition cursor-pointer"
-                        title={`Remove "${tmpl}" from quick list`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveQuickProcess(tmpl);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 pr-1 pl-0.5 text-neutral-400 hover:text-red-600 transition cursor-pointer"
-                        title={`Remove "${tmpl}" from quick list`}
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Manage mode footer with explanation & reset */}
-              {isManagingProcesses && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10.5px]">
-                  <span className="text-amber-800">
-                    Click ✕ on any process to remove it from quick list.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleResetQuickProcesses}
-                    className="text-ink-muted hover:text-ink underline cursor-pointer"
-                  >
-                    Reset Defaults
-                  </button>
-                </div>
-              )}
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-primary-700">Client Subtotal:</span>
+              <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
+                {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
+              </span>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Costing Production Specs & Internal Notes */}
+      <div className="rounded-xl border border-border bg-surface-sunken/40 p-4 shadow-2xs flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-primary-600" />
+          <label className="text-xs font-bold text-ink uppercase tracking-wide">
+            Production Specs &amp; Internal Notes
+          </label>
+        </div>
+        <textarea
+          rows={2}
+          disabled={readOnly}
+          value={data.costing_notes || ""}
+          onChange={(e) => updateDataAndRecalculate({ costing_notes: e.target.value })}
+          placeholder="e.g. Paper 300 GSM Art Card, 4-color offset printing, plate size 20x30, matte thermal lamination front only, punch die ready with vendor..."
+          className="w-full rounded-lg border border-border bg-white px-3 py-2 text-xs text-ink placeholder:italic placeholder:text-ink-faint focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-100 transition shadow-2xs resize-y"
+        />
       </div>
     </div>
   );

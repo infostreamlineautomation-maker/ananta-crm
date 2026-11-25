@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch, ApiError, ConvertedTotals, CurrencyTotalItem, Paginated } from "./api";
+import { apiFetch, ApiError, ConvertedTotals, CostingTotals, CurrencyTotalItem, Paginated } from "./api";
 
 function isPaginated<T>(res: T[] | Paginated<T>): res is Paginated<T> {
   return !Array.isArray(res);
@@ -58,6 +58,7 @@ export function useInfinitePaginatedList<T>(basePath: string) {
     total_due_amount?: string;
     currency_totals?: Record<string, CurrencyTotalItem>;
     converted_totals?: ConvertedTotals;
+    costing_totals?: CostingTotals;
   }>({});
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export function useInfinitePaginatedList<T>(basePath: string) {
             total_due_amount: res.total_due_amount,
             currency_totals: res.currency_totals,
             converted_totals: res.converted_totals,
+            costing_totals: res.costing_totals,
           });
         }
       })

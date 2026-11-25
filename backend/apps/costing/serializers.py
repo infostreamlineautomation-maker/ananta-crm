@@ -63,12 +63,43 @@ class CostingFileSerializer(serializers.ModelSerializer):
         return None
 
 
-class CostingItemSerializer(serializers.ModelSerializer):
+class CostingItemSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    product_name = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
+    supplier_rate = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=1)
+    client_rate = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True, default=0)
+    same_organization_fields = ["product"]
 
     class Meta:
         model = CostingItem
-        fields = ["id", "supplier_rate", "quantity", "client_rate", "profit", "extra_data"]
+        fields = [
+            "id", "product", "product_name", "description",
+            "supplier_rate", "quantity", "client_rate", "profit",
+            "extra_data", "sort_order",
+        ]
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            data = data.copy()
+            if data.get("client_rate") in ("", None):
+                data["client_rate"] = "0"
+            if data.get("supplier_rate") in ("", None):
+                data["supplier_rate"] = "0"
+            if data.get("quantity") in ("", None):
+                data["quantity"] = "1"
+            if data.get("description") is None:
+                data["description"] = ""
+            if data.get("product_name") is None:
+                data["product_name"] = ""
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.product:
+            ret["product_name"] = instance.product.product_name
+        return ret
 
 
 class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
@@ -91,8 +122,10 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
     client_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     supplier_display = serializers.CharField(source="supplier.supplier_name", read_only=True)
-    product_display = serializers.CharField(source="product.product_name", read_only=True)
+    product_display = serializers.SerializerMethodField()
+    product_names = serializers.SerializerMethodField()
     client_display = serializers.CharField(source="client.client_name", read_only=True)
+    company_name = serializers.CharField(source="client.company.company_name", read_only=True, default=None)
     project_name = serializers.CharField(source="project.name", read_only=True)
 
     file = Base64OrURLFileField(required=False, allow_null=True)
@@ -108,14 +141,33 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
         fields = [
             "id", "costing_date", "project", "project_name",
             "supplier", "supplier_name", "supplier_display",
-            "product", "product_name", "product_display",
-            "client", "client_name", "client_display",
+            "product", "product_name", "product_display", "product_names",
+            "client", "client_name", "client_display", "company_name",
             "file", "file_name", "files",
             "description", "columns_config", "items", "supplier_cost", "client_revenue", "profit", "profit_percent",
             "is_deleted", "created_by", "created_at", "updated_at",
         ]
-        extra_kwargs = {"supplier": {"required": False}, "product": {"required": False}, "client": {"required": False}}
+        extra_kwargs = {"supplier": {"required": False}, "product": {"required": False, "allow_null": True}, "client": {"required": False}}
         read_only_fields = ["is_deleted", "created_by", "created_at", "updated_at"]
+
+    def _collect_product_names(self, obj):
+        names = []
+        seen = set()
+        for it in obj.items.all():
+            n = it.product.product_name if it.product else (it.product_name or "").strip()
+            if n and n.lower() not in seen:
+                seen.add(n.lower())
+                names.append(n)
+        if not names and obj.product:
+            names.append(obj.product.product_name)
+        return names
+
+    def get_product_display(self, obj):
+        names = self._collect_product_names(obj)
+        return ", ".join(names) if names else ""
+
+    def get_product_names(self, obj):
+        return ", ".join(self._collect_product_names(obj))
 
     def validate_items(self, value):
         if not value:
@@ -147,9 +199,30 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
             )
         validated_data["client"] = client
 
-        if not (validated_data["supplier"] and validated_data["product"] and validated_data["client"]):
-            raise serializers.ValidationError("Supplier, product, and client are all required (pick one or type a new name).")
+        if not (validated_data["supplier"] and validated_data["client"]):
+            raise serializers.ValidationError("Supplier and client are required (pick one or type a new name).")
         return validated_data
+
+    def _create_items(self, costing, items_data, organization):
+        first_product = None
+        for idx, item_data in enumerate(items_data):
+            data = dict(item_data)
+            prod = data.get("product")
+            p_name = (data.get("product_name") or "").strip()
+            if not prod and p_name:
+                prod = Product.objects.filter(organization=organization, product_name__iexact=p_name).first()
+                if prod:
+                    data["product"] = prod
+            elif prod and not p_name:
+                data["product_name"] = prod.product_name
+            if not first_product and data.get("product"):
+                first_product = data["product"]
+            data["sort_order"] = idx
+            CostingItem.objects.create(costing=costing, **data)
+
+        if not costing.product and first_product:
+            costing.product = first_product
+            costing.save(update_fields=["product"])
 
     def _handle_files(self, costing, files_data, raw_files_list=None):
         if files_data is None:
@@ -203,8 +276,7 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
             validated_data["description"] = ""
         validated_data = self._resolve(validated_data, organization)
         costing = Costing.objects.create(**validated_data)
-        for item_data in items_data:
-            CostingItem.objects.create(costing=costing, **item_data)
+        self._create_items(costing, items_data, organization)
         if files_data is not None:
             self._handle_files(costing, files_data, raw_files)
         return costing
@@ -225,8 +297,7 @@ class CostingSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer
         instance.save()
         if items_data is not None:
             instance.items.all().delete()
-            for item_data in items_data:
-                CostingItem.objects.create(costing=instance, **item_data)
+            self._create_items(instance, items_data, instance.organization)
         if files_data is not None:
             self._handle_files(instance, files_data, raw_files)
         return instance

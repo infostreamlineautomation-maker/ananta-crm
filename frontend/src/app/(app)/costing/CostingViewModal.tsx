@@ -20,11 +20,11 @@ import {
   ZoomIn,
 } from "lucide-react";
 import clsx from "clsx";
-import { CostingDetail, CostingFile } from "@/lib/types";
+import { CostingDetail, CostingFile, QuotationAttachment } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
 
 function formatFileSize(bytes?: number | null) {
   if (!bytes || isNaN(bytes)) return "";
@@ -63,11 +63,10 @@ export function CostingViewModal({
   onClose: () => void;
   canEdit?: boolean;
 }) {
-  const [previewLightbox, setPreviewLightbox] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<QuotationAttachment | null>(null);
 
   if (!costing) return null;
 
-  const firstItem = costing.items?.[0];
   const profit = parseFloat(costing.profit || "0");
   const profitPercent = parseFloat(costing.profit_percent || "0");
 
@@ -80,8 +79,6 @@ export function CostingViewModal({
 
   const catalogueFiles = allFiles.filter((f) => f.category !== "rate_list");
   const rateListFiles = allFiles.filter((f) => f.category === "rate_list");
-
-  const extraEntries = Object.entries(firstItem?.extra_data || {});
 
   const renderFileCard = (f: CostingFile, idx: number, prefix: string) => {
     const fPath = f.file || (f as any).file_url || "";
@@ -109,16 +106,33 @@ export function CostingViewModal({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {isImg && fUrl && (
+          {fPath ? (
             <button
               type="button"
-              onClick={() => setPreviewLightbox(fUrl)}
+              onClick={() => {
+                const ext = (fName || fPath).split(".").pop()?.toLowerCase() || "";
+                const fileType = isImg
+                  ? "image"
+                  : ext === "pdf"
+                  ? "pdf"
+                  : ["xlsx", "xls", "csv"].includes(ext)
+                  ? "excel"
+                  : "other";
+                setPreviewAttachment({
+                  id: f.id,
+                  file: f.file ?? null,
+                  file_url: (f as any).file_url ?? null,
+                  file_name: fName || "attachment",
+                  file_size: f.file_size ?? undefined,
+                  file_type: fileType,
+                });
+              }}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:text-ink hover:bg-surface-hover shadow-2xs transition-colors cursor-pointer"
-              title="Preview image"
+              title="Preview attachment"
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
-          )}
+          ) : null}
           {fUrl && (
             <a
               href={fUrl}
@@ -126,7 +140,7 @@ export function CostingViewModal({
               rel="noopener noreferrer"
               download={fName || "attachment"}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-primary-600 hover:text-primary-700 hover:bg-surface-hover shadow-2xs transition-colors"
-              title="Download / Open file"
+              title="Download file"
             >
               <Download className="h-3.5 w-3.5" />
             </a>
@@ -138,7 +152,7 @@ export function CostingViewModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={`Costing Sheet #${costing.id}`} width="max-w-2xl">
+      <Modal open={open} onClose={onClose} title={`Costing Sheet #${costing.id}`} width="max-w-4xl">
         <div className="flex flex-col gap-5">
           {/* Header summary badge banner */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-sunken/30 p-4">
@@ -147,7 +161,12 @@ export function CostingViewModal({
                 <FileSpreadsheet className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-ink">{costing.client_display || "Costing Sheet"}</h3>
+                <h3 className="text-base font-extrabold text-ink">
+                  {costing.client_display || "Costing Sheet"}
+                  {costing.company_name && (
+                    <span className="ml-1.5 text-sm font-medium text-ink-muted">({costing.company_name})</span>
+                  )}
+                </h3>
                 <p className="text-xs text-ink-muted flex items-center gap-2 mt-0.5">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5 text-ink-faint" />
@@ -183,8 +202,14 @@ export function CostingViewModal({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-surface p-3.5 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Client</span>
-              <p className="mt-1 text-sm font-bold text-ink truncate" title={costing.client_display || "—"}>
+              <p
+                className="mt-1 text-sm font-bold text-ink truncate"
+                title={costing.company_name ? `${costing.client_display} (${costing.company_name})` : costing.client_display || "—"}
+              >
                 {costing.client_display || "—"}
+                {costing.company_name && (
+                  <span className="ml-1 text-xs font-medium text-ink-muted">({costing.company_name})</span>
+                )}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-surface p-3.5 shadow-2xs">
@@ -194,49 +219,95 @@ export function CostingViewModal({
               </p>
             </div>
             <div className="rounded-lg border border-border bg-surface p-3.5 shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Product / Item</span>
-              <p className="mt-1 text-sm font-bold text-ink truncate" title={costing.product_display || "—"}>
-                {costing.product_display || "—"}
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Product(s)</span>
+              <p
+                className="mt-1 text-sm font-bold text-ink truncate"
+                title={costing.product_names || costing.product_display || "—"}
+              >
+                {costing.product_names || costing.product_display || "—"}
               </p>
             </div>
           </div>
 
-          {/* Rates & Breakdown */}
+          {/* Items & Rates Table */}
           <div className="rounded-xl border border-border bg-surface p-4 shadow-2xs">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-3">
-              Costing Rates &amp; Quantities
-            </h4>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Supplier Rate (Cost/unit)</p>
-                <p className="tnum mt-0.5 text-sm font-bold text-ink">{formatCurrency(firstItem?.supplier_rate)}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Quantity</p>
-                <p className="tnum mt-0.5 text-sm font-bold text-ink">{firstItem?.quantity || "0"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-sunken/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Client Rate (Price/unit)</p>
-                <p className="tnum mt-0.5 text-sm font-bold text-ink">{formatCurrency(firstItem?.client_rate)}</p>
-              </div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+                Costing Items &amp; Specifications ({costing.items?.length || 0})
+              </h4>
             </div>
+            <div className="overflow-x-auto rounded-lg border border-border/80">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-surface-sunken/70 text-[10px] font-bold uppercase tracking-wider text-ink-faint">
+                    <th className="w-10 px-3 py-2 text-center">#</th>
+                    <th className="px-3 py-2">Product &amp; Description</th>
+                    {costing.columns_config?.map((col) => (
+                      <th key={col.key} className="px-3 py-2">
+                        {col.label}
+                      </th>
+                    ))}
+                    <th className="w-20 px-3 py-2 text-right">Qty</th>
+                    <th className="w-24 px-3 py-2 text-right">Supplier Rate</th>
+                    <th className="w-28 px-3 py-2 text-right">Supplier Total</th>
+                    <th className="w-24 px-3 py-2 text-right">Client Rate</th>
+                    <th className="w-28 px-3 py-2 text-right">Client Total</th>
+                    <th className="w-28 px-3 py-2 text-right">Profit / %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {(costing.items || []).map((item, idx) => {
+                    const qty = Number(item.quantity || 0);
+                    const sRate = Number(item.supplier_rate || 0);
+                    const cRate = Number(item.client_rate || 0);
+                    const hasCRate = cRate > 0;
+                    const sTotal = qty * sRate;
+                    const cTotal = qty * cRate;
+                    const rowProfit = cTotal - sTotal;
+                    const rowPct = sTotal > 0 ? (rowProfit / sTotal) * 100 : 0;
+                    const prodName = item.product_name || (idx === 0 ? costing.product_display : "") || "";
 
-            {/* Custom Fields Extra Data */}
-            {extraEntries.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/60">
-                <h5 className="text-[11px] font-bold uppercase tracking-wider text-ink-faint mb-2">Custom Fields</h5>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {extraEntries.map(([key, val]) => (
-                    <div key={key} className="rounded-lg bg-surface-sunken/30 border border-border/60 px-2.5 py-1.5">
-                      <span className="text-[10px] font-semibold text-ink-muted capitalize">
-                        {key.replace(/^custom_\d+_?/, "").replace(/_/g, " ")}
-                      </span>
-                      <p className="text-xs font-bold text-ink truncate mt-0.5">{String(val || "—")}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    return (
+                      <tr key={item.id || idx} className="hover:bg-surface-hover/50">
+                        <td className="px-3 py-2.5 text-center font-mono text-ink-muted">{idx + 1}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold text-ink">{prodName || "—"}</div>
+                          {item.description && (
+                            <div className="text-[11px] italic text-ink-muted whitespace-pre-line mt-0.5">
+                              {item.description}
+                            </div>
+                          )}
+                        </td>
+                        {costing.columns_config?.map((col) => (
+                          <td key={col.key} className="px-3 py-2.5 text-ink-muted">
+                            {item.extra_data?.[col.key] || item.extra_data?.[col.label] || "—"}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 text-right tnum font-medium text-ink">{item.quantity}</td>
+                        <td className="px-3 py-2.5 text-right tnum text-ink-muted">{formatCurrency(sRate)}</td>
+                        <td className="px-3 py-2.5 text-right tnum font-semibold text-ink">{formatCurrency(sTotal)}</td>
+                        <td className="px-3 py-2.5 text-right tnum text-ink-muted">
+                          {hasCRate ? formatCurrency(cRate) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tnum font-semibold text-ink">
+                          {hasCRate ? formatCurrency(cTotal) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tnum whitespace-nowrap">
+                          {hasCRate ? (
+                            <span className={clsx("font-bold", rowProfit >= 0 ? "text-success-700" : "text-primary-600")}>
+                              {formatCurrency(rowProfit)}{" "}
+                              <span className="text-[10px] font-semibold">({rowPct.toFixed(1)}%)</span>
+                            </span>
+                          ) : (
+                            <span className="text-ink-faint">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Financial Totals Cards */}
@@ -329,13 +400,11 @@ export function CostingViewModal({
         </div>
       </Modal>
 
-      {previewLightbox && (
-        <ImageLightboxModal
-          open={Boolean(previewLightbox)}
-          onClose={() => setPreviewLightbox(null)}
-          images={[{ image: previewLightbox, caption: "Attached Image" }]}
-        />
-      )}
+      <AttachmentViewerModal
+        open={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+        attachment={previewAttachment}
+      />
     </>
   );
 }

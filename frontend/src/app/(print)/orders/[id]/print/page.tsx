@@ -156,7 +156,11 @@ export default function OrderPrintPage() {
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Billed To (Client)</p>
               <h3 className="mt-1 text-base font-bold text-ink">{order.client_name}</h3>
-              {client?.company_name && <p className="text-xs font-semibold text-ink-muted">{client.company_name}</p>}
+              {(client?.company_name || order.company_name) && (
+                <p className="text-xs font-semibold text-ink-muted">
+                  ({client?.company_name || order.company_name})
+                </p>
+              )}
               {client?.address && <p className="text-xs text-ink-muted mt-1 whitespace-pre-line">{client.address}</p>}
               {client?.country_name && <p className="text-xs text-ink-muted">{client.country_name}</p>}
             </div>

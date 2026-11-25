@@ -159,3 +159,49 @@ div:has(> [data-next-badge]) {
   animation: pulse-bridge 2s ease-in-out infinite;
 }
 
+/* Reports & Analytics smooth animations */
+@keyframes report-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chart-reveal-x {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.35;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes donut-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.88) rotate(-10deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.animate-report-fade-up {
+  animation: report-fade-up 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-chart-reveal {
+  animation: chart-reveal-x 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-donut-reveal {
+  animation: donut-reveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+

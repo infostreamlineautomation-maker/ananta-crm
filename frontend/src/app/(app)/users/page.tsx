@@ -169,9 +169,14 @@ function UsersPageContent() {
       return (
         <td key={colKey} className={`${TD} text-ink-muted text-xs`}>
           {u.linked_client_name ? (
-            <span className="font-semibold text-primary-600">
-              {u.linked_client_name}
-            </span>
+            <div>
+              <span className="font-semibold text-primary-600">{u.linked_client_name}</span>
+              {u.linked_client_company_name && (
+                <div className="text-[11px] font-normal text-ink-muted leading-tight">
+                  ({u.linked_client_company_name})
+                </div>
+              )}
+            </div>
           ) : (
             "—"
           )}
@@ -452,7 +457,7 @@ function UserForm({
   const [linkedClient, setLinkedClient] = useState<number | "">(
     user?.linked_client ?? (initialClientId || "")
   );
-  const [clients, setClients] = useState<Array<{ id: number; client_name: string; organization?: number; organization_name?: string }>>([]);
+  const [clients, setClients] = useState<Array<{ id: number; client_name: string; company_name?: string | null; organization?: number; organization_name?: string }>>([]);
   const [organizations, setOrganizations] = useState<Array<{ id: number; name: string; slug: string }>>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<number | "">(
     user?.organization_id ?? (initialOrgId || "")
@@ -600,11 +605,14 @@ function UserForm({
                 required
               >
                 <option value="">-- Choose Client Profile --</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.client_name} {c.organization_name ? `(${c.organization_name})` : ""}
-                  </option>
-                ))}
+                {clients.map((c) => {
+                  const companyLabel = c.company_name || c.organization_name;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.client_name} {companyLabel ? `(${companyLabel})` : ""}
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
           </div>

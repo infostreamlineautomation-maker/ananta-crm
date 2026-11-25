@@ -265,6 +265,13 @@ export function QuotationForm({
     }
     return false;
   });
+
+  const [showAmountInPdf, setShowAmountInPdf] = useState<boolean>(() => {
+    if (quotation?.col_labels?.show_amount !== undefined) {
+      return String(quotation.col_labels.show_amount) === "true" || quotation.col_labels.show_amount === true;
+    }
+    return true;
+  });
   const [items, setItems] = useState<QuotationItemDetail[]>(() => {
     if (quotation?.items?.length) {
       return quotation.items.map((it) => {
@@ -438,6 +445,7 @@ export function QuotationForm({
       colLabels,
       showSubtotalInPdf,
       showProfitInPdf,
+      showAmountInPdf,
       items,
       whatsappText,
       isWhatsappCustomized,
@@ -465,6 +473,7 @@ export function QuotationForm({
       colLabels,
       showSubtotalInPdf,
       showProfitInPdf,
+      showAmountInPdf,
       items,
       whatsappText,
       isWhatsappCustomized,
@@ -483,6 +492,9 @@ export function QuotationForm({
     const initialShowProfit = quotation?.col_labels?.show_profit !== undefined
       ? String(quotation.col_labels.show_profit) === "true" || quotation.col_labels.show_profit === true
       : false;
+    const initialShowAmount = quotation?.col_labels?.show_amount !== undefined
+      ? String(quotation.col_labels.show_amount) === "true" || quotation.col_labels.show_amount === true
+      : true;
 
     if (!quotation) {
       return Boolean(
@@ -497,7 +509,8 @@ export function QuotationForm({
           items[0]?.rate ||
           (items[0]?.qty && items[0]?.qty !== "1") ||
           !showSubtotalInPdf ||
-          showProfitInPdf
+          showProfitInPdf ||
+          !showAmountInPdf
       );
     }
     return (
@@ -514,9 +527,10 @@ export function QuotationForm({
       notes !== (quotation.notes ?? "") ||
       showSubtotalInPdf !== initialShowSubtotal ||
       showProfitInPdf !== initialShowProfit ||
+      showAmountInPdf !== initialShowAmount ||
       attachments.length !== (quotation.attachments?.length ?? 0)
     );
-  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items, attachments, showSubtotalInPdf, showProfitInPdf]);
+  }, [quotation, client, project, supplierId, subject, toName, toAddress, quotationDate, status, adminRemarks, introText, notes, items, attachments, showSubtotalInPdf, showProfitInPdf, showAmountInPdf]);
 
   const {
     draftSavedAt,
@@ -545,6 +559,7 @@ export function QuotationForm({
       if (draft.colLabels !== undefined) setColLabels(draft.colLabels);
       if (draft.showSubtotalInPdf !== undefined) setShowSubtotalInPdf(draft.showSubtotalInPdf);
       if (draft.showProfitInPdf !== undefined) setShowProfitInPdf(draft.showProfitInPdf);
+      if (draft.showAmountInPdf !== undefined) setShowAmountInPdf(draft.showAmountInPdf);
       if (draft.items !== undefined && Array.isArray(draft.items) && draft.items.length > 0) setItems(draft.items);
       if (draft.whatsappText !== undefined) setWhatsappText(draft.whatsappText);
       if (draft.isWhatsappCustomized !== undefined) setIsWhatsappCustomized(draft.isWhatsappCustomized);
@@ -586,6 +601,11 @@ export function QuotationForm({
           ? String(quotation.col_labels.show_profit) === "true" || quotation.col_labels.show_profit === true
           : false
       );
+      setShowAmountInPdf(
+        quotation.col_labels?.show_amount !== undefined
+          ? String(quotation.col_labels.show_amount) === "true" || quotation.col_labels.show_amount === true
+          : true
+      );
       setItems(quotation.items?.length ? quotation.items : [blankItem()]);
       setWhatsappText(quotation.whatsapp_message ?? "");
       setIsWhatsappCustomized(Boolean(quotation.whatsapp_message));
@@ -610,6 +630,7 @@ export function QuotationForm({
       setColLabels({});
       setShowSubtotalInPdf(true);
       setShowProfitInPdf(false);
+      setShowAmountInPdf(true);
       setItems([blankItem()]);
       setWhatsappText("");
       setIsWhatsappCustomized(false);
@@ -643,6 +664,9 @@ export function QuotationForm({
       }
       if (data.col_labels.show_profit !== undefined) {
         setShowProfitInPdf(String(data.col_labels.show_profit) === "true" || data.col_labels.show_profit === true);
+      }
+      if (data.col_labels.show_amount !== undefined) {
+        setShowAmountInPdf(String(data.col_labels.show_amount) === "true" || data.col_labels.show_amount === true);
       }
     }
     if (data.items && data.items.length) {
@@ -1293,6 +1317,7 @@ export function QuotationForm({
           client_rate: colLabels.client_rate || colRateLabel || "Client Rate",
           show_subtotal: showSubtotalInPdf,
           show_profit: showProfitInPdf,
+          show_amount: showAmountInPdf,
         },
         columns_config: columns,
         detailed_costing_data: detailedCostingData,
@@ -1808,7 +1833,12 @@ export function QuotationForm({
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 shadow-2xs">
               <span className="text-ink-muted">Client:</span>
-              <strong className="text-ink">{selectedClient?.client_name || toName || "Client"}</strong>
+              <strong className="text-ink">
+                {selectedClient?.client_name || toName || "Client"}
+                {selectedClient?.company_name && (
+                  <span className="font-normal text-ink-muted"> ({selectedClient.company_name})</span>
+                )}
+              </strong>
             </div>
 
             {quoteFormat === "costing" && (
@@ -1928,12 +1958,27 @@ export function QuotationForm({
                     />
                   </th>
                   <th className="w-32 px-3 py-2.5 text-right border-r border-border font-bold text-ink">
-                    <input
-                      value={colLabels.amount ?? "Amount"}
-                      onChange={(e) => updateColLabel("amount", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
-                      title="Click to edit column header"
-                    />
+                    <div className="flex items-center justify-end gap-1.5">
+                      <label
+                        className="flex items-center gap-1 cursor-pointer select-none"
+                        title="Include Amount column in PDF / Printout"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={showAmountInPdf}
+                          onChange={(e) => setShowAmountInPdf(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        />
+                      </label>
+                      <input
+                        value={colLabels.amount ?? "Amount"}
+                        onChange={(e) => updateColLabel("amount", e.target.value)}
+                        className={`w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold uppercase focus:border-primary-500 focus:outline-none ${
+                          showAmountInPdf ? "text-ink" : "text-ink-faint"
+                        }`}
+                        title="Click to edit column header (Checkbox controls whether Amount appears on PDF)"
+                      />
+                    </div>
                   </th>
                   <th className="w-10 px-2 py-2.5 text-center"></th>
                 </tr>
@@ -2046,7 +2091,12 @@ export function QuotationForm({
                           className="text-right font-bold text-ink"
                         />
                       </td>
-                      <td className="px-3 py-2 text-right font-bold text-ink tnum border-r border-border">
+                      <td
+                        className={`px-3 py-2 text-right font-bold tnum border-r border-border ${
+                          showAmountInPdf ? "text-ink" : "text-ink-faint opacity-60"
+                        }`}
+                        title={showAmountInPdf ? undefined : "Amount column is hidden in PDF"}
+                      >
                         {formatCurrency(amount, effectiveCurrency)}
                       </td>
                       <td className="px-2 py-2 text-center">
@@ -2471,6 +2521,30 @@ export function QuotationForm({
                 </label>
               </>
             )}
+
+            <label
+              title="Toggle whether Amount column appears on quotation PDF"
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 transition-all cursor-pointer select-none ${
+                showAmountInPdf
+                  ? "border-primary-300 bg-primary-50/60 text-primary-900 shadow-2xs"
+                  : "border-border bg-surface text-ink hover:bg-surface-hover shadow-2xs"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={showAmountInPdf}
+                onChange={(e) => setShowAmountInPdf(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
+              />
+              <span className="text-ink-muted">Amount Col</span>
+              <span
+                className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  showAmountInPdf ? "bg-primary-600 text-white" : "bg-neutral-100 text-neutral-500 border border-neutral-200"
+                }`}
+              >
+                PDF: {showAmountInPdf ? "ON" : "OFF"}
+              </span>
+            </label>
 
             <label
               title="Toggle whether Subtotal appears on quotation PDF"

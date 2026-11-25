@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Calendar,
   Check,
   DollarSign,
@@ -14,18 +17,62 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { TextFilterAutocomplete } from "./TextFilterAutocomplete";
 
-interface ColumnHeaderFilterProps {
+export interface ColumnHeaderFilterProps {
   column: DynamicFilterColumn;
   activeFilters: Record<string, string>;
   onFilterChange: (key: string, value: string) => void;
+  currentSort?: "asc" | "desc" | null;
+  onSortChange?: (direction: "asc" | "desc" | null) => void;
   className?: string;
+}
+
+export function SortButton({
+  direction,
+  onClick,
+  title,
+}: {
+  direction?: "asc" | "desc" | null;
+  onClick: (e: React.MouseEvent) => void;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        "inline-flex shrink-0 items-center justify-center h-4.5 w-4.5 rounded transition-all cursor-pointer",
+        direction
+          ? "text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-300"
+          : "text-ink-muted/40 hover:text-ink hover:bg-surface-sunken opacity-50 hover:opacity-100 border border-transparent"
+      )}
+      title={
+        title ||
+        (direction === "asc"
+          ? "Sorted Ascending (Click to sort descending)"
+          : direction === "desc"
+          ? "Sorted Descending (Click to sort ascending)"
+          : "Click to sort")
+      }
+    >
+      {direction === "asc" ? (
+        <ArrowUp className="h-3 w-3 text-primary-600 stroke-[2.5]" />
+      ) : direction === "desc" ? (
+        <ArrowDown className="h-3 w-3 text-primary-600 stroke-[2.5]" />
+      ) : (
+        <ArrowUpDown className="h-2.5 w-2.5 text-ink-muted" />
+      )}
+    </button>
+  );
 }
 
 export function ColumnHeaderFilter({
   column,
   activeFilters,
   onFilterChange,
+  currentSort,
+  onSortChange,
   className,
 }: ColumnHeaderFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -68,7 +115,7 @@ export function ColumnHeaderFilter({
   const updatePosition = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const popoverWidth = 264;
+      const popoverWidth = 288;
       let left = rect.left;
       if (left + popoverWidth > window.innerWidth - 16) {
         left = window.innerWidth - popoverWidth - 16;
@@ -77,8 +124,8 @@ export function ColumnHeaderFilter({
 
       let top = rect.bottom + 6;
       // If near bottom of viewport, position above the button
-      if (top + 320 > window.innerHeight && rect.top > 320) {
-        top = Math.max(16, rect.top - 320);
+      if (top + 380 > window.innerHeight && rect.top > 380) {
+        top = Math.max(16, rect.top - 380);
       }
 
       setPos({ top, left });
@@ -166,7 +213,7 @@ export function ColumnHeaderFilter({
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
-            className="fixed z-[9999] w-66 rounded-xl border border-border bg-white p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-100 text-left normal-case tracking-normal font-sans"
+            className="fixed z-[9999] w-72 max-h-[calc(100vh-24px)] overflow-y-auto rounded-xl border border-border bg-white p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-100 text-left normal-case tracking-normal font-sans"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/70 pb-2 mb-2.5">
@@ -185,23 +232,95 @@ export function ColumnHeaderFilter({
               </button>
             </div>
 
+            {/* Sort options (Date columns lead with Descending / Latest First) */}
+            {onSortChange && (
+              <div className="flex items-center gap-1.5 border-b border-border/70 pb-2 mb-2.5">
+                {column.type === "date_range" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onSortChange(currentSort === "desc" ? null : "desc")}
+                      className={clsx(
+                        "flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer",
+                        currentSort === "desc"
+                          ? "bg-primary-50 border-primary-400 text-primary-700 shadow-2xs font-bold"
+                          : "border-border/70 bg-surface-sunken text-ink-muted hover:text-ink hover:bg-surface"
+                      )}
+                      title="Sort newest / latest date first"
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                      <span>Latest First</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSortChange(currentSort === "asc" ? null : "asc")}
+                      className={clsx(
+                        "flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer",
+                        currentSort === "asc"
+                          ? "bg-primary-50 border-primary-400 text-primary-700 shadow-2xs font-bold"
+                          : "border-border/70 bg-surface-sunken text-ink-muted hover:text-ink hover:bg-surface"
+                      )}
+                      title="Sort oldest date first"
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                      <span>Oldest First</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onSortChange(currentSort === "asc" ? null : "asc")}
+                      className={clsx(
+                        "flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer",
+                        currentSort === "asc"
+                          ? "bg-primary-50 border-primary-400 text-primary-700 shadow-2xs font-bold"
+                          : "border-border/70 bg-surface-sunken text-ink-muted hover:text-ink hover:bg-surface"
+                      )}
+                      title="Sort column ascending (A-Z, oldest to newest, low to high)"
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                      <span>Ascending</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSortChange(currentSort === "desc" ? null : "desc")}
+                      className={clsx(
+                        "flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer",
+                        currentSort === "desc"
+                          ? "bg-primary-50 border-primary-400 text-primary-700 shadow-2xs font-bold"
+                          : "border-border/70 bg-surface-sunken text-ink-muted hover:text-ink hover:bg-surface"
+                      )}
+                      title="Sort column descending (Z-A, newest to oldest, high to low)"
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                      <span>Descending</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Body according to type */}
             <div className="py-1">
               {column.type === "text" && (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-medium text-ink-muted">Filter text</span>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" />
-                    <input
-                      type="text"
-                      value={draftVal}
-                      onChange={(e) => setDraftVal(e.target.value)}
-                      placeholder={`Search ${column.label}...`}
-                      onKeyDown={(e) => e.key === "Enter" && handleApply()}
-                      className="h-8 w-full rounded-lg border border-border bg-white pl-8 pr-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary-500 focus:outline-hidden"
-                      autoFocus
-                    />
-                  </div>
+                  <TextFilterAutocomplete
+                    columnKey={column.key}
+                    columnLabel={column.label}
+                    value={draftVal}
+                    onChange={setDraftVal}
+                    onSelectSuggestion={(val) => {
+                      setDraftVal(val);
+                      onFilterChange(column.key, val);
+                      setIsOpen(false);
+                    }}
+                    onEnterSubmit={handleApply}
+                    suggestions={column.suggestions}
+                    placeholder={`Search ${column.label}...`}
+                    autoFocus
+                  />
                 </div>
               )}
 
@@ -365,20 +484,26 @@ export function ColumnHeaderFilter({
       : null;
 
   return (
-    <div className={clsx("inline-flex items-center ml-1", className)}>
+    <div className={clsx("inline-flex shrink-0 items-center", className)}>
       <button
         ref={buttonRef}
         type="button"
-        title={`Filter by ${column.label}`}
+        title={
+          currentSort
+            ? `Filter & sort by ${column.label} (Sorted ${currentSort === "asc" ? "Ascending" : "Descending"})`
+            : `Filter by ${column.label}`
+        }
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen((prev) => !prev);
         }}
         className={clsx(
-          "inline-flex h-5 w-5 items-center justify-center rounded transition-all cursor-pointer",
+          "inline-flex shrink-0 h-5 w-5 items-center justify-center rounded transition-all cursor-pointer border",
           isFiltered
-            ? "bg-primary-600 text-white shadow-2xs ring-2 ring-primary-200"
-            : "text-ink-muted/50 hover:bg-surface-sunken hover:text-ink-muted opacity-60 hover:opacity-100",
+            ? "bg-primary-600 text-white border-primary-700 shadow-2xs"
+            : currentSort
+            ? "bg-primary-100 text-primary-700 border-primary-300 shadow-2xs font-bold"
+            : "border-transparent text-ink-muted/50 hover:bg-surface-sunken hover:text-ink-muted opacity-60 hover:opacity-100",
         )}
       >
         <Filter className="h-3 w-3" />

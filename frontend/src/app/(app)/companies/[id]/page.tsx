@@ -897,7 +897,10 @@ export default function CompanyDetailPage() {
                             key: "client",
                             label: "Client",
                             type: "select",
-                            options: clients.map((c) => ({ value: String(c.id), label: c.client_name })),
+                            options: clients.map((c) => ({
+                              value: String(c.id),
+                              label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
+                            })),
                           }}
                           activeFilters={{ client: orderClientFilter }}
                           onFilterChange={(_, v) => setOrderClientFilter(v)}

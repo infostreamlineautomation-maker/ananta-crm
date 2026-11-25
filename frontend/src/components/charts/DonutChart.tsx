@@ -106,7 +106,13 @@ export function DonutChart({
             </div>
           ) : (
             <>
-              <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+              <svg
+                key={`${valueType}-${totalValue}-${slices.length}`}
+                width={size}
+                height={size}
+                viewBox={`0 0 ${size} ${size}`}
+                className="overflow-visible animate-donut-reveal"
+              >
                 {slices.map((slice, i) => {
                   const isHovered = hoverIndex === i;
                   return (
@@ -116,7 +122,8 @@ export function DonutChart({
                       fill={slice.color}
                       opacity={hoverIndex === null || isHovered ? 1 : 0.4}
                       transform={isHovered ? `scale(1.04) translate(-${center * 0.04}, -${center * 0.04})` : undefined}
-                      className="cursor-pointer transition-all duration-200"
+                      className="cursor-pointer transition-all duration-200 ease-out"
+                      style={isHovered ? { filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.14))" } : undefined}
                       onMouseEnter={() => setHoverIndex(i)}
                       onMouseLeave={() => setHoverIndex(null)}
                     />

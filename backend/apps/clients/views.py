@@ -1,6 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
-from apps.core.filters import DynamicQueryFilterBackend
+from apps.core.filters import CRMOrderingFilter, DynamicQueryFilterBackend
 from apps.core.modules import CLIENTS, COMPANIES
 from apps.core.viewsets import SoftDeleteModuleViewSet
 from .models import Client, ClientGroup, Company
@@ -11,7 +11,7 @@ class ClientGroupViewSet(SoftDeleteModuleViewSet):
     queryset = ClientGroup.objects.prefetch_related("clients").all()
     serializer_class = ClientGroupSerializer
     module_name = CLIENTS
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     search_fields = ["name", "description"]
 
     def perform_create(self, serializer):
@@ -27,7 +27,7 @@ class CompanyViewSet(SoftDeleteModuleViewSet):
     queryset = Company.objects.select_related("country").all()
     serializer_class = CompanySerializer
     module_name = COMPANIES
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     filterset_fields = ["country"]
     search_fields = ["company_name", "contact_name", "gstin", "msin_number", "vat_id", "reg_no", "contact_email", "contact_phone"]
 
@@ -40,7 +40,7 @@ class ClientViewSet(SoftDeleteModuleViewSet):
     queryset = Client.objects.select_related("company", "country", "company__country").prefetch_related("groups").all()
     serializer_class = ClientSerializer
     module_name = CLIENTS
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     filterset_fields = ["client_type", "company", "country", "groups"]
     search_fields = ["client_name", "phone", "email", "company__company_name"]
 

@@ -27,11 +27,14 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
-import { Client, Company, Country, QuotationDetail, QuotationSummary, Supplier } from "@/lib/types";
+import { Client, ClientGroup, Company, Country, QuotationDetail, QuotationSummary, Supplier } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
+import { ClientNameDisplay } from "@/components/ui/ClientNameDisplay";
+import { AttachmentDropdown } from "@/components/ui/AttachmentDropdown";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
+import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
-import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
 import { QuotationImportModal } from "@/components/quotations/QuotationImportModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
@@ -45,7 +48,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
-import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ExportColumn } from "@/lib/export-utils";
 
@@ -54,7 +57,7 @@ const QUOTATIONS_EXPORT_COLUMNS: ExportColumn<any>[] = [
   { header: "Quotation Date", accessor: (q: any) => q.quotation_date, category: "Basic Info", defaultSelected: true },
   { header: "Status", accessor: (q: any) => labelize(q.status), category: "Basic Info", defaultSelected: true },
   { header: "Client Name", accessor: (q: any) => q.client_name || "", category: "Recipient Info", defaultSelected: true },
-  { header: "Company Name", accessor: (q: any) => q.company_name || "", category: "Recipient Info", defaultSelected: false },
+  { header: "Company Name", accessor: (q: any) => q.company_name || "", category: "Recipient Info", defaultSelected: true },
   { header: "Recipient Name (To)", accessor: (q: any) => q.to_name || q.client_name || "", category: "Recipient Info", defaultSelected: false },
   { header: "Address", accessor: (q: any) => q.to_address || q.client_address || "", category: "Recipient Info", defaultSelected: false },
   { header: "Subject", accessor: (q: any) => q.subject || "", category: "Quotation Content", defaultSelected: true },
@@ -99,6 +102,7 @@ const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
   { key: "to_address", label: "Address", defaultVisible: false },
   { key: "project_name", label: "Project Name", defaultVisible: false },
   { key: "subject", label: "Subject" },
+  { key: "attachments", label: "Attachments", defaultVisible: false },
   { key: "intro_text", label: "Introductory Text", defaultVisible: false },
   { key: "notes", label: "Terms & Conditions / Notes", defaultVisible: false },
   { key: "currency_code", label: "Currency", defaultVisible: false },
@@ -137,9 +141,12 @@ export default function QuotationsPage() {
   const [notifyingQuotation, setNotifyingQuotation] = useState<QuotationSummary | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const router = useRouter();
-  const { items: allClients } = useList<Client>("/api/clients/?page_size=200");
+  const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
+  const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: allSuppliers } = useList<Supplier>("/api/suppliers/?page_size=300");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const toggleExpand = (id: number) => {
@@ -184,6 +191,11 @@ export default function QuotationsPage() {
         type: "text",
       },
       {
+        key: "date",
+        label: "Date",
+        type: "date_range",
+      },
+      {
         key: "client_name",
         label: "Client",
         type: "text",
@@ -221,6 +233,16 @@ export default function QuotationsPage() {
         label: "Total Amount",
         type: "amount_range",
       },
+      {
+        key: "created_at",
+        label: "Created Date",
+        type: "date_range",
+      },
+      {
+        key: "updated_at",
+        label: "Updated Date",
+        type: "date_range",
+      },
     ],
     [countries]
   );
@@ -228,12 +250,17 @@ export default function QuotationsPage() {
   const {
     columns: filterColumns,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     resetFilters,
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "quotation_item",
     baseColumns: baseFilterColumns,
+    initialOrdering: "-date",
   });
 
   const basePath = useMemo(() => {
@@ -243,9 +270,10 @@ export default function QuotationsPage() {
     } else if (debouncedSearch) {
       params.set("search", debouncedSearch);
     }
+    if (selectedGroup !== "all") params.set("client_group", String(selectedGroup));
     appendQueryParams(params);
     return `/api/quotations/?${params.toString()}`;
-  }, [selectedClient, debouncedSearch, appendQueryParams]);
+  }, [selectedClient, debouncedSearch, selectedGroup, appendQueryParams]);
 
   const {
     items: quotations,
@@ -383,12 +411,76 @@ export default function QuotationsPage() {
         />
       )}
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface-sunken/40 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                <th className="w-8 px-2 py-2.5 text-center">
+      {/* Client Group Filter Tabs */}
+      {!isClientUser && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs -mt-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mr-1 flex items-center gap-1 shrink-0">
+              <Layers className="h-3.5 w-3.5 text-primary-600" />
+              Group:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedGroup("all")}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs cursor-pointer shrink-0",
+                selectedGroup === "all"
+                  ? "bg-primary-600 text-white border-primary-600 shadow-xs"
+                  : "bg-white text-ink-muted hover:text-ink hover:bg-sand-50 border-border"
+              )}
+            >
+              All Clients
+            </button>
+            {clientGroups.map((grp) => {
+              const isSelected = selectedGroup === grp.id;
+              const count = grp.clients_count ?? (grp.clients?.length || 0);
+              return (
+                <button
+                  key={grp.id}
+                  type="button"
+                  onClick={() => setSelectedGroup(grp.id)}
+                  className={clsx(
+                    "px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 border text-xs cursor-pointer shrink-0",
+                    isSelected
+                      ? "bg-primary-50 text-primary-800 border-primary-300 shadow-xs ring-1 ring-primary-300"
+                      : "bg-white text-ink hover:text-primary-700 hover:bg-sand-50 border-border"
+                  )}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: grp.color || "#881337" }}
+                  />
+                  <span>{grp.name}</span>
+                  <span
+                    className={clsx(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none",
+                      isSelected ? "bg-primary-200/80 text-primary-900" : "bg-sand-100 text-ink-muted"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setGroupModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-hover border border-dashed border-border transition-all flex items-center gap-1 cursor-pointer shrink-0"
+              title="Create and manage client groups"
+            >
+              <Plus className="h-3.5 w-3.5 text-primary-600" />
+              <span>Manage Groups</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Card className="overflow-hidden">
+        <div className="overflow-auto max-h-[calc(100vh-210px)] relative scrollbar-thin">
+          <table className="w-full text-left text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+                <th className="w-8 px-2 py-2.5 text-center sticky top-0 z-20 bg-surface-sunken border-b border-border shadow-2xs">
                   <button
                     type="button"
                     onClick={toggleExpandAll}
@@ -442,6 +534,9 @@ export default function QuotationsPage() {
 
                     const isRight = ["subtotal"].includes(col.key);
                     const colFilter = getColFilter(col.key === "subtotal" ? "amount" : col.key);
+                    const isSortable = !["select", "actions", "attachments"].includes(col.key);
+                    const sortKey = col.key === "client" ? "client_name" : col.key === "subtotal" ? "subtotal" : col.key;
+                    const sortDirection = isSortable ? getOrderingFor(sortKey) : null;
 
                     return (
                       <ResizableTh
@@ -450,14 +545,37 @@ export default function QuotationsPage() {
                         grid={grid}
                         align={isRight ? "right" : "left"}
                       >
-                        <div className={clsx("inline-flex items-center", isRight && "justify-end")}>
-                          <span>{col.label}</span>
+                        <div className={clsx("flex items-center gap-1 min-w-0 max-w-full", isRight && "justify-end")}>
+                          {isSortable ? (
+                            <span
+                              onClick={() => toggleOrdering(sortKey, ["date", "quotation_date", "created_at", "updated_at"].includes(sortKey))}
+                              className="truncate cursor-pointer hover:text-primary-600 transition-colors select-none font-semibold"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              {col.label}
+                            </span>
+                          ) : (
+                            <span className="truncate">{col.label}</span>
+                          )}
+                          {isSortable && (
+                            <SortButton
+                              direction={sortDirection}
+                              onClick={() => toggleOrdering(sortKey, ["date", "quotation_date", "created_at", "updated_at"].includes(sortKey))}
+                              title={`Sort by ${col.label}`}
+                            />
+                          )}
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
+                              }}
+                              currentSort={sortDirection}
+                              onSortChange={(dir) => {
+                                if (!dir) setOrdering(null);
+                                else if (dir === "asc") setOrdering(sortKey);
+                                else setOrdering(`-${sortKey}`);
                               }}
                             />
                           )}
@@ -561,18 +679,7 @@ export default function QuotationsPage() {
                             case "client_name":
                               return (
                                 <td key="client_name" className={TD}>
-                                  {q.client_name ? (
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="font-semibold text-ink">{q.client_name}</span>
-                                      {!grid.visibleColumns.has("company_name") && q.company_name && (
-                                        <span className="text-[12px] font-medium text-ink-muted">
-                                          ({q.company_name})
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-ink-muted">—</span>
-                                  )}
+                                  <ClientNameDisplay clientName={q.client_name} companyName={q.company_name} />
                                 </td>
                               );
                             case "company_name":
@@ -585,6 +692,12 @@ export default function QuotationsPage() {
                               return <td key="project_name" className={`${TD} text-ink-muted`}>{q.project_name || "—"}</td>;
                             case "subject":
                               return <td key="subject" className={`${TD} max-w-[200px] truncate text-ink-muted`} title={q.subject || ""}>{q.subject || "—"}</td>;
+                            case "attachments":
+                              return (
+                                <td key="attachments" className={TD}>
+                                  <AttachmentDropdown files={q.attachments} maxDisplayWidth="max-w-[130px]" />
+                                </td>
+                              );
                             case "intro_text":
                               return <td key="intro_text" className={`${TD} max-w-[180px] truncate text-ink-muted`} title={q.intro_text || ""}>{q.intro_text || "—"}</td>;
                             case "notes":
@@ -691,6 +804,12 @@ export default function QuotationsPage() {
                               </div>
                               <div className="text-xs text-ink-muted">
                                 Quotation: <span className="font-semibold font-mono text-ink">{q.quotation_no}</span>
+                                <span className="mx-2 text-ink-faint">·</span>
+                                Client:{" "}
+                                <span className="font-semibold text-ink">
+                                  {q.client_name}
+                                  {q.company_name ? ` (${q.company_name})` : ""}
+                                </span>
                               </div>
                             </div>
 
@@ -878,10 +997,16 @@ export default function QuotationsPage() {
       </Card>
 
       {activeLightboxImages && activeLightboxImages.length > 0 && (
-        <ImageLightboxModal
+        <AttachmentViewerModal
           open={Boolean(activeLightboxImages)}
           onClose={() => setActiveLightboxImages(null)}
-          images={activeLightboxImages}
+          attachments={activeLightboxImages.map((img, idx) => ({
+            id: img.id ?? idx,
+            file: img.image,
+            file_url: img.image,
+            file_name: img.caption || img.image.split("/").pop() || `Image #${idx + 1}`,
+            file_type: "image",
+          }))}
           initialIndex={lightboxIndex}
         />
       )}
@@ -895,6 +1020,7 @@ export default function QuotationsPage() {
             id: notifyingQuotation.id,
             title: `Quotation ${notifyingQuotation.quotation_no}`,
             clientName: notifyingQuotation.client_name || "Client",
+            companyName: notifyingQuotation.company_name,
             quotationNo: notifyingQuotation.quotation_no,
             amount: notifyingQuotation.subtotal,
             currency: notifyingQuotation.currency_code || "INR",
@@ -949,6 +1075,18 @@ export default function QuotationsPage() {
         }}
         clients={allClients}
         suppliers={allSuppliers}
+      />
+
+      <ClientGroupModal
+        open={groupModalOpen}
+        onClose={() => setGroupModalOpen(false)}
+        groups={clientGroups}
+        allClients={allClients}
+        onGroupsChanged={() => {
+          reloadGroups();
+          reloadClients();
+          reload();
+        }}
       />
     </div>
   );

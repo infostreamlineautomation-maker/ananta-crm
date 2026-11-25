@@ -208,7 +208,12 @@ class QuickSearchView(APIView):
                 "type": "order",
                 "id": o.id,
                 "title": o.order_no,
-                "subtitle": f"{o.project_title or o.client.client_name} • {o.currency_code} {int(o.grand_total):,}",
+                "subtitle": (
+                    f"{o.project_title + ' · ' if o.project_title else ''}"
+                    f"{o.client.client_name}"
+                    f"{' (' + o.client.company.company_name + ')' if o.client.company else ''}"
+                    f" • {o.currency_code} {int(o.grand_total):,}"
+                ),
                 "tag": o.delivery_status,
                 "url": f"/orders/{o.id}",
             }
@@ -231,7 +236,7 @@ class QuickSearchView(APIView):
             {
                 "type": "client",
                 "id": c.id,
-                "title": c.client_name,
+                "title": f"{c.client_name} ({c.company.company_name})" if c.company else c.client_name,
                 "subtitle": f"{c.company.company_name + ' • ' if c.company else ''}{c.phone or c.email or 'Client'}",
                 "tag": f"Type {c.client_type}",
                 "url": f"/clients/{c.id}",
@@ -242,11 +247,12 @@ class QuickSearchView(APIView):
         # 3. Quotations
         quote_qs = (
             Quotation.objects.filter(organization=org, is_deleted=False)
+            .select_related("client", "client__company")
             .filter(
                 Q(quotation_no__icontains=query)
                 | Q(subject__icontains=query)
-                | Q(client_name__icontains=query)
-                | Q(company_name__icontains=query)
+                | Q(client__client_name__icontains=query)
+                | Q(client__company__company_name__icontains=query)
             )
             .order_by("-id")[:4]
         )
@@ -255,7 +261,12 @@ class QuickSearchView(APIView):
                 "type": "quotation",
                 "id": q.id,
                 "title": q.quotation_no,
-                "subtitle": f"{q.subject or q.client_name or q.company_name or 'Quotation'} • {q.currency_code} {int(q.grand_total):,}",
+                "subtitle": (
+                    f"{q.subject + ' · ' if q.subject else ''}"
+                    f"{q.client.client_name if q.client else (q.to_name or 'Quotation')}"
+                    f"{' (' + q.client.company.company_name + ')' if q.client and q.client.company else ''}"
+                    f" • {q.currency_code} {int(q.subtotal):,}"
+                ),
                 "tag": q.status,
                 "url": f"/quotations/{q.id}",
             }

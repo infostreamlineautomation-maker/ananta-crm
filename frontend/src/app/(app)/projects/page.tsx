@@ -30,6 +30,7 @@ import { consumeJustCreated, clearCreationOrigin } from "@/lib/creation-redirect
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
   { key: "name", header: "Project Name", accessor: (p) => p.name, category: "Basic Information", defaultSelected: true },
   { key: "client_name", header: "Client Name", accessor: (p) => p.client_name, category: "Basic Information", defaultSelected: true },
+  { key: "company_name", header: "Company Name", accessor: (p) => p.company_name || "", category: "Basic Information", defaultSelected: true },
   { key: "status", header: "Project Status", accessor: (p) => labelize(p.status), category: "Basic Information", defaultSelected: true },
   { key: "description", header: "Description / Scope", accessor: (p) => p.description || "", category: "Basic Information", defaultSelected: true },
   { key: "orders_count", header: "Total Orders Count", accessor: (p) => p.orders_count, category: "Project Metrics", defaultSelected: true },
@@ -80,6 +81,11 @@ export default function ProjectsPage() {
           { value: "cancelled", label: "Cancelled", dotColor: "#e11d48" },
         ],
       },
+      {
+        key: "created_at",
+        label: "Created Date",
+        type: "date_range",
+      },
     ],
     []
   );
@@ -93,6 +99,7 @@ export default function ProjectsPage() {
   } = useDynamicColumnFilters({
     module: "project",
     baseColumns: baseFilterColumns,
+    initialOrdering: "-created_at",
   });
 
   const basePath = useMemo(() => {
@@ -160,7 +167,10 @@ export default function ProjectsPage() {
                 <h3 className="font-bold text-ink">{p.name}</h3>
                 <StatusPill label={labelize(p.status)} tone={PROJECT_STATUS_TONE[p.status]} />
               </div>
-              <p className="text-[13px] text-ink-muted">{p.client_name}</p>
+              <p className="text-[13px] text-ink-muted">
+                {p.client_name}
+                {p.company_name && <span className="text-ink-faint"> ({p.company_name})</span>}
+              </p>
               <div className="mt-auto flex items-center gap-1.5 pt-3 text-[12.5px] text-ink-faint">
                 <span>{p.orders_count} Orders</span>
                 <span>·</span>
@@ -223,7 +233,11 @@ export function ProjectForm({
   const [error, setError] = useState<string | null>(null);
   const [quickAddClientOpen, setQuickAddClientOpen] = useState(false);
 
-  const clientOptions = clients.map((c) => ({ value: c.id, label: c.client_name }));
+  const clientOptions = clients.map((c) => ({
+    value: c.id,
+    label: c.company_name ? `${c.client_name} (${c.company_name})` : c.client_name,
+    sublabel: c.company_name || undefined,
+  }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

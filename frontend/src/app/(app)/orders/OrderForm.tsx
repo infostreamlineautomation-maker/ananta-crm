@@ -698,6 +698,7 @@ export function OrderForm({
             id: order.id,
             title: `Project ${order.order_no}`,
             clientName: selectedClient ? selectedClient.client_name : order.client_name,
+            companyName: selectedClient ? selectedClient.company_name : order.company_name,
             orderNo: order.order_no,
             amount: totals.grandTotal.toFixed(2),
             paidAmount: parseFloat(paidAmount || "0").toFixed(2),

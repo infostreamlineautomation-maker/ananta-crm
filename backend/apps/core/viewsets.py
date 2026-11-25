@@ -5,7 +5,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from apps.accounts.permissions import ModulePermission
 
-from .filters import DynamicQueryFilterBackend
+from .filters import CRMOrderingFilter, DynamicQueryFilterBackend
 from .models import ActivityLog
 
 
@@ -21,7 +21,7 @@ class ModuleViewSet(viewsets.ModelViewSet):
     the organization scoping — it isn't applied automatically in that case."""
 
     permission_classes = [ModulePermission]
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -110,7 +110,8 @@ class SoftDeleteModuleViewSet(ModuleViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.query_params.get("include_deleted") != "1":
+        params = getattr(self.request, "query_params", getattr(self.request, "GET", {}))
+        if params.get("include_deleted") != "1":
             qs = qs.filter(is_deleted=False)
         return qs
 

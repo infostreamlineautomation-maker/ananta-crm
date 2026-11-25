@@ -85,7 +85,10 @@ export default function ProjectDetailPage() {
             <h1 className="text-2xl font-extrabold text-ink">{project.name}</h1>
             <StatusPill label={labelize(project.status)} tone={PROJECT_STATUS_TONE[project.status]} />
           </div>
-          <p className="mt-1 text-[13px] text-ink-muted">{project.client_name}</p>
+          <p className="mt-1 text-[13px] text-ink-muted">
+            {project.client_name}
+            {project.company_name && <span className="text-ink-faint"> ({project.company_name})</span>}
+          </p>
           {project.description && <p className="mt-2 max-w-2xl text-[13.5px] text-ink-muted">{project.description}</p>}
         </div>
         <div className="flex items-center gap-2">

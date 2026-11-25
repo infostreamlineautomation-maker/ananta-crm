@@ -23,7 +23,7 @@ import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { CompanyForm } from "./CompanyForm";
 import { FilterBar } from "@/components/ui/FilterBar";
-import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { ResizableTh } from "@/components/ui/ResizableTh";
@@ -146,12 +146,17 @@ export default function CompaniesPage() {
     columns: filterColumns,
     customFields,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     resetFilters,
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "company",
     baseColumns: baseFilterColumns,
+    initialOrdering: "company_name",
   });
 
   const allColumns: ColumnDef[] = useMemo(() => {
@@ -423,11 +428,11 @@ export default function CompaniesPage() {
         />
       )}
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
+      <Card className="overflow-hidden">
+        <div className="overflow-auto max-h-[calc(100vh-210px)] relative scrollbar-thin">
+          <table className="w-full text-left text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                 {grid.columns
                   .filter((c) => grid.visibleColumns.has(c.key))
                   .map((col) => {
@@ -463,17 +468,43 @@ export default function CompaniesPage() {
                       ? "country"
                       : col.key;
                     const colFilter = getColFilter(filterKey);
+                    const isSortable = !["select", "actions"].includes(col.key);
+                    const sortKey = col.key === "country_name" ? "country" : col.key;
+                    const sortDirection = isSortable ? getOrderingFor(sortKey) : null;
 
                     return (
                       <ResizableTh key={col.key} columnKey={col.key} grid={grid}>
-                        <div className="inline-flex items-center">
-                          <span>{col.label}</span>
+                        <div className="flex items-center gap-1 min-w-0 max-w-full">
+                          {isSortable ? (
+                            <span
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              className="truncate cursor-pointer hover:text-primary-600 transition-colors select-none font-semibold"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              {col.label}
+                            </span>
+                          ) : (
+                            <span className="truncate">{col.label}</span>
+                          )}
+                          {isSortable && (
+                            <SortButton
+                              direction={sortDirection}
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              title={`Sort by ${col.label}`}
+                            />
+                          )}
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
+                              }}
+                              currentSort={sortDirection}
+                              onSortChange={(dir) => {
+                                if (!dir) setOrdering(null);
+                                else if (dir === "asc") setOrdering(sortKey);
+                                else setOrdering(`-${sortKey}`);
                               }}
                             />
                           )}

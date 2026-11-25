@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   ExternalLink,
   Eye,
@@ -22,7 +24,9 @@ import { QuotationAttachment } from "@/lib/types";
 interface AttachmentViewerModalProps {
   open: boolean;
   onClose: () => void;
-  attachment: QuotationAttachment | null;
+  attachment?: QuotationAttachment | null;
+  attachments?: QuotationAttachment[] | null;
+  initialIndex?: number;
 }
 
 function dataURItoBlob(dataURI: string): Blob {
@@ -47,65 +51,89 @@ export function AttachmentViewerModal({
   open,
   onClose,
   attachment,
+  attachments,
+  initialIndex = 0,
 }: AttachmentViewerModalProps) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Excel state
   const [excelSheets, setExcelSheets] = useState<{ name: string; rows: (string | number)[][] }[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [excelError, setExcelError] = useState<string | null>(null);
 
+  const activeList = useMemo(() => {
+    if (attachments && attachments.length > 0) return attachments;
+    return attachment ? [attachment] : [];
+  }, [attachments, attachment]);
+
+  const currentAttachment = activeList[currentIndex] || null;
+  const hasMultiple = activeList.length > 1;
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (open) {
+      const clamped = Math.min(Math.max(0, initialIndex), Math.max(0, activeList.length - 1));
+      setCurrentIndex(clamped);
+    }
+  }, [open, initialIndex, activeList.length]);
+
+  useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      if (hasMultiple && e.key === "ArrowLeft") {
+        setCurrentIndex((i) => (i - 1 + activeList.length) % activeList.length);
+      }
+      if (hasMultiple && e.key === "ArrowRight") {
+        setCurrentIndex((i) => (i + 1) % activeList.length);
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, hasMultiple, activeList.length]);
 
   // Determine file type
   const { isImg, isPdf, isExcel } = useMemo(() => {
-    if (!attachment) return { isImg: false, isPdf: false, isExcel: false };
-    const name = (attachment.file_name || "").toLowerCase();
-    const type = (attachment.file_type || "").toLowerCase();
+    if (!currentAttachment) return { isImg: false, isPdf: false, isExcel: false };
+    const name = (currentAttachment.file_name || "").toLowerCase();
+    const type = (currentAttachment.file_type || "").toLowerCase();
 
     const isImg =
       type === "image" ||
       /\.(png|jpe?g|webp|svg|gif)$/i.test(name) ||
-      (typeof attachment.file === "string" && attachment.file.startsWith("data:image"));
+      (typeof currentAttachment.file === "string" && currentAttachment.file.startsWith("data:image"));
 
     const isPdf =
       type === "pdf" ||
       /\.pdf$/i.test(name) ||
-      (typeof attachment.file === "string" && attachment.file.startsWith("data:application/pdf"));
+      (typeof currentAttachment.file === "string" && currentAttachment.file.startsWith("data:application/pdf"));
 
     const isExcel =
       type === "excel" ||
       /\.(xlsx|xls|csv)$/i.test(name) ||
-      (typeof attachment.file === "string" &&
-        (attachment.file.includes("spreadsheetml") || attachment.file.includes("ms-excel") || attachment.file.includes("text/csv")));
+      (typeof currentAttachment.file === "string" &&
+        (currentAttachment.file.includes("spreadsheetml") || currentAttachment.file.includes("ms-excel") || currentAttachment.file.includes("text/csv")));
 
     return { isImg, isPdf, isExcel };
-  }, [attachment]);
+  }, [currentAttachment]);
 
   // Resolve raw source URL
   const rawUrl = useMemo(() => {
-    if (!attachment) return null;
-    const path = attachment.file_url || (typeof attachment.file === "string" ? attachment.file : null);
+    if (!currentAttachment) return null;
+    const path = currentAttachment.file_url || (typeof currentAttachment.file === "string" ? currentAttachment.file : null);
     if (!path) return null;
     return path.startsWith("data:") || path.startsWith("blob:") ? path : mediaUrl(path) || path;
-  }, [attachment]);
+  }, [currentAttachment]);
 
   // Load and prepare preview
   useEffect(() => {
-    if (!open || !attachment || !rawUrl) {
+    if (!open || !currentAttachment || !rawUrl) {
       setBlobUrl(null);
       setExcelSheets([]);
       setExcelError(null);
@@ -175,13 +203,13 @@ export function AttachmentViewerModal({
     return () => {
       active = false;
     };
-  }, [open, attachment, rawUrl, isPdf, isExcel]);
+  }, [open, currentAttachment, rawUrl, isPdf, isExcel]);
 
   const handleDownload = () => {
-    if (!rawUrl || !attachment) return;
+    if (!rawUrl || !currentAttachment) return;
     const a = document.createElement("a");
     a.href = blobUrl || rawUrl;
-    a.download = attachment.file_name || "document";
+    a.download = currentAttachment.file_name || "document";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -192,7 +220,7 @@ export function AttachmentViewerModal({
     window.open(blobUrl || rawUrl, "_blank");
   };
 
-  if (!open || !mounted || !attachment) return null;
+  if (!open || !mounted || !currentAttachment) return null;
 
   const currentExcelSheet = excelSheets[activeSheetIndex];
   const excelRows = currentExcelSheet?.rows || [];
@@ -229,14 +257,14 @@ export function AttachmentViewerModal({
             )}
 
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-ink truncate" title={attachment.file_name}>
-                {attachment.file_name}
+              <h2 className="text-sm font-bold text-ink truncate" title={currentAttachment.file_name}>
+                {currentAttachment.file_name}
               </h2>
               <div className="flex items-center gap-2 text-[11px] text-ink-muted">
-                {attachment.file_size ? <span>{formatFileSize(attachment.file_size)}</span> : null}
-                {attachment.file_type && (
+                {currentAttachment.file_size ? <span>{formatFileSize(currentAttachment.file_size)}</span> : null}
+                {currentAttachment.file_type && (
                   <span className="font-semibold uppercase tracking-wider text-primary-600">
-                    • {attachment.file_type}
+                    • {currentAttachment.file_type}
                   </span>
                 )}
                 {isExcel && excelRows.length > 0 && (
@@ -248,6 +276,29 @@ export function AttachmentViewerModal({
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            {hasMultiple && (
+              <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-2xs mr-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex((i) => (i - 1 + activeList.length) % activeList.length)}
+                  className="p-1.5 text-ink-muted hover:text-ink hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                  title="Previous (←)"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <span className="px-2 text-[11px] font-mono font-bold text-ink">
+                  {currentIndex + 1} / {activeList.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex((i) => (i + 1) % activeList.length)}
+                  className="p-1.5 text-ink-muted hover:text-ink hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                  title="Next (→)"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={handleDownload}
@@ -297,7 +348,7 @@ export function AttachmentViewerModal({
                   <iframe
                     src={`${blobUrl}#toolbar=1`}
                     className="h-[75vh] w-full rounded-lg border border-border bg-white shadow-xs"
-                    title={attachment.file_name}
+                    title={currentAttachment.file_name}
                   />
                 </object>
               ) : (
@@ -407,7 +458,7 @@ export function AttachmentViewerModal({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={blobUrl || rawUrl || ""}
-                alt={attachment.file_name}
+                alt={currentAttachment.file_name}
                 className="max-h-[70vh] max-w-full rounded object-contain shadow-lg"
               />
             </div>

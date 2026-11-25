@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
-from apps.core.filters import DynamicQueryFilterBackend
+from apps.core.filters import CRMOrderingFilter, DynamicQueryFilterBackend
 from apps.core.modules import ORDERS
 from apps.core.numbering import next_number
 from apps.core.viewsets import ModuleViewSet
@@ -154,7 +154,7 @@ class OrderFilter(django_filters.FilterSet):
 class OrderViewSet(ModuleViewSet):
     serializer_class = OrderSerializer
     module_name = ORDERS
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     filterset_class = OrderFilter
     search_fields = ["order_no", "description", "client__client_name", "client__company__company_name", "items__product__product_name", "project_title"]
 

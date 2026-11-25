@@ -5,7 +5,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.core.filters import DynamicQueryFilterBackend
+from apps.core.filters import CRMOrderingFilter, DynamicQueryFilterBackend
 from apps.core.models import ActivityLog
 from apps.core.modules import SUPPLIERS
 from apps.core.viewsets import ModuleViewSet, SoftDeleteModuleViewSet
@@ -26,7 +26,7 @@ class SupplierViewSet(SoftDeleteModuleViewSet):
     queryset = Supplier.objects.select_related("company").prefetch_related("contacts", "supplier_products__product", "files").all()
     serializer_class = SupplierSerializer
     module_name = SUPPLIERS
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     filterset_fields = ["rating", "company"]
     search_fields = [
         "supplier_name",

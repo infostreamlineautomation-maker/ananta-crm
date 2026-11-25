@@ -16,7 +16,7 @@ class Costing(AuditedModel, SoftDeleteModel):
         "projects.Project", null=True, blank=True, on_delete=models.SET_NULL, related_name="costings"
     )
     supplier = models.ForeignKey("suppliers.Supplier", on_delete=models.PROTECT, related_name="costings")
-    product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, related_name="costings")
+    product = models.ForeignKey("catalog.Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="costings")
     client = models.ForeignKey("clients.Client", on_delete=models.PROTECT, related_name="costings")
     file = models.FileField(upload_to="costings/files/", null=True, blank=True)
     file_name = models.CharField(max_length=255, blank=True)
@@ -56,10 +56,17 @@ class Costing(AuditedModel, SoftDeleteModel):
 
 class CostingItem(models.Model):
     costing = models.ForeignKey(Costing, on_delete=models.CASCADE, related_name="items")
-    supplier_rate = models.DecimalField(max_digits=12, decimal_places=2)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    client_rate = models.DecimalField(max_digits=12, decimal_places=2)
+    product = models.ForeignKey("catalog.Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="costing_items")
+    product_name = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    supplier_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    client_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     extra_data = models.JSONField(default=dict, blank=True, help_text="Values for Costing.columns_config keys.")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
 
     @property
     def profit(self):

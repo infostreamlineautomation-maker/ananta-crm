@@ -129,6 +129,14 @@ export interface ConvertedTotals {
   has_foreign_currency?: boolean;
 }
 
+export interface CostingTotals {
+  base_currency: string;
+  supplier_cost: string;
+  client_revenue: string;
+  profit: string;
+  profit_percent: string;
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;
@@ -139,4 +147,5 @@ export interface Paginated<T> {
   total_due_amount?: string;
   currency_totals?: Record<string, CurrencyTotalItem>;
   converted_totals?: ConvertedTotals;
+  costing_totals?: CostingTotals;
 }

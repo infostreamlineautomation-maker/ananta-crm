@@ -10,10 +10,12 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { useInfinitePaginatedList, useList, useDebouncedValue } from "@/lib/hooks";
 import { Client, ClientGroup, Company, Country, OrderDetail, OrderImage, OrderSummary } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
+import { ClientNameDisplay } from "@/components/ui/ClientNameDisplay";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { SendNotificationModal } from "@/components/notifications/SendNotificationModal";
 import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
-import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { AttachmentViewerModal } from "@/components/ui/AttachmentViewerModal";
+import { QuotationAttachment } from "@/lib/types";
 import { ClientGroupModal } from "@/components/clients/ClientGroupModal";
 import { useToast } from "@/components/ui/Toast";
 import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
@@ -26,7 +28,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
-import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 import { ExportColumn } from "@/lib/export-utils";
 
@@ -60,7 +62,7 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
   },
   { header: "Order Date", accessor: (o: any) => o.date, category: "Basic Info", defaultSelected: true },
   { header: "Client Name", accessor: (o: any) => o.client_name || "", category: "Client & Vendor", defaultSelected: true },
-  { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor", defaultSelected: false },
+  { header: "Company Name", accessor: (o: any) => o.company_name || "", category: "Client & Vendor", defaultSelected: true },
   { header: "Supplier / Vendor", accessor: (o: any) => o.supplier_name || "", category: "Client & Vendor", defaultSelected: false },
   { header: "Client Phone", accessor: (o: any) => o.client_phone || "", category: "Client & Vendor", defaultSelected: false },
   { header: "Client Email", accessor: (o: any) => o.client_email || "", category: "Client & Vendor", defaultSelected: false },
@@ -319,12 +321,17 @@ export default function OrdersPage() {
   const {
     columns: filterColumns,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     resetFilters,
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "order_item",
     baseColumns: baseFilterColumns,
+    initialOrdering: "-date",
   });
 
   const basePath = useMemo(() => {
@@ -758,6 +765,9 @@ export default function OrdersPage() {
                     const isCenter = ["qty", "rate", "currency_code", "date", "delivery_status", "payment_status", "delivery_time", "created_at", "updated_at"].includes(col.key);
                     const colAlign: "left" | "center" | "right" = isCenter ? "center" : isRight ? "right" : "left";
                     const colFilter = getColFilter(col.key) || (col.key === "grand_total" ? getColFilter("amount") : undefined) || (col.key === "amount" ? getColFilter("grand_total") : undefined);
+                    const isSortable = !["select", "actions", "attachments", "images"].includes(col.key);
+                    const sortKey = col.key === "client" ? "client_name" : col.key === "amount" || col.key === "grand_total" ? "grand_total" : col.key;
+                    const sortDirection = isSortable ? getOrderingFor(sortKey) : null;
 
                     return (
                       <ResizableTh
@@ -767,13 +777,36 @@ export default function OrdersPage() {
                         align={colAlign}
                       >
                         <div className={clsx("flex items-center gap-1 min-w-0 max-w-full", isCenter ? "justify-center" : isRight ? "justify-end" : "justify-start")}>
-                          <span className="truncate">{col.label}</span>
+                          {isSortable ? (
+                            <span
+                              onClick={() => toggleOrdering(sortKey, ["date", "order_date", "created_at", "updated_at"].includes(sortKey))}
+                              className="truncate cursor-pointer hover:text-primary-600 transition-colors select-none font-semibold"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              {col.label}
+                            </span>
+                          ) : (
+                            <span className="truncate">{col.label}</span>
+                          )}
+                          {isSortable && (
+                            <SortButton
+                              direction={sortDirection}
+                              onClick={() => toggleOrdering(sortKey, ["date", "order_date", "created_at", "updated_at"].includes(sortKey))}
+                              title={`Sort by ${col.label}`}
+                            />
+                          )}
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
+                              }}
+                              currentSort={sortDirection}
+                              onSortChange={(dir) => {
+                                if (!dir) setOrdering(null);
+                                else if (dir === "asc") setOrdering(sortKey);
+                                else setOrdering(`-${sortKey}`);
                               }}
                             />
                           )}
@@ -930,14 +963,7 @@ export default function OrdersPage() {
                         case "client_name":
                           return (
                             <td key="client_name" className={TD}>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-semibold text-ink">{o.client_name}</span>
-                                {!grid.visibleColumns.has("company_name") && o.company_name && (
-                                  <span className="text-[12px] font-medium text-ink-muted">
-                                    ({o.company_name})
-                                  </span>
-                                )}
-                              </div>
+                              <ClientNameDisplay clientName={o.client_name} companyName={o.company_name} />
                             </td>
                           );
                         case "company_name":
@@ -1194,10 +1220,16 @@ export default function OrdersPage() {
       </Card>
 
       {activeLightboxImages && (
-        <ImageLightboxModal
+        <AttachmentViewerModal
           open={true}
           onClose={() => setActiveLightboxImages(null)}
-          images={activeLightboxImages}
+          attachments={activeLightboxImages.map((img, idx): QuotationAttachment => ({
+            id: img.id ?? idx,
+            file: img.image,
+            file_url: img.image,
+            file_name: img.caption || img.image.split("/").pop() || `Image #${idx + 1}`,
+            file_type: "image",
+          }))}
         />
       )}
 
@@ -1210,6 +1242,7 @@ export default function OrdersPage() {
             id: notifyingOrder.id,
             title: `Project ${notifyingOrder.order_no}`,
             clientName: notifyingOrder.client_name,
+            companyName: notifyingOrder.company_name,
             orderNo: notifyingOrder.order_no,
             amount: notifyingOrder.grand_total,
             paidAmount: notifyingOrder.paid_amount,

@@ -329,7 +329,14 @@ export default function DashboardPage() {
                             {o.order_no}
                           </Link>
                         </td>
-                        <td className="px-5 py-3 font-medium text-ink">{o.client_name}</td>
+                        <td className="px-5 py-3 font-medium text-ink">
+                          <div>{o.client_name}</div>
+                          {o.company_name && (
+                            <div className="text-[11px] font-normal text-ink-muted leading-tight">
+                              ({o.company_name})
+                            </div>
+                          )}
+                        </td>
                         <td className="px-5 py-3">
                           <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
                         </td>

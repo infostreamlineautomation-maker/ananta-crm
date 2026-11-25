@@ -111,7 +111,11 @@ export function ClientPortalDashboard() {
   }, []);
 
   const displayName = user?.first_name || user?.username || "Valued Client";
-  const clientName = user?.linked_client_name || "My Account";
+  const clientName = user?.linked_client_name
+    ? user.linked_client_company_name
+      ? `${user.linked_client_name} (${user.linked_client_company_name})`
+      : user.linked_client_name
+    : "My Account";
 
   // Derive pending payment orders (due_amount > 0)
   const pendingPaymentOrders = orders.filter((o) => {

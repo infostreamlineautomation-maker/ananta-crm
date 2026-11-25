@@ -118,6 +118,7 @@ export function Sidebar() {
           {user?.linked_client_name && (
             <div className="text-[11px] text-emerald-700 font-semibold truncate mt-0.5">
               {user.linked_client_name}
+              {user.linked_client_company_name ? ` (${user.linked_client_company_name})` : ""}
             </div>
           )}
         </div>

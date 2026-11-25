@@ -32,7 +32,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
-import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
+import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
 
 export const CLIENT_TYPE_TONE: Record<string, { badge: string; label: string; description: string }> = {
@@ -160,12 +160,17 @@ export default function ClientsPage() {
     columns: filterColumns,
     customFields,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     resetFilters,
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "client",
     baseColumns: baseFilterColumns,
+    initialOrdering: "client_name",
   });
 
   const allColumns: ColumnDef[] = useMemo(() => {
@@ -434,11 +439,11 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
+      <Card className="overflow-hidden">
+        <div className="overflow-auto max-h-[calc(100vh-210px)] relative scrollbar-thin">
+          <table className="w-full text-left text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
                 {grid.columns
                   .filter((col) => grid.visibleColumns.has(col.key))
                   .map((col) => {
@@ -486,20 +491,47 @@ export default function ClientsPage() {
                       : col.key;
                     const colFilter = getColFilter(filterKey);
 
+                    const isSortable = !["select", "actions"].includes(col.key);
+                    const sortKey = col.key === "company_name" ? "company" : col.key === "country_name" ? "country" : col.key;
+                    const sortDirection = isSortable ? getOrderingFor(sortKey) : null;
+
                     return (
                       <ResizableTh
                         key={col.key}
                         columnKey={col.key}
                         grid={grid}
                       >
-                        <div className="inline-flex items-center">
-                          <span>{col.label}</span>
+                        <div className="flex items-center gap-1 min-w-0 max-w-full">
+                          {isSortable ? (
+                            <span
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              className="truncate cursor-pointer hover:text-primary-600 transition-colors select-none font-semibold"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              {col.label}
+                            </span>
+                          ) : (
+                            <span className="truncate">{col.label}</span>
+                          )}
+                          {isSortable && (
+                            <SortButton
+                              direction={sortDirection}
+                              onClick={() => toggleOrdering(sortKey, ["created_at", "updated_at"].includes(sortKey))}
+                              title={`Sort by ${col.label}`}
+                            />
+                          )}
                           {colFilter && (
                             <ColumnHeaderFilter
                               column={colFilter}
                               activeFilters={activeFilters}
                               onFilterChange={(k, v) => {
                                 setFilter(k, v);
+                              }}
+                              currentSort={sortDirection}
+                              onSortChange={(dir) => {
+                                if (!dir) setOrdering(null);
+                                else if (dir === "asc") setOrdering(sortKey);
+                                else setOrdering(`-${sortKey}`);
                               }}
                             />
                           )}
@@ -545,9 +577,20 @@ export default function ClientsPage() {
                         case "client_name":
                           return (
                             <td key="client_name" className={`${TD} font-semibold`}>
-                              <Link href={`/clients/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
-                                {c.client_name}
-                              </Link>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Link href={`/clients/${c.id}`} className="text-ink hover:text-primary-600 transition-colors">
+                                  {c.client_name}
+                                </Link>
+                                {!grid.visibleColumns.has("company_name") && c.company_name ? (
+                                  <span className="text-[12px] font-medium text-ink-muted">
+                                    ({c.company_name})
+                                  </span>
+                                ) : c.company_name ? (
+                                  <span className="text-[12px] font-medium text-ink-muted">
+                                    ({c.company_name})
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                           );
                         case "client_type":
@@ -737,8 +780,11 @@ export default function ClientsPage() {
             ? {
                 type: "client",
                 id: notifyingClient.id,
-                title: notifyingClient.client_name,
+                title: notifyingClient.company_name
+                  ? `${notifyingClient.client_name} (${notifyingClient.company_name})`
+                  : notifyingClient.client_name,
                 clientName: notifyingClient.client_name,
+                companyName: notifyingClient.company_name,
                 clientPhone: notifyingClient.phone,
                 clientEmail: notifyingClient.email,
                 currency: notifyingClient.currency_code || "INR",

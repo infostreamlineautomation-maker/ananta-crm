@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { formatCurrency } from "@/lib/format";
 import clsx from "clsx";
 
@@ -27,6 +28,16 @@ export function ProgressBarList({
   barColor = "#c31432",
   className,
 }: ProgressBarListProps) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(false);
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setReady(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [items]);
+
   if (items.length === 0) {
     return <p className="py-8 text-center text-sm text-ink-faint">{emptyLabel}</p>;
   }
@@ -39,23 +50,27 @@ export function ProgressBarList({
         const widthPct = Math.max(4, Math.min(100, (item.value / maxVal) * 100));
 
         return (
-          <div key={item.name + index} className="group flex flex-col gap-1">
+          <div
+            key={item.name + index}
+            className="group flex flex-col gap-1 animate-report-fade-up"
+            style={{ animationDelay: `${index * 45}ms` }}
+          >
             <div className="flex items-center justify-between text-[13px]">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-surface-sunken font-mono text-[10px] font-bold text-ink-muted">
+                <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-surface-sunken font-mono text-[10px] font-bold text-ink-muted transition-colors group-hover:bg-primary-50 group-hover:text-primary-700">
                   {index + 1}
                 </span>
                 <span className="truncate font-semibold text-ink group-hover:text-primary-600 transition-colors">
                   {item.name}
                 </span>
-                {item.subValue && <span className="text-[11.5px] text-ink-faint">({item.subValue})</span>}
+                {item.subValue && <span className="text-[11.5px] text-ink-faint shrink-0">({item.subValue})</span>}
               </div>
 
               <div className="flex items-center gap-2 flex-none pl-2">
-                <span className="font-mono text-[12px] font-bold text-ink">
+                <span className="font-mono text-[12px] font-bold text-ink tnum">
                   {valueType === "currency" ? formatCurrency(item.value, currencyCode) : item.value.toLocaleString("en-IN")}
                 </span>
-                <span className="font-mono text-[11px] text-ink-muted w-10 text-right">
+                <span className="font-mono text-[11px] text-ink-muted w-10 text-right tnum">
                   {item.share_pct.toFixed(1)}%
                 </span>
               </div>
@@ -63,11 +78,12 @@ export function ProgressBarList({
 
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-surface-sunken">
               <div
-                className="h-full rounded-full transition-all duration-500 ease-out"
+                className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{
-                  width: `${widthPct}%`,
+                  width: ready ? `${widthPct}%` : "0%",
+                  transitionDelay: `${index * 45}ms`,
                   backgroundColor: barColor,
-                  opacity: 0.85,
+                  opacity: 0.88,
                 }}
               />
             </div>

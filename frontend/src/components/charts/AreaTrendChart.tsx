@@ -112,9 +112,9 @@ export function AreaTrendChart({ data, height = 240, currencyCode = "INR", class
         </div>
 
         {activePoint && (
-          <div className="flex items-center gap-2 rounded-md bg-ink px-2.5 py-1 text-xs text-white shadow-md">
+          <div className="flex items-center gap-2 rounded-md bg-ink px-2.5 py-1 text-xs text-white shadow-md animate-report-fade-up">
             <span className="font-medium text-white/70">{activePoint.raw.label}:</span>
-            <span className="font-bold">
+            <span className="font-bold tnum">
               {metric === "orders_count" ? `${activePoint.raw.value} orders` : formatCurrency(activePoint.raw.value, currencyCode)}
             </span>
           </div>
@@ -126,8 +126,9 @@ export function AreaTrendChart({ data, height = 240, currencyCode = "INR", class
           <div className="flex h-full items-center justify-center text-xs text-ink-faint">No trend data available for this range</div>
         ) : (
           <svg
+            key={`${metric}-${points.length}-${points[0]?.label}-${maxValue}`}
             viewBox={`0 0 700 ${height}`}
-            className="h-full w-full overflow-visible"
+            className="h-full w-full overflow-visible animate-chart-reveal"
             preserveAspectRatio="none"
             onMouseLeave={() => setHoverIndex(null)}
           >

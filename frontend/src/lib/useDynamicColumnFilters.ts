@@ -13,11 +13,18 @@ export interface FilterColumnOption {
   dotColor?: string;
 }
 
+export interface FilterSuggestion {
+  value: string;
+  label: string;
+  sublabel?: string;
+}
+
 export interface DynamicFilterColumn {
   key: string;
   label: string;
   type: ColumnFilterType;
   options?: FilterOption[];
+  suggestions?: FilterSuggestion[];
   isCustom?: boolean;
   minPlaceholder?: string;
   maxPlaceholder?: string;
@@ -35,17 +42,22 @@ export interface UseDynamicColumnFiltersOptions {
   module?: CustomFieldModule | string;
   baseColumns: DynamicFilterColumn[];
   initialFilters?: Record<string, string>;
+  initialOrdering?: string | null;
   onFilterChange?: (filters: Record<string, string>) => void;
+  onOrderingChange?: (ordering: string | null) => void;
 }
 
 export function useDynamicColumnFilters({
   module,
   baseColumns,
   initialFilters = {},
+  initialOrdering = null,
   onFilterChange,
+  onOrderingChange,
 }: UseDynamicColumnFiltersOptions) {
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>(initialFilters);
+  const [ordering, setOrderingState] = useState<string | null>(initialOrdering ?? null);
 
   // Fetch dynamic custom columns for the module
   useEffect(() => {
@@ -130,11 +142,13 @@ export function useDynamicColumnFilters({
     [onFilterChange]
   );
 
-  // Reset all active filters
+  // Reset all active filters (and restore default ordering)
   const resetFilters = useCallback(() => {
     setActiveFilters({});
+    setOrderingState(initialOrdering ?? null);
     if (onFilterChange) onFilterChange({});
-  }, [onFilterChange]);
+    if (onOrderingChange) onOrderingChange(initialOrdering ?? null);
+  }, [initialOrdering, onFilterChange, onOrderingChange]);
 
   // Compute total active filter count (merging range pairs)
   const activeCount = useMemo(() => {
@@ -162,22 +176,76 @@ export function useDynamicColumnFilters({
     return count;
   }, [activeFilters]);
 
-  // Helper to compile active filters into query params
+  // Ordering handlers
+  const setOrdering = useCallback(
+    (newOrdering: string | null) => {
+      setOrderingState(newOrdering);
+      if (onOrderingChange) onOrderingChange(newOrdering);
+    },
+    [onOrderingChange]
+  );
+
+  const toggleOrdering = useCallback(
+    (field: string, defaultDesc: boolean = false) => {
+      setOrderingState((prev) => {
+        let next: string | null = null;
+        if (defaultDesc) {
+          if (prev === `-${field}`) {
+            next = field;
+          } else if (prev === field) {
+            next = initialOrdering === `-${field}` ? `-${field}` : null;
+          } else {
+            next = `-${field}`;
+          }
+        } else {
+          if (prev === field) {
+            next = `-${field}`;
+          } else if (prev === `-${field}`) {
+            next = null;
+          } else {
+            next = field;
+          }
+        }
+        if (onOrderingChange) onOrderingChange(next);
+        return next;
+      });
+    },
+    [initialOrdering, onOrderingChange]
+  );
+
+  const getOrderingFor = useCallback(
+    (field: string): "asc" | "desc" | null => {
+      if (!ordering) return null;
+      if (ordering === field) return "asc";
+      if (ordering === `-${field}`) return "desc";
+      return null;
+    },
+    [ordering]
+  );
+
+  // Helper to compile active filters and ordering into query params
   const appendQueryParams = useCallback(
     (params: URLSearchParams) => {
+      if (ordering && ordering.trim() !== "") {
+        params.set("ordering", ordering.trim());
+      }
       for (const [k, v] of Object.entries(activeFilters)) {
         if (v && v.trim() !== "") {
           params.set(k, v.trim());
         }
       }
     },
-    [activeFilters]
+    [activeFilters, ordering]
   );
 
   return {
     columns: allFilterColumns,
     customFields,
     activeFilters,
+    ordering,
+    setOrdering,
+    toggleOrdering,
+    getOrderingFor,
     setFilter,
     setFilters,
     resetFilters,

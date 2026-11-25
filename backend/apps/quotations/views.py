@@ -7,7 +7,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
 from apps.accounts.permissions import has_permission
-from apps.core.filters import DynamicQueryFilterBackend
+from apps.core.filters import CRMOrderingFilter, DynamicQueryFilterBackend
 from apps.core.modules import ADD, ORDERS, QUOTATIONS
 from apps.core.numbering import next_number
 from apps.core.viewsets import SoftDeleteModuleViewSet
@@ -51,9 +51,20 @@ class QuotationViewSet(SoftDeleteModuleViewSet):
     queryset = Quotation.objects.select_related("client", "project", "supplier").prefetch_related("items", "attachments")
     serializer_class = QuotationSerializer
     module_name = QUOTATIONS
-    filter_backends = [DjangoFilterBackend, SearchFilter, DynamicQueryFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, CRMOrderingFilter, DynamicQueryFilterBackend]
     filterset_class = QuotationFilter
-    search_fields = ["quotation_no", "subject", "to_name", "client__client_name"]
+    search_fields = ["quotation_no", "subject", "to_name", "client__client_name", "client__company__company_name"]
+
+    def get_queryset(self):
+        from django.db.models import DecimalField, F, Sum, Value
+        from django.db.models.functions import Coalesce
+        qs = super().get_queryset()
+        return qs.annotate(
+            annotated_subtotal=Coalesce(
+                Sum(F("items__qty") * F("items__rate"), output_field=DecimalField(max_digits=14, decimal_places=2)),
+                Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            )
+        )
 
     def check_permissions(self, request):
         super().check_permissions(request)

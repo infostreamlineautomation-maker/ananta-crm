@@ -23,6 +23,18 @@ export function formatDate(iso: string): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+export function formatClientWithCompany(
+  clientName?: string | null,
+  companyName?: string | null,
+  fallback = "—",
+): string {
+  const c = (clientName || "").trim();
+  const comp = (companyName || "").trim();
+  if (!c && !comp) return fallback;
+  if (c && comp) return `${c} (${comp})`;
+  return c || comp;
+}
+
 export function mediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith("blob:") || path.startsWith("data:")) {
