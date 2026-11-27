@@ -1,6 +1,12 @@
 import clsx from "clsx";
 
-type Tone = "neutral" | "success" | "warning" | "info" | "danger";
+export type Tone = "neutral" | "success" | "warning" | "info" | "danger";
+
+export interface StatusOption {
+  value: string;
+  label: string;
+  tone?: Tone;
+}
 
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: "bg-surface-sunken text-ink-muted",
@@ -52,6 +58,40 @@ export const PROJECT_STATUS_TONE: Record<string, Tone> = {
   completed: "info",
   cancelled: "danger",
 };
+
+export const DELIVERY_STATUS_OPTIONS: StatusOption[] = [
+  { value: "pending", label: "Pending", tone: "neutral" },
+  { value: "in_process", label: "In Process", tone: "warning" },
+  { value: "ready", label: "Ready", tone: "info" },
+  { value: "delivered", label: "Delivered", tone: "success" },
+];
+
+export const PAYMENT_STATUS_OPTIONS: StatusOption[] = [
+  { value: "pending", label: "Pending", tone: "warning" },
+  { value: "advance", label: "Advance", tone: "info" },
+  { value: "partial", label: "Partial", tone: "info" },
+  { value: "paid", label: "Paid", tone: "success" },
+];
+
+export const QUOTATION_STATUS_OPTIONS: StatusOption[] = [
+  { value: "draft", label: "Draft", tone: "neutral" },
+  { value: "sent", label: "Sent", tone: "info" },
+  { value: "accepted", label: "Accepted", tone: "success" },
+  { value: "revision_requested", label: "Revision Requested", tone: "warning" },
+  { value: "rejected", label: "Rejected", tone: "danger" },
+];
+
+export const PROJECT_STATUS_OPTIONS: StatusOption[] = [
+  { value: "active", label: "Active", tone: "success" },
+  { value: "on_hold", label: "On Hold", tone: "warning" },
+  { value: "completed", label: "Completed", tone: "info" },
+  { value: "cancelled", label: "Cancelled", tone: "danger" },
+];
+
+export const USER_STATUS_OPTIONS: StatusOption[] = [
+  { value: "active", label: "Active", tone: "success" },
+  { value: "inactive", label: "Inactive", tone: "neutral" },
+];
 
 export function labelize(value: string): string {
   return value

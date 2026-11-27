@@ -19,11 +19,13 @@ import { Modal } from "@/components/ui/Modal";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
-import { StatusPill, PROJECT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { PROJECT_STATUS_OPTIONS, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
 import { TableState } from "@/components/ui/Table";
 import { LoadMorePagination } from "@/components/ui/Pagination";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { ClientForm } from "../clients/page";
 import { consumeJustCreated, clearCreationOrigin } from "@/lib/creation-redirect";
 
@@ -42,7 +44,7 @@ const PROJECTS_EXPORT_COLUMNS: ExportColumn<ProjectSummary>[] = [
 export default function ProjectsPage() {
   const { can } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("crm_filter_search_projects", "");
   const debouncedSearch = useDebouncedValue(search);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -111,6 +113,7 @@ export default function ProjectsPage() {
 
   const {
     items: projects,
+    setItems: setProjects,
     count: totalCount,
     loading,
     loadingMore,
@@ -119,6 +122,7 @@ export default function ProjectsPage() {
     reload,
   } = useInfinitePaginatedList<ProjectSummary>(basePath);
   const canAdd = can("orders", "add");
+  const canEdit = can("orders", "edit");
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,7 +169,27 @@ export default function ProjectsPage() {
             <Card className="flex h-full flex-col gap-2 p-5 transition-shadow hover:shadow-[var(--shadow-pop)]">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-bold text-ink">{p.name}</h3>
-                <StatusPill label={labelize(p.status)} tone={PROJECT_STATUS_TONE[p.status]} />
+                <EditableStatusPill
+                  value={p.status}
+                  options={PROJECT_STATUS_OPTIONS}
+                  canEdit={canEdit}
+                  align="right"
+                  title={canEdit ? "Click to update project status" : undefined}
+                  onChange={async (newStatus) => {
+                    try {
+                      const updated = await apiFetch<ProjectSummary>(`/api/projects/${p.id}/`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ status: newStatus }),
+                      });
+                      setProjects((prev) =>
+                        prev.map((row) => (row.id === p.id ? { ...row, ...updated } : row))
+                      );
+                      toast.success(`Project "${p.name}" marked as ${labelize(newStatus)}.`);
+                    } catch (e) {
+                      toast.error(e instanceof ApiError ? e.message : "Couldn't update project status.");
+                    }
+                  }}
+                />
               </div>
               <p className="text-[13px] text-ink-muted">
                 {p.client_name}

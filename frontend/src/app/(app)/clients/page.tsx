@@ -34,6 +34,7 @@ import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 export const CLIENT_TYPE_TONE: Record<string, { badge: string; label: string; description: string }> = {
   A: {
@@ -91,7 +92,12 @@ export default function ClientsPage() {
   const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("crm_filter_search_clients", "");
+  useEffect(() => {
+    const q = searchParams.get("search");
+    if (q) setSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
@@ -100,7 +106,10 @@ export default function ClientsPage() {
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
   const { items: allClients, reload: reloadAllClients } = useList<Client>("/api/clients/?page_size=300");
 
-  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [selectedGroup, setSelectedGroup] = usePersistentState<number | "all">(
+    "crm_filter_group_clients",
+    "all"
+  );
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   const creationOrigin = useMemo(() => {
@@ -343,6 +352,7 @@ export default function ClientsPage() {
           onReset={() => {
             resetFilters();
             setSearch("");
+            setSelectedGroup("all");
           }}
           actions={
             <div className="flex items-center gap-2">

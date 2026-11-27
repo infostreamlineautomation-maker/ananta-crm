@@ -22,6 +22,9 @@ import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { formatDate } from "@/lib/format";
 import { useTableGrid } from "@/lib/useTableGrid";
+import { usePersistentState } from "@/lib/usePersistentState";
+import { USER_STATUS_OPTIONS } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
 import { ResizableTh } from "@/components/ui/ResizableTh";
 
 const USERS_PAGE_COLUMNS: ColumnDef[] = [
@@ -60,7 +63,16 @@ function UsersPageContent() {
   const clientEmailParam = searchParams.get("client_email") || "";
   const clientPhoneParam = searchParams.get("client_phone") || "";
 
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>(roleParam || "");
+  const [selectedRoleFilter, setSelectedRoleFilter] = usePersistentState<string>(
+    "crm_filter_role_users",
+    ""
+  );
+  useEffect(() => {
+    if (roleParam) {
+      setSelectedRoleFilter(roleParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleParam]);
 
   const grid = useTableGrid({
     tableKey: "users",
@@ -78,6 +90,7 @@ function UsersPageContent() {
 
   const {
     items: users,
+    setItems: setUsers,
     count: totalCount,
     loading,
     loadingMore,
@@ -197,10 +210,27 @@ function UsersPageContent() {
     if (colKey === "status") {
       return (
         <td key={colKey} className={TD}>
-          <span className={clsx("inline-flex items-center gap-1.5 text-xs font-semibold", u.is_active ? "text-success-700" : "text-ink-faint")}>
-            <span className={clsx("h-1.5 w-1.5 rounded-full", u.is_active ? "bg-success-500" : "bg-ink-faint")} />
-            {u.is_active ? "Active" : "Inactive"}
-          </span>
+          <EditableStatusPill
+            value={u.is_active ? "active" : "inactive"}
+            options={USER_STATUS_OPTIONS}
+            canEdit={canEdit && !isSelf}
+            title={canEdit && !isSelf ? "Click to activate / deactivate user" : undefined}
+            onChange={async (newVal) => {
+              const nextActive = newVal === "active";
+              try {
+                const updated = await apiFetch<AppUser>(`/api/auth/users/${u.id}/`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ is_active: nextActive }),
+                });
+                setUsers((prev) =>
+                  prev.map((row) => (row.id === u.id ? { ...row, ...updated } : row))
+                );
+                toast.success(`User "${u.username}" marked as ${nextActive ? "Active" : "Inactive"}.`);
+              } catch (e) {
+                toast.error(e instanceof ApiError ? e.message : "Couldn't update user status.");
+              }
+            }}
+          />
         </td>
       );
     }

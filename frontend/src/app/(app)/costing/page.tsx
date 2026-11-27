@@ -23,6 +23,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { CostingViewModal } from "./CostingViewModal";
 import { AttachmentDropdown } from "@/components/ui/AttachmentDropdown";
 import { useTableGrid } from "@/lib/useTableGrid";
@@ -54,7 +55,7 @@ export default function CostingPage() {
   const { can } = useAuth();
   const toast = useToast();
   const { activeOrganization } = useOrganization();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("crm_filter_search_costing", "");
   const debouncedSearch = useDebouncedValue(search);
   const [viewingCosting, setViewingCosting] = useState<CostingDetail | null>(null);
   const [deleting, setDeleting] = useState<CostingDetail | null>(null);
@@ -80,8 +81,14 @@ export default function CostingPage() {
 
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
   const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=300");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [selectedClient, setSelectedClient] = usePersistentState<Client | null>(
+    "crm_filter_client_costing",
+    null
+  );
+  const [selectedGroup, setSelectedGroup] = usePersistentState<number | "all">(
+    "crm_filter_group_costing",
+    "all"
+  );
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   const baseFilterColumns: DynamicFilterColumn[] = useMemo(
@@ -667,6 +674,7 @@ export default function CostingPage() {
             resetFilters();
             setSearch("");
             setSelectedClient(null);
+            setSelectedGroup("all");
           }}
           clientSuggestions={allClients}
           selectedClient={selectedClient}

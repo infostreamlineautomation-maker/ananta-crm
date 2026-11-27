@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   Paperclip,
   Plus,
+  RotateCcw,
   Trash2,
   UploadCloud,
   ZoomIn,
@@ -43,6 +44,20 @@ import { ProductModal } from "@/components/products/ProductModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DraftBanner } from "@/components/ui/DraftBanner";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { useFormColumnWidths } from "@/lib/useFormColumnWidths";
+import { FormResizableTh } from "@/components/ui/FormResizableTh";
+
+const COSTING_DEFAULT_WIDTHS: Record<string, number> = {
+  sr_no: 56,
+  product: 330,
+  qty: 115,
+  supplier_rate: 125,
+  supplier_total: 125,
+  client_rate: 130,
+  client_total: 125,
+  profit: 120,
+  actions: 44,
+};
 
 let columnCounter = 0;
 function newColumnKey() {
@@ -115,6 +130,23 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
   const [client, setClient] = useState<number | "">(costing?.client ?? "");
   const [description, setDescription] = useState(costing?.description ?? "");
   const [columns, setColumns] = useState<QuotationColumn[]>(costing?.columns_config ?? []);
+  const colGrid = useFormColumnWidths("costing_items_form", COSTING_DEFAULT_WIDTHS, 52);
+
+  const costingTotalWidth = useMemo(() => {
+    const customSum = columns.reduce((sum, c) => sum + colGrid.getWidth(c.key, 140), 0);
+    return (
+      colGrid.getWidth("sr_no") +
+      colGrid.getWidth("product") +
+      customSum +
+      colGrid.getWidth("qty") +
+      colGrid.getWidth("supplier_rate") +
+      colGrid.getWidth("supplier_total") +
+      colGrid.getWidth("client_rate") +
+      colGrid.getWidth("client_total") +
+      colGrid.getWidth("profit") +
+      44
+    );
+  }, [columns, colGrid]);
 
   const [items, setItems] = useState<CostingItemDetail[]>(() => {
     if (costing?.items && costing.items.length > 0) {
@@ -542,6 +574,16 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
               </span>
             </div>
             <div className="flex items-center gap-3">
+              {colGrid.hasCustomWidths && (
+                <button
+                  type="button"
+                  onClick={colGrid.resetAllWidths}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted hover:text-ink cursor-pointer"
+                  title="Reset table column widths to default"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset Widths
+                </button>
+              )}
               <button
                 type="button"
                 onClick={addColumn}
@@ -567,15 +609,56 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
               ))}
             </datalist>
 
-            <table className="w-full text-left text-xs border-collapse">
+            <table
+              style={{ width: `${costingTotalWidth}px`, minWidth: "100%" }}
+              className="table-fixed text-left text-xs border-collapse"
+            >
+              <colgroup>
+                <col style={{ width: `${colGrid.getWidth("sr_no")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("product")}px` }} />
+                {columns.map((col) => (
+                  <col key={col.key} style={{ width: `${colGrid.getWidth(col.key, 140)}px` }} />
+                ))}
+                <col style={{ width: `${colGrid.getWidth("qty")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("supplier_rate")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("supplier_total")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("client_rate")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("client_total")}px` }} />
+                <col style={{ width: `${colGrid.getWidth("profit")}px` }} />
+                <col style={{ width: "44px" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                  <th className="w-12 px-3 py-2.5 text-center border-r border-border">Sr. No.</th>
-                  <th className="min-w-[280px] sm:min-w-[330px] px-4 py-2.5 text-left border-r border-border">
+                  <FormResizableTh
+                    colKey="sr_no"
+                    width={colGrid.getWidth("sr_no")}
+                    isResizing={colGrid.resizingKey === "sr_no"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2 py-2.5 text-center border-r border-border"
+                  >
+                    Sr. No.
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="product"
+                    width={colGrid.getWidth("product")}
+                    isResizing={colGrid.resizingKey === "product"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-4 py-2.5 text-left border-r border-border"
+                  >
                     Product &amp; Description *
-                  </th>
+                  </FormResizableTh>
                   {columns.map((col) => (
-                    <th key={col.key} className="min-w-[130px] px-3 py-2.5 text-left border-r border-border">
+                    <FormResizableTh
+                      key={col.key}
+                      colKey={col.key}
+                      width={colGrid.getWidth(col.key, 140)}
+                      isResizing={colGrid.resizingKey === col.key}
+                      onResizeStart={colGrid.startResize}
+                      onResetWidth={colGrid.resetWidth}
+                      className="px-3 py-2.5 text-left border-r border-border"
+                    >
                       <div className="flex items-center justify-between gap-1">
                         <input
                           value={col.label}
@@ -584,7 +667,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                               prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
                             )
                           }
-                          className="w-full min-w-[80px] border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                          className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                           title="Click to rename column"
                         />
                         <button
@@ -596,17 +679,69 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    </th>
+                    </FormResizableTh>
                   ))}
-                  <th className="w-24 px-3 py-2.5 text-right border-r border-border">Qty *</th>
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">Supplier Rate *</th>
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">Supplier Total</th>
-                  <th className="w-32 px-3 py-2.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="qty"
+                    width={colGrid.getWidth("qty")}
+                    isResizing={colGrid.resizingKey === "qty"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
+                    Qty *
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="supplier_rate"
+                    width={colGrid.getWidth("supplier_rate")}
+                    isResizing={colGrid.resizingKey === "supplier_rate"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
+                    Supplier Rate *
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="supplier_total"
+                    width={colGrid.getWidth("supplier_total")}
+                    isResizing={colGrid.resizingKey === "supplier_total"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
+                    Supplier Total
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="client_rate"
+                    width={colGrid.getWidth("client_rate")}
+                    isResizing={colGrid.resizingKey === "client_rate"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
                     Client Rate <span className="font-normal normal-case text-ink-faint">(Opt.)</span>
-                  </th>
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">Client Total</th>
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">Profit / %</th>
-                  <th className="w-10 px-2 py-2.5 text-center" />
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="client_total"
+                    width={colGrid.getWidth("client_total")}
+                    isResizing={colGrid.resizingKey === "client_total"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
+                    Client Total
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="profit"
+                    width={colGrid.getWidth("profit")}
+                    isResizing={colGrid.resizingKey === "profit"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
+                    Profit / %
+                  </FormResizableTh>
+                  <th className="w-11 px-2 py-2.5 text-center" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -681,7 +816,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                       ))}
 
                       {/* Qty */}
-                      <td className="px-2.5 py-2.5 border-r border-border">
+                      <td className="px-2 py-2.5 border-r border-border">
                         <Input
                           type="number"
                           step="any"
@@ -689,13 +824,13 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                           value={item.quantity}
                           onChange={(e) => updateItem(idx, { quantity: e.target.value })}
                           placeholder="1"
-                          className="h-8.5 text-right font-mono text-xs"
+                          className="h-8.5 px-2 text-right font-mono text-xs"
                           required
                         />
                       </td>
 
                       {/* Supplier Rate */}
-                      <td className="px-2.5 py-2.5 border-r border-border">
+                      <td className="px-2 py-2.5 border-r border-border">
                         <Input
                           type="number"
                           step="any"
@@ -703,7 +838,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                           value={item.supplier_rate}
                           onChange={(e) => updateItem(idx, { supplier_rate: e.target.value })}
                           placeholder="0.00"
-                          className="h-8.5 text-right font-mono text-xs"
+                          className="h-8.5 px-2 text-right font-mono text-xs"
                           required
                         />
                       </td>
@@ -714,7 +849,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                       </td>
 
                       {/* Client Rate (Optional) */}
-                      <td className="px-2.5 py-2.5 border-r border-border">
+                      <td className="px-2 py-2.5 border-r border-border">
                         <Input
                           type="number"
                           step="any"
@@ -722,7 +857,7 @@ export function CostingForm({ costing }: { costing?: CostingDetail; initialProje
                           value={item.client_rate ?? ""}
                           onChange={(e) => updateItem(idx, { client_rate: e.target.value })}
                           placeholder="Optional"
-                          className="h-8.5 text-right font-mono text-xs"
+                          className="h-8.5 px-2 text-right font-mono text-xs"
                         />
                       </td>
 

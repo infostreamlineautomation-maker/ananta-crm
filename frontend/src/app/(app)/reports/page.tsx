@@ -35,6 +35,7 @@ import { ProgressBarList } from "@/components/charts/ProgressBarList";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ExportFormat, exportAnalyticsReport, getOrgPrefix } from "@/lib/export-utils";
 import { useOrganization } from "@/lib/organization-context";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 const TABS = [
   { key: "overview", label: "Overview & Trends" },
@@ -105,11 +106,11 @@ function AnimatedPercent({ value, decimals = 1 }: { value: number; decimals?: nu
 export default function ReportsPage() {
   const { activeOrganization } = useOrganization();
   const initial = useMemo(() => defaultMonth(), []);
-  const [dateFrom, setDateFrom] = useState(initial.from);
-  const [dateTo, setDateTo] = useState(initial.to);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [clientSearch, setClientSearch] = useState("");
-  const [productSearch, setProductSearch] = useState("");
+  const [dateFrom, setDateFrom] = usePersistentState("crm_filter_reports_date_from", initial.from);
+  const [dateTo, setDateTo] = usePersistentState("crm_filter_reports_date_to", initial.to);
+  const [activeTab, setActiveTab] = usePersistentState("crm_filter_reports_tab", "overview");
+  const [clientSearch, setClientSearch] = usePersistentState("crm_filter_reports_client_search", "");
+  const [productSearch, setProductSearch] = usePersistentState("crm_filter_reports_product_search", "");
 
   const [data, setData] = useState<AnalyticsReport | null>(null);
   const [loading, setLoading] = useState(true);

@@ -40,6 +40,7 @@ export interface FilterOption {
 
 export interface UseDynamicColumnFiltersOptions {
   module?: CustomFieldModule | string;
+  persistKey?: string;
   baseColumns: DynamicFilterColumn[];
   initialFilters?: Record<string, string>;
   initialOrdering?: string | null;
@@ -49,15 +50,67 @@ export interface UseDynamicColumnFiltersOptions {
 
 export function useDynamicColumnFilters({
   module,
+  persistKey,
   baseColumns,
   initialFilters = {},
   initialOrdering = null,
   onFilterChange,
   onOrderingChange,
 }: UseDynamicColumnFiltersOptions) {
+  const storageKey =
+    persistKey !== undefined
+      ? persistKey
+        ? `crm_col_filters_${persistKey}`
+        : null
+      : module
+      ? `crm_col_filters_${module}`
+      : null;
+
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>(initialFilters);
-  const [ordering, setOrderingState] = useState<string | null>(initialOrdering ?? null);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>(() => {
+    if (typeof window !== "undefined" && storageKey) {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.filters === "object" && parsed.filters !== null) {
+            return parsed.filters;
+          }
+        }
+      } catch {}
+    }
+    return initialFilters;
+  });
+  const [ordering, setOrderingState] = useState<string | null>(() => {
+    if (typeof window !== "undefined" && storageKey) {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if ("ordering" in parsed) {
+            return parsed.ordering ?? null;
+          }
+        }
+      } catch {}
+    }
+    return initialOrdering ?? null;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !storageKey) return;
+    try {
+      const hasFilters = Object.keys(activeFilters).length > 0;
+      const hasCustomOrdering = ordering !== (initialOrdering ?? null);
+      if (!hasFilters && !hasCustomOrdering) {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({ filters: activeFilters, ordering })
+        );
+      }
+    } catch {}
+  }, [storageKey, activeFilters, ordering, initialOrdering]);
 
   // Fetch dynamic custom columns for the module
   useEffect(() => {

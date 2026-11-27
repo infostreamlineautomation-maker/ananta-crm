@@ -69,12 +69,37 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { DraftBanner } from "@/components/ui/DraftBanner";
 import { useFormDraft } from "@/lib/useFormDraft";
+import { useFormColumnWidths } from "@/lib/useFormColumnWidths";
+import { FormResizableTh } from "@/components/ui/FormResizableTh";
 import {
   DetailedCostingGrid,
   createInitialDetailedCostingData,
   buildDetailedCostingWhatsappMessage,
   buildDetailedCostingWhatsappWithBreakdown,
 } from "@/components/quotations/DetailedCostingGrid";
+
+const QUOTE_STANDARD_DEFAULT_WIDTHS: Record<string, number> = {
+  sr_no: 54,
+  item: 340,
+  reference: 105,
+  qty: 115,
+  rate: 120,
+  amount: 135,
+  actions: 44,
+};
+
+const QUOTE_COSTING_DEFAULT_WIDTHS: Record<string, number> = {
+  sr_no: 54,
+  item: 340,
+  reference: 105,
+  supplier_qty: 110,
+  supplier_rate: 120,
+  margin_percent: 100,
+  profit: 110,
+  client_rate: 125,
+  total_profit: 135,
+  actions: 44,
+};
 
 function blankItem(): QuotationItemDetail {
   return {
@@ -251,6 +276,17 @@ export function QuotationForm({
   const updateColLabel = (key: string, val: string) => {
     setColLabels((prev) => ({ ...prev, [key]: val }));
   };
+
+  const stdColGrid = useFormColumnWidths(
+    "quotation_standard_form",
+    QUOTE_STANDARD_DEFAULT_WIDTHS,
+    50
+  );
+  const costColGrid = useFormColumnWidths(
+    "quotation_costing_form",
+    QUOTE_COSTING_DEFAULT_WIDTHS,
+    50
+  );
 
   const [showSubtotalInPdf, setShowSubtotalInPdf] = useState<boolean>(() => {
     if (quotation?.col_labels?.show_subtotal !== undefined) {
@@ -1871,13 +1907,29 @@ export function QuotationForm({
           </div>
 
           {quoteFormat !== "detailed" && (
-            <button
-              type="button"
-              onClick={addColumn}
-              className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Spec Column
-            </button>
+            <div className="flex items-center gap-3 shrink-0 ml-auto">
+              {(quoteFormat === "standard" ? stdColGrid.hasCustomWidths : costColGrid.hasCustomWidths) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    quoteFormat === "standard"
+                      ? stdColGrid.resetAllWidths()
+                      : costColGrid.resetAllWidths()
+                  }
+                  className="text-[11px] font-medium text-ink-muted hover:text-ink cursor-pointer flex items-center gap-1"
+                  title="Reset table column widths to default"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset Widths
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={addColumn}
+                className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Spec Column
+              </button>
+            </div>
           )}
         </div>
 
@@ -1893,28 +1945,86 @@ export function QuotationForm({
         ) : quoteFormat === "standard" ? (
           /* Format 1: Standard Direct Quotation Table (The Classic Format) */
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table
+              style={{
+                width: `${
+                  stdColGrid.getWidth("sr_no") +
+                  stdColGrid.getWidth("item") +
+                  stdColGrid.getWidth("reference") +
+                  columns.reduce((sum, c) => sum + stdColGrid.getWidth(c.key, 130), 0) +
+                  stdColGrid.getWidth("qty") +
+                  stdColGrid.getWidth("rate") +
+                  stdColGrid.getWidth("amount") +
+                  44
+                }px`,
+                minWidth: "100%",
+              }}
+              className="table-fixed text-left text-xs border-collapse"
+            >
+              <colgroup>
+                <col style={{ width: `${stdColGrid.getWidth("sr_no")}px` }} />
+                <col style={{ width: `${stdColGrid.getWidth("item")}px` }} />
+                <col style={{ width: `${stdColGrid.getWidth("reference")}px` }} />
+                {columns.map((col) => (
+                  <col key={col.key} style={{ width: `${stdColGrid.getWidth(col.key, 130)}px` }} />
+                ))}
+                <col style={{ width: `${stdColGrid.getWidth("qty")}px` }} />
+                <col style={{ width: `${stdColGrid.getWidth("rate")}px` }} />
+                <col style={{ width: `${stdColGrid.getWidth("amount")}px` }} />
+                <col style={{ width: "44px" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                  <th className="w-12 px-3 py-2.5 text-center border-r border-border">Sr. No.</th>
-                  <th className="min-w-[280px] sm:min-w-[340px] px-4 py-2.5 text-left border-r border-border">
+                  <FormResizableTh
+                    colKey="sr_no"
+                    width={stdColGrid.getWidth("sr_no")}
+                    isResizing={stdColGrid.resizingKey === "sr_no"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-2 py-2.5 text-center border-r border-border"
+                  >
+                    Sr. No.
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="item"
+                    width={stdColGrid.getWidth("item")}
+                    isResizing={stdColGrid.resizingKey === "item"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-4 py-2.5 text-left border-r border-border"
+                  >
                     <input
                       value={colLabels.item ?? "Item & Description"}
                       onChange={(e) => updateColLabel("item", e.target.value)}
-                      className="w-48 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
-                  <th className="w-24 px-2 py-2.5 text-center border-r border-border">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="reference"
+                    width={stdColGrid.getWidth("reference")}
+                    isResizing={stdColGrid.resizingKey === "reference"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-2 py-2.5 text-center border-r border-border"
+                  >
                     <input
                       value={colLabels.reference ?? "Reference"}
                       onChange={(e) => updateColLabel("reference", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
+                  </FormResizableTh>
                   {columns.map((col) => (
-                    <th key={col.key} className="w-28 px-3 py-2.5 text-left border-r border-border">
+                    <FormResizableTh
+                      key={col.key}
+                      colKey={col.key}
+                      width={stdColGrid.getWidth(col.key, 130)}
+                      isResizing={stdColGrid.resizingKey === col.key}
+                      onResizeStart={stdColGrid.startResize}
+                      onResetWidth={stdColGrid.resetWidth}
+                      className="px-3 py-2.5 text-left border-r border-border"
+                    >
                       <div className="flex items-center gap-1">
                         <input
                           value={col.label}
@@ -1923,44 +2033,65 @@ export function QuotationForm({
                               prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
                             )
                           }
-                          className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                          className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => removeColumn(col.key)}
-                          className="text-ink-faint hover:text-primary-600"
+                          className="text-ink-faint hover:text-primary-600 shrink-0"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </div>
-                    </th>
+                    </FormResizableTh>
                   ))}
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="qty"
+                    width={stdColGrid.getWidth("qty")}
+                    isResizing={stdColGrid.resizingKey === "qty"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
                     <input
                       value={colLabels.qty ?? colQtyLabel}
                       onChange={(e) => {
                         updateColLabel("qty", e.target.value);
                         setColQtyLabel(e.target.value);
                       }}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
-                  <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="rate"
+                    width={stdColGrid.getWidth("rate")}
+                    isResizing={stdColGrid.resizingKey === "rate"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border"
+                  >
                     <input
                       value={colLabels.rate ?? colRateLabel}
                       onChange={(e) => {
                         updateColLabel("rate", e.target.value);
                         setColRateLabel(e.target.value);
                       }}
-                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
-                  <th className="w-32 px-3 py-2.5 text-right border-r border-border font-bold text-ink">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="amount"
+                    width={stdColGrid.getWidth("amount")}
+                    isResizing={stdColGrid.resizingKey === "amount"}
+                    onResizeStart={stdColGrid.startResize}
+                    onResetWidth={stdColGrid.resetWidth}
+                    className="px-2.5 py-2.5 text-right border-r border-border font-bold text-ink"
+                  >
                     <div className="flex items-center justify-end gap-1.5">
                       <label
-                        className="flex items-center gap-1 cursor-pointer select-none"
+                        className="flex items-center gap-1 cursor-pointer select-none shrink-0"
                         title="Include Amount column in PDF / Printout"
                       >
                         <input
@@ -1973,14 +2104,14 @@ export function QuotationForm({
                       <input
                         value={colLabels.amount ?? "Amount"}
                         onChange={(e) => updateColLabel("amount", e.target.value)}
-                        className={`w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold uppercase focus:border-primary-500 focus:outline-none ${
+                        className={`w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[11px] font-bold uppercase focus:border-primary-500 focus:outline-none ${
                           showAmountInPdf ? "text-ink" : "text-ink-faint"
                         }`}
                         title="Click to edit column header (Checkbox controls whether Amount appears on PDF)"
                       />
                     </div>
-                  </th>
-                  <th className="w-10 px-2 py-2.5 text-center"></th>
+                  </FormResizableTh>
+                  <th className="w-11 px-2 py-2.5 text-center"></th>
                 </tr>
               </thead>
               <tbody>
@@ -2124,31 +2255,97 @@ export function QuotationForm({
         ) : (
           /* Format 2: Multi-Tier Supplier Costing & Margin Table (The New Format) */
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table
+              style={{
+                width: `${
+                  costColGrid.getWidth("sr_no") +
+                  costColGrid.getWidth("item") +
+                  costColGrid.getWidth("reference") +
+                  columns.reduce((sum, c) => sum + costColGrid.getWidth(c.key, 130), 0) +
+                  costColGrid.getWidth("supplier_qty") +
+                  costColGrid.getWidth("supplier_rate") +
+                  costColGrid.getWidth("margin_percent") +
+                  costColGrid.getWidth("profit") +
+                  costColGrid.getWidth("client_rate") +
+                  costColGrid.getWidth("total_profit") +
+                  44
+                }px`,
+                minWidth: "100%",
+              }}
+              className="table-fixed text-left text-xs border-collapse"
+            >
+              <colgroup>
+                <col style={{ width: `${costColGrid.getWidth("sr_no")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("item")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("reference")}px` }} />
+                {columns.map((col) => (
+                  <col key={col.key} style={{ width: `${costColGrid.getWidth(col.key, 130)}px` }} />
+                ))}
+                <col style={{ width: `${costColGrid.getWidth("supplier_qty")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("supplier_rate")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("margin_percent")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("profit")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("client_rate")}px` }} />
+                <col style={{ width: `${costColGrid.getWidth("total_profit")}px` }} />
+                <col style={{ width: "44px" }} />
+              </colgroup>
               <thead>
                 {/* Tier 1 Header */}
                 <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                  <th rowSpan={2} className="w-12 px-3 py-2 text-center border-r border-border">
+                  <FormResizableTh
+                    colKey="sr_no"
+                    rowSpan={2}
+                    width={costColGrid.getWidth("sr_no")}
+                    isResizing={costColGrid.resizingKey === "sr_no"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-2 text-center border-r border-border"
+                  >
                     Sr. No.
-                  </th>
-                  <th rowSpan={2} className="min-w-[280px] sm:min-w-[340px] px-4 py-2 text-left border-r border-border">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="item"
+                    rowSpan={2}
+                    width={costColGrid.getWidth("item")}
+                    isResizing={costColGrid.resizingKey === "item"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-4 py-2 text-left border-r border-border"
+                  >
                     <input
                       value={colLabels.item ?? "Item & Description"}
                       onChange={(e) => updateColLabel("item", e.target.value)}
-                      className="w-48 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
-                  <th rowSpan={2} className="w-24 px-2 py-2 text-center border-r border-border">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="reference"
+                    rowSpan={2}
+                    width={costColGrid.getWidth("reference")}
+                    isResizing={costColGrid.resizingKey === "reference"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-2 text-center border-r border-border"
+                  >
                     <input
                       value={colLabels.reference ?? "Reference"}
                       onChange={(e) => updateColLabel("reference", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-center text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column header"
                     />
-                  </th>
+                  </FormResizableTh>
                   {columns.map((col) => (
-                    <th key={col.key} rowSpan={2} className="w-28 px-3 py-2 text-left border-r border-border">
+                    <FormResizableTh
+                      key={col.key}
+                      colKey={col.key}
+                      rowSpan={2}
+                      width={costColGrid.getWidth(col.key, 130)}
+                      isResizing={costColGrid.resizingKey === col.key}
+                      onResizeStart={costColGrid.startResize}
+                      onResetWidth={costColGrid.resetWidth}
+                      className="px-3 py-2 text-left border-r border-border"
+                    >
                       <div className="flex items-center gap-1">
                         <input
                           value={col.label}
@@ -2157,17 +2354,17 @@ export function QuotationForm({
                               prev.map((c) => (c.key === col.key ? { ...c, label: e.target.value } : c))
                             )
                           }
-                          className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                          className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-[11px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => removeColumn(col.key)}
-                          className="text-ink-faint hover:text-primary-600"
+                          className="text-ink-faint hover:text-primary-600 shrink-0"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </div>
-                    </th>
+                    </FormResizableTh>
                   ))}
                   {/* Spanning Header: Supplier Qty & Rate */}
                   <th
@@ -2193,63 +2390,105 @@ export function QuotationForm({
                       title="Click to edit group header"
                     />
                   </th>
-                  <th rowSpan={2} className="w-10 px-2 py-2 text-center"></th>
+                  <th rowSpan={2} className="w-11 px-2 py-2 text-center"></th>
                 </tr>
 
                 {/* Tier 2 Sub-Headers */}
                 <tr className="border-b border-border bg-surface-sunken/30 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
                   {/* Supplier Columns */}
-                  <th className="w-24 px-2 py-1.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="supplier_qty"
+                    width={costColGrid.getWidth("supplier_qty")}
+                    isResizing={costColGrid.resizingKey === "supplier_qty"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border"
+                  >
                     <input
                       value={colLabels.supplier_qty ?? "Qty."}
                       onChange={(e) => {
                         updateColLabel("supplier_qty", e.target.value);
                         setColQtyLabel(e.target.value);
                       }}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column name"
                     />
-                  </th>
-                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="supplier_rate"
+                    width={costColGrid.getWidth("supplier_rate")}
+                    isResizing={costColGrid.resizingKey === "supplier_rate"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border font-bold text-ink"
+                  >
                     <input
                       value={colLabels.supplier_rate ?? "Rate"}
                       onChange={(e) => updateColLabel("supplier_rate", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column name"
                     />
-                  </th>
+                  </FormResizableTh>
                   {/* Client Profit & Margin Columns */}
-                  <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                  <FormResizableTh
+                    colKey="margin_percent"
+                    width={costColGrid.getWidth("margin_percent")}
+                    isResizing={costColGrid.resizingKey === "margin_percent"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border font-bold text-ink"
+                  >
                     <input
                       value={colLabels.margin_percent ?? "Add %"}
                       onChange={(e) => updateColLabel("margin_percent", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column name"
                     />
-                  </th>
-                  <th className="w-24 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="profit"
+                    width={costColGrid.getWidth("profit")}
+                    isResizing={costColGrid.resizingKey === "profit"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border font-bold text-ink"
+                  >
                     <input
                       value={colLabels.profit ?? "Profit"}
                       onChange={(e) => updateColLabel("profit", e.target.value)}
-                      className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column name"
                     />
-                  </th>
-                  <th className="w-28 px-2 py-1.5 text-right border-r border-border font-bold text-ink">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="client_rate"
+                    width={costColGrid.getWidth("client_rate")}
+                    isResizing={costColGrid.resizingKey === "client_rate"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border font-bold text-ink"
+                  >
                     <input
                       value={colLabels.client_rate ?? "Client Rate"}
                       onChange={(e) => {
                         updateColLabel("client_rate", e.target.value);
                         setColRateLabel(e.target.value);
                       }}
-                      className="w-24 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
+                      className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-ink uppercase focus:border-primary-500 focus:outline-none"
                       title="Click to edit column name"
                     />
-                  </th>
-                  <th className="w-32 px-2 py-1.5 text-right border-r border-border font-bold text-success-700">
+                  </FormResizableTh>
+                  <FormResizableTh
+                    colKey="total_profit"
+                    width={costColGrid.getWidth("total_profit")}
+                    isResizing={costColGrid.resizingKey === "total_profit"}
+                    onResizeStart={costColGrid.startResize}
+                    onResetWidth={costColGrid.resetWidth}
+                    className="px-2 py-1.5 text-right border-r border-border font-bold text-success-700"
+                  >
                     <div className="flex items-center justify-end gap-1.5">
                       <label
-                        className="flex items-center gap-1 cursor-pointer select-none"
+                        className="flex items-center gap-1 cursor-pointer select-none shrink-0"
                         title="Include Total Profit column in PDF / Printout"
                       >
                         <input
@@ -2262,11 +2501,11 @@ export function QuotationForm({
                       <input
                         value={colLabels.total_profit ?? "Total Profit"}
                         onChange={(e) => updateColLabel("total_profit", e.target.value)}
-                        className="w-20 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-success-700 uppercase focus:border-primary-500 focus:outline-none"
+                        className="w-full min-w-0 border-b border-dashed border-border-strong bg-transparent pb-0.5 text-right text-[10.5px] font-bold text-success-700 uppercase focus:border-primary-500 focus:outline-none"
                         title="Click to edit column name (Checkbox controls whether this column appears on PDF)"
                       />
                     </div>
-                  </th>
+                  </FormResizableTh>
                 </tr>
               </thead>
 

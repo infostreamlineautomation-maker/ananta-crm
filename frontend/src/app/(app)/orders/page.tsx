@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, CheckCircle2, ChevronDown, Copy, CreditCard, Download, Eye, Layers, MessageSquare, Pencil, Plus, Printer, Receipt, Search, Trash2, Zap, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
@@ -22,7 +22,8 @@ import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, DELIVERY_STATUS_OPTIONS, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { ResizableTh } from "@/components/ui/ResizableTh";
@@ -30,6 +31,7 @@ import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { ExportColumn } from "@/lib/export-utils";
 
 const PROJECTS_EXPORT_COLUMNS: ExportColumn<any>[] = [
@@ -136,7 +138,15 @@ const ORDERS_COLUMNS: ColumnDef[] = [
 export default function OrdersPage() {
   const { can, isClientUser } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState(
+    isClientUser ? "crm_filter_search_portal_orders" : "crm_filter_search_orders",
+    ""
+  );
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search");
+    if (q) setSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const filteredColumns = useMemo(() => {
     if (isClientUser) {
@@ -173,8 +183,14 @@ export default function OrdersPage() {
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
   const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=300");
 
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [selectedClient, setSelectedClient] = usePersistentState<Client | null>(
+    isClientUser ? "crm_filter_client_portal_orders" : "crm_filter_client_orders",
+    null
+  );
+  const [selectedGroup, setSelectedGroup] = usePersistentState<number | "all">(
+    "crm_filter_group_orders",
+    "all"
+  );
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   async function handleCopyOrder(orderId: number) {
@@ -330,6 +346,7 @@ export default function OrdersPage() {
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "order_item",
+    persistKey: isClientUser ? "portal_orders" : "orders",
     baseColumns: baseFilterColumns,
     initialOrdering: "-date",
   });
@@ -610,6 +627,7 @@ export default function OrdersPage() {
             resetFilters();
             setSearch("");
             setSelectedClient(null);
+            setSelectedGroup("all");
           }}
           clientSuggestions={allClients}
           selectedClient={selectedClient}
@@ -1010,7 +1028,27 @@ export default function OrdersPage() {
                           return (
                             <td key="delivery_status" className={`${TD} text-center`}>
                               <div className="flex justify-center">
-                                <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                                <EditableStatusPill
+                                  value={o.delivery_status}
+                                  options={DELIVERY_STATUS_OPTIONS}
+                                  canEdit={canEdit}
+                                  align="center"
+                                  title={canEdit ? "Click to update delivery status" : undefined}
+                                  onChange={async (newStatus) => {
+                                    try {
+                                      const updated = await apiFetch<OrderSummary>(`/api/orders/${o.id}/`, {
+                                        method: "PATCH",
+                                        body: JSON.stringify({ delivery_status: newStatus }),
+                                      });
+                                      setOrders((prev) =>
+                                        prev.map((row) => (row.id === o.id ? { ...row, ...updated } : row))
+                                      );
+                                      toast.success(`Order ${o.order_no} marked as ${labelize(newStatus)}.`);
+                                    } catch (e) {
+                                      toast.error(e instanceof ApiError ? e.message : "Couldn't update delivery status.");
+                                    }
+                                  }}
+                                />
                               </div>
                             </td>
                           );

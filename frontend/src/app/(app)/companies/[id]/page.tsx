@@ -38,6 +38,7 @@ import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { FilterBar, FilterGroupConfig } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { usePersistentFilterMap } from "@/lib/usePersistentState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 
@@ -87,7 +88,9 @@ const QUOTATION_FILTER_CONFIGS: FilterGroupConfig[] = [
     ],
   },
 ];
-import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, DELIVERY_STATUS_OPTIONS, PAYMENT_STATUS_TONE, QUOTATION_STATUS_OPTIONS, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
+import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { CompanyForm } from "../CompanyForm";
 import { ClientForm } from "../../clients/page";
@@ -149,33 +152,55 @@ export default function CompanyDetailPage() {
   const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
+  const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
+  const canEditOrders = can("orders", "edit");
+  const canEditQuotations = can("quotations", "edit");
 
   // Tab Column Visibility States
   const [clientCols, setClientCols] = useState<Set<string>>(new Set(CLIENT_COLUMNS.map((c) => c.key)));
   const [orderCols, setOrderCols] = useState<Set<string>>(new Set(ORDER_COLUMNS.map((c) => c.key)));
   const [quoteCols, setQuoteCols] = useState<Set<string>>(new Set(QUOTATION_COLUMNS.map((c) => c.key)));
 
-  // Tab Filter States
-  const [clientSearch, setClientSearch] = useState("");
-  const [clientTypeFilter, setClientTypeFilter] = useState("");
-  const [clientCountryFilter, setClientCountryFilter] = useState("");
+  // Tab Filter States (persisted per company until cleared)
+  const { getValue: getF, setValue: setF } = usePersistentFilterMap(`crm_filters_company_${companyId}`);
+  const clientSearch = getF("clientSearch");
+  const setClientSearch = (v: string) => setF("clientSearch", v);
+  const clientTypeFilter = getF("clientTypeFilter");
+  const setClientTypeFilter = (v: string) => setF("clientTypeFilter", v);
+  const clientCountryFilter = getF("clientCountryFilter");
+  const setClientCountryFilter = (v: string) => setF("clientCountryFilter", v);
 
-  const [orderSearch, setOrderSearch] = useState("");
-  const [orderClientFilter, setOrderClientFilter] = useState("");
-  const [orderDeliveryFilter, setOrderDeliveryFilter] = useState("");
-  const [orderPaymentFilter, setOrderPaymentFilter] = useState("");
-  const [orderAmountMin, setOrderAmountMin] = useState("");
-  const [orderAmountMax, setOrderAmountMax] = useState("");
-  const [orderDateFrom, setOrderDateFrom] = useState("");
-  const [orderDateTo, setOrderDateTo] = useState("");
+  const orderSearch = getF("orderSearch");
+  const setOrderSearch = (v: string) => setF("orderSearch", v);
+  const orderClientFilter = getF("orderClientFilter");
+  const setOrderClientFilter = (v: string) => setF("orderClientFilter", v);
+  const orderDeliveryFilter = getF("orderDeliveryFilter");
+  const setOrderDeliveryFilter = (v: string) => setF("orderDeliveryFilter", v);
+  const orderPaymentFilter = getF("orderPaymentFilter");
+  const setOrderPaymentFilter = (v: string) => setF("orderPaymentFilter", v);
+  const orderAmountMin = getF("orderAmountMin");
+  const setOrderAmountMin = (v: string) => setF("orderAmountMin", v);
+  const orderAmountMax = getF("orderAmountMax");
+  const setOrderAmountMax = (v: string) => setF("orderAmountMax", v);
+  const orderDateFrom = getF("orderDateFrom");
+  const setOrderDateFrom = (v: string) => setF("orderDateFrom", v);
+  const orderDateTo = getF("orderDateTo");
+  const setOrderDateTo = (v: string) => setF("orderDateTo", v);
 
-  const [quoteSearch, setQuoteSearch] = useState("");
-  const [quoteClientFilter, setQuoteClientFilter] = useState("");
-  const [quoteStatusFilter, setQuoteStatusFilter] = useState("");
-  const [quoteAmountMin, setQuoteAmountMin] = useState("");
-  const [quoteAmountMax, setQuoteAmountMax] = useState("");
-  const [quoteDateFrom, setQuoteDateFrom] = useState("");
-  const [quoteDateTo, setQuoteDateTo] = useState("");
+  const quoteSearch = getF("quoteSearch");
+  const setQuoteSearch = (v: string) => setF("quoteSearch", v);
+  const quoteClientFilter = getF("quoteClientFilter");
+  const setQuoteClientFilter = (v: string) => setF("quoteClientFilter", v);
+  const quoteStatusFilter = getF("quoteStatusFilter");
+  const setQuoteStatusFilter = (v: string) => setF("quoteStatusFilter", v);
+  const quoteAmountMin = getF("quoteAmountMin");
+  const setQuoteAmountMin = (v: string) => setF("quoteAmountMin", v);
+  const quoteAmountMax = getF("quoteAmountMax");
+  const setQuoteAmountMax = (v: string) => setF("quoteAmountMax", v);
+  const quoteDateFrom = getF("quoteDateFrom");
+  const setQuoteDateFrom = (v: string) => setF("quoteDateFrom", v);
+  const quoteDateTo = getF("quoteDateTo");
+  const setQuoteDateTo = (v: string) => setF("quoteDateTo", v);
 
   const [editOpen, setEditOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
@@ -993,12 +1018,46 @@ export default function CompanyDetailPage() {
                       )}
                       {orderCols.has("delivery_status") && (
                         <td className={TD}>
-                          <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                          <EditableStatusPill
+                            value={o.delivery_status}
+                            options={DELIVERY_STATUS_OPTIONS}
+                            canEdit={canEditOrders}
+                            title={canEditOrders ? "Click to update delivery status" : undefined}
+                            onChange={async (newStatus) => {
+                              try {
+                                const updated = await apiFetch<OrderSummary>(`/api/orders/${o.id}/`, {
+                                  method: "PATCH",
+                                  body: JSON.stringify({ delivery_status: newStatus }),
+                                });
+                                setOrders((prev) =>
+                                  prev.map((row) => (row.id === o.id ? { ...row, ...updated } : row))
+                                );
+                                toast.success(`Order ${o.order_no} marked as ${labelize(newStatus)}.`);
+                              } catch (e) {
+                                toast.error(e instanceof ApiError ? e.message : "Couldn't update delivery status.");
+                              }
+                            }}
+                          />
                         </td>
                       )}
                       {orderCols.has("payment_status") && (
                         <td className={TD}>
-                          <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                          <button
+                            type="button"
+                            onClick={() => canEditOrders && setPaymentOrder(o)}
+                            title={canEditOrders ? "Click to record / update payment" : undefined}
+                            className={clsx(
+                              "group inline-flex items-center gap-1.5 text-left transition-all",
+                              canEditOrders && "cursor-pointer hover:opacity-90 active:scale-95"
+                            )}
+                          >
+                            <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                            {canEditOrders && (
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-primary-600 underline font-semibold">
+                                Edit
+                              </span>
+                            )}
+                          </button>
                         </td>
                       )}
                       {orderCols.has("actions") && (
@@ -1137,7 +1196,26 @@ export default function CompanyDetailPage() {
                     {quoteCols.has("subject") && <td className={`${TD} text-ink-muted`}>{q.subject || "—"}</td>}
                     {quoteCols.has("status") && (
                       <td className={TD}>
-                        <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
+                        <EditableStatusPill
+                          value={q.status}
+                          options={QUOTATION_STATUS_OPTIONS}
+                          canEdit={canEditQuotations}
+                          title={canEditQuotations ? "Click to update quotation status" : undefined}
+                          onChange={async (newStatus) => {
+                            try {
+                              const updated = await apiFetch<QuotationSummary>(`/api/quotations/${q.id}/`, {
+                                method: "PATCH",
+                                body: JSON.stringify({ status: newStatus }),
+                              });
+                              setQuotations((prev) =>
+                                prev.map((row) => (row.id === q.id ? { ...row, ...updated } : row))
+                              );
+                              toast.success(`Quotation ${q.quotation_no} marked as ${labelize(newStatus)}.`);
+                            } catch (e) {
+                              toast.error(e instanceof ApiError ? e.message : "Couldn't update quotation status.");
+                            }
+                          }}
+                        />
                       </td>
                     )}
                     {(quoteCols.has("subtotal") || quoteCols.has("amount")) && (
@@ -1204,6 +1282,17 @@ export default function CompanyDetailPage() {
             } catch (e) {
               toast.error(e instanceof ApiError ? e.message : "Couldn't delete this company.");
             }
+          }}
+        />
+      )}
+      {paymentOrder && (
+        <QuickPaymentModal
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSuccess={(updated) => {
+            setOrders((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row))
+            );
           }}
         />
       )}

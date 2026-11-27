@@ -43,6 +43,7 @@ import { ExportColumn } from "@/lib/export-utils";
 import { formatDate, mediaUrl } from "@/lib/format";
 import { ProductModal } from "@/components/products/ProductModal";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { AttachmentDropdown, AttachmentItem } from "@/components/ui/AttachmentDropdown";
 import { ItemsDropdown } from "@/components/ui/ItemsDropdown";
 import clsx from "clsx";
@@ -92,7 +93,7 @@ export default function SuppliersPage() {
   const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("crm_filter_search_suppliers", "");
   const [copiedContact, setCopiedContact] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const debouncedSearch = useDebouncedValue(search);

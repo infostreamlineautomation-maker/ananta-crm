@@ -8,6 +8,7 @@ import clsx from "clsx";
 import { apiFetch, Paginated } from "@/lib/api";
 import { NotificationEntry } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 const EVENT_TONE: Record<string, string> = {
   order_created: "bg-ink-faint",
@@ -32,7 +33,10 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [filter, setFilter] = usePersistentState<"all" | "unread">(
+    "crm_filter_notifications_status",
+    "all"
+  );
 
   async function load() {
     try {

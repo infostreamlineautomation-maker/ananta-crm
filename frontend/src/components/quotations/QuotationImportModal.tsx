@@ -13,6 +13,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -26,6 +27,20 @@ import { Combobox } from "@/components/ui/Combobox";
 import { Field, Input } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { Client, QuotationItemDetail, Supplier } from "@/lib/types";
+import { useFormColumnWidths } from "@/lib/useFormColumnWidths";
+import { FormResizableTh } from "@/components/ui/FormResizableTh";
+
+const IMPORT_DEFAULT_WIDTHS: Record<string, number> = {
+  sr_no: 44,
+  description: 260,
+  qty: 105,
+  supplier_rate: 120,
+  margin_percent: 96,
+  profit: 108,
+  rate: 120,
+  amount: 125,
+  actions: 44,
+};
 
 export interface ParsedQuotationItem {
   description: string;
@@ -103,6 +118,7 @@ export function QuotationImportModal({
   const [missingAlerts, setMissingAlerts] = useState<Array<{ field: string; label: string; reason: string }>>([]);
   const [bulkMargin, setBulkMargin] = useState("25");
   const [quoteFormat, setQuoteFormat] = useState<"standard" | "costing">("standard");
+  const colGrid = useFormColumnWidths("quotation_import_modal", IMPORT_DEFAULT_WIDTHS, 48);
 
   const clientOptions = useMemo(
     () =>
@@ -782,39 +798,174 @@ export function QuotationImportModal({
               <span className="text-xs font-bold uppercase tracking-wider text-ink">
                 Line Items ({items.length})
               </span>
-              <Button variant="ghost" size="sm" onClick={handleAddItem} className="gap-1 text-xs">
-                <Plus className="h-3.5 w-3.5" /> Add Item
-              </Button>
+              <div className="flex items-center gap-2">
+                {colGrid.hasCustomWidths && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={colGrid.resetAllWidths}
+                    className="gap-1 text-[11px] text-ink-muted hover:text-ink"
+                    title="Reset table column widths to default"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Reset Widths
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleAddItem} className="gap-1 text-xs">
+                  <Plus className="h-3.5 w-3.5" /> Add Item
+                </Button>
+              </div>
             </div>
 
             <div className="overflow-x-auto max-h-[340px]">
-              <table className="w-full text-left text-xs">
+              <table
+                style={{
+                  width: `${
+                    colGrid.getWidth("sr_no") +
+                    colGrid.getWidth("description") +
+                    colGrid.getWidth("qty") +
+                    (quoteFormat === "costing"
+                      ? colGrid.getWidth("supplier_rate") +
+                        colGrid.getWidth("margin_percent") +
+                        colGrid.getWidth("profit") +
+                        colGrid.getWidth("rate") +
+                        colGrid.getWidth("amount")
+                      : colGrid.getWidth("rate") + colGrid.getWidth("amount")) +
+                    44
+                  }px`,
+                  minWidth: "100%",
+                }}
+                className="table-fixed text-left text-xs border-collapse"
+              >
+                <colgroup>
+                  <col style={{ width: `${colGrid.getWidth("sr_no")}px` }} />
+                  <col style={{ width: `${colGrid.getWidth("description")}px` }} />
+                  <col style={{ width: `${colGrid.getWidth("qty")}px` }} />
+                  {quoteFormat === "costing" ? (
+                    <>
+                      <col style={{ width: `${colGrid.getWidth("supplier_rate")}px` }} />
+                      <col style={{ width: `${colGrid.getWidth("margin_percent")}px` }} />
+                      <col style={{ width: `${colGrid.getWidth("profit")}px` }} />
+                      <col style={{ width: `${colGrid.getWidth("rate")}px` }} />
+                      <col style={{ width: `${colGrid.getWidth("amount")}px` }} />
+                    </>
+                  ) : (
+                    <>
+                      <col style={{ width: `${colGrid.getWidth("rate")}px` }} />
+                      <col style={{ width: `${colGrid.getWidth("amount")}px` }} />
+                    </>
+                  )}
+                  <col style={{ width: "44px" }} />
+                </colgroup>
                 <thead className="bg-surface-sunken/80 border-b border-border text-[11px] font-bold uppercase tracking-wider text-ink-muted sticky top-0 z-10">
                   <tr>
-                    <th className="px-3 py-2 w-10 text-center">#</th>
-                    <th className="px-3 py-2 min-w-[200px]">Description</th>
-                    <th className="px-3 py-2 w-24 text-right">Qty</th>
+                    <FormResizableTh
+                      colKey="sr_no"
+                      width={colGrid.getWidth("sr_no")}
+                      isResizing={colGrid.resizingKey === "sr_no"}
+                      onResizeStart={colGrid.startResize}
+                      onResetWidth={colGrid.resetWidth}
+                      className="px-2 py-2 text-center border-r border-border"
+                    >
+                      #
+                    </FormResizableTh>
+                    <FormResizableTh
+                      colKey="description"
+                      width={colGrid.getWidth("description")}
+                      isResizing={colGrid.resizingKey === "description"}
+                      onResizeStart={colGrid.startResize}
+                      onResetWidth={colGrid.resetWidth}
+                      className="px-3 py-2 border-r border-border"
+                    >
+                      Description
+                    </FormResizableTh>
+                    <FormResizableTh
+                      colKey="qty"
+                      width={colGrid.getWidth("qty")}
+                      isResizing={colGrid.resizingKey === "qty"}
+                      onResizeStart={colGrid.startResize}
+                      onResetWidth={colGrid.resetWidth}
+                      className="px-3 py-2 text-right border-r border-border"
+                    >
+                      Qty
+                    </FormResizableTh>
                     {quoteFormat === "costing" ? (
                       <>
-                        <th className="px-3 py-2 w-28 text-right bg-amber-50/40 text-amber-900">
+                        <FormResizableTh
+                          colKey="supplier_rate"
+                          width={colGrid.getWidth("supplier_rate")}
+                          isResizing={colGrid.resizingKey === "supplier_rate"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right bg-amber-50/40 text-amber-900 border-r border-border"
+                        >
                           Supplier Rate (₹)
-                        </th>
-                        <th className="px-3 py-2 w-20 text-right">Margin %</th>
-                        <th className="px-3 py-2 w-24 text-right">Unit Profit (₹)</th>
-                        <th className="px-3 py-2 w-28 text-right bg-primary-50/40 text-primary-900 font-bold">
+                        </FormResizableTh>
+                        <FormResizableTh
+                          colKey="margin_percent"
+                          width={colGrid.getWidth("margin_percent")}
+                          isResizing={colGrid.resizingKey === "margin_percent"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right border-r border-border"
+                        >
+                          Margin %
+                        </FormResizableTh>
+                        <FormResizableTh
+                          colKey="profit"
+                          width={colGrid.getWidth("profit")}
+                          isResizing={colGrid.resizingKey === "profit"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right border-r border-border"
+                        >
+                          Unit Profit (₹)
+                        </FormResizableTh>
+                        <FormResizableTh
+                          colKey="rate"
+                          width={colGrid.getWidth("rate")}
+                          isResizing={colGrid.resizingKey === "rate"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right bg-primary-50/40 text-primary-900 font-bold border-r border-border"
+                        >
                           Client Rate (₹)
-                        </th>
-                        <th className="px-3 py-2 w-28 text-right font-bold">Total Amount (₹)</th>
+                        </FormResizableTh>
+                        <FormResizableTh
+                          colKey="amount"
+                          width={colGrid.getWidth("amount")}
+                          isResizing={colGrid.resizingKey === "amount"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right font-bold border-r border-border"
+                        >
+                          Total Amount (₹)
+                        </FormResizableTh>
                       </>
                     ) : (
                       <>
-                        <th className="px-3 py-2 w-32 text-right bg-primary-50/40 text-primary-900 font-bold">
+                        <FormResizableTh
+                          colKey="rate"
+                          width={colGrid.getWidth("rate")}
+                          isResizing={colGrid.resizingKey === "rate"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right bg-primary-50/40 text-primary-900 font-bold border-r border-border"
+                        >
                           Rate (₹)
-                        </th>
-                        <th className="px-3 py-2 w-32 text-right font-bold">Total Amount (₹)</th>
+                        </FormResizableTh>
+                        <FormResizableTh
+                          colKey="amount"
+                          width={colGrid.getWidth("amount")}
+                          isResizing={colGrid.resizingKey === "amount"}
+                          onResizeStart={colGrid.startResize}
+                          onResetWidth={colGrid.resetWidth}
+                          className="px-3 py-2 text-right font-bold border-r border-border"
+                        >
+                          Total Amount (₹)
+                        </FormResizableTh>
                       </>
                     )}
-                    <th className="px-3 py-2 w-10 text-center"></th>
+                    <th className="px-3 py-2 w-11 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">

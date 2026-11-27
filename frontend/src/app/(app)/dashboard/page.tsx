@@ -16,17 +16,21 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, Paginated } from "@/lib/api";
+import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { AnalyticsReport, OrderSummary, ProjectSummary } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useToast } from "@/components/ui/Toast";
+import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
-import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, DELIVERY_STATUS_OPTIONS, PAYMENT_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
 import { AreaTrendChart } from "@/components/charts/AreaTrendChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { DatePresets } from "@/components/charts/DatePresets";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ClientPortalDashboard } from "@/components/dashboard/ClientPortalDashboard";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 interface Notification {
   id: number;
@@ -52,18 +56,21 @@ export default function DashboardPage() {
     return <ClientPortalDashboard />;
   }
 
+  const toast = useToast();
   const initial = useMemo(() => getInitialMonth(), []);
-  const [dateFrom, setDateFrom] = useState(initial.from);
-  const [dateTo, setDateTo] = useState(initial.to);
+  const [dateFrom, setDateFrom] = usePersistentState("crm_filter_dashboard_date_from", initial.from);
+  const [dateTo, setDateTo] = usePersistentState("crm_filter_dashboard_date_to", initial.to);
 
   const [analytics, setAnalytics] = useState<AnalyticsReport | null>(null);
   const router = useRouter();
   const [activeProjects, setActiveProjects] = useState<number | null>(null);
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
+  const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   const canOrders = can("orders", "view");
+  const canEditOrders = can("orders", "edit");
   const canReports = can("reports", "view");
   const canNotifications = can("notifications", "view");
 
@@ -338,10 +345,44 @@ export default function DashboardPage() {
                           )}
                         </td>
                         <td className="px-5 py-3">
-                          <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                          <EditableStatusPill
+                            value={o.delivery_status}
+                            options={DELIVERY_STATUS_OPTIONS}
+                            canEdit={canEditOrders}
+                            title={canEditOrders ? "Click to update delivery status" : undefined}
+                            onChange={async (newStatus) => {
+                              try {
+                                const updated = await apiFetch<OrderSummary>(`/api/orders/${o.id}/`, {
+                                  method: "PATCH",
+                                  body: JSON.stringify({ delivery_status: newStatus }),
+                                });
+                                setRecentOrders((prev) =>
+                                  prev.map((row) => (row.id === o.id ? { ...row, ...updated } : row))
+                                );
+                                toast.success(`Order ${o.order_no} marked as ${labelize(newStatus)}.`);
+                              } catch (e) {
+                                toast.error(e instanceof ApiError ? e.message : "Couldn't update delivery status.");
+                              }
+                            }}
+                          />
                         </td>
                         <td className="px-5 py-3">
-                          <StatusPill label={labelize(o.payment_status || "pending")} tone={PAYMENT_STATUS_TONE[o.payment_status || "pending"]} />
+                          <button
+                            type="button"
+                            onClick={() => canEditOrders && setPaymentOrder(o)}
+                            title={canEditOrders ? "Click to record / update payment" : undefined}
+                            className={clsx(
+                              "group inline-flex items-center gap-1.5 text-left transition-all",
+                              canEditOrders && "cursor-pointer hover:opacity-90 active:scale-95"
+                            )}
+                          >
+                            <StatusPill label={labelize(o.payment_status || "pending")} tone={PAYMENT_STATUS_TONE[o.payment_status || "pending"]} />
+                            {canEditOrders && (
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-primary-600 underline font-semibold">
+                                Edit
+                              </span>
+                            )}
+                          </button>
                         </td>
                         <td className="tnum px-5 py-3 text-right">
                           <div className="font-mono font-bold text-ink">
@@ -410,6 +451,18 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {paymentOrder && (
+        <QuickPaymentModal
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSuccess={(updated) => {
+            setRecentOrders((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row))
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

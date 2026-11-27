@@ -25,6 +25,7 @@ import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { ProductModal } from "@/components/products/ProductModal";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
 import { useTableGrid } from "@/lib/useTableGrid";
 import { ResizableTh } from "@/components/ui/ResizableTh";
@@ -43,7 +44,7 @@ export default function ProductsPage() {
   const searchParams = useSearchParams();
   const { can } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("crm_filter_search_products", "");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);

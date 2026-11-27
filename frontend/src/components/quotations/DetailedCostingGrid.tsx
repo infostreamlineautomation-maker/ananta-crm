@@ -29,6 +29,17 @@ import {
 } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
+import { useFormColumnWidths } from "@/lib/useFormColumnWidths";
+import { FormResizableTh } from "@/components/ui/FormResizableTh";
+
+const DETAILED_DEFAULT_WIDTHS: Record<string, number> = {
+  sr_no: 52,
+  item: 320,
+  qty: 110,
+  rate: 120,
+  total: 135,
+  actions: 44,
+};
 
 function newRowId(): string {
   return `row_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -337,6 +348,22 @@ export function DetailedCostingGrid({
   const comparisonCols = data.comparison_columns || [];
   const rows = data.rows?.length > 0 ? data.rows : [createBlankDetailedRow()];
   const isCustomQtyMode = data.qty_mode === "custom";
+  const colGrid = useFormColumnWidths("detailed_costing_grid", DETAILED_DEFAULT_WIDTHS, 50);
+
+  const detailedTotalWidth = useMemo(() => {
+    const customSum = customCols.reduce((sum, c) => sum + colGrid.getWidth(c.key, 135), 0);
+    const compSum = comparisonCols.reduce((sum, c) => sum + colGrid.getWidth(`comp_${c.id}`, 125), 0);
+    return (
+      colGrid.getWidth("sr_no") +
+      colGrid.getWidth("item") +
+      customSum +
+      colGrid.getWidth("qty") +
+      colGrid.getWidth("rate") +
+      colGrid.getWidth("total") +
+      compSum +
+      (readOnly ? 0 : 44)
+    );
+  }, [customCols, comparisonCols, colGrid, readOnly]);
 
   // Recalculate totals helper
   function updateDataAndRecalculate(partial: Partial<DetailedCostingData>) {
@@ -1072,25 +1099,70 @@ export function DetailedCostingGrid({
               <Plus className="h-3.5 w-3.5 text-primary-600" />
               <span>Add Row</span>
             </Button>
+
+            {colGrid.hasCustomWidths && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={colGrid.resetAllWidths}
+                className="text-xs h-8 gap-1 border-border text-ink-muted hover:text-ink"
+                title="Reset column widths to default"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>Reset Widths</span>
+              </Button>
+            )}
           </div>
         )}
       </div>
 
       {/* Spreadsheet Table in CRM Theme */}
       <div className="overflow-x-auto rounded-lg border border-border shadow-2xs bg-white">
-        <table className="w-full text-left text-xs border-collapse">
+        <table
+          style={{ width: `${detailedTotalWidth}px`, minWidth: "100%" }}
+          className="table-fixed text-left text-xs border-collapse"
+        >
+          <colgroup>
+            <col style={{ width: `${colGrid.getWidth("sr_no")}px` }} />
+            <col style={{ width: `${colGrid.getWidth("item")}px` }} />
+            {customCols.map((c) => (
+              <col key={c.key} style={{ width: `${colGrid.getWidth(c.key, 135)}px` }} />
+            ))}
+            <col style={{ width: `${colGrid.getWidth("qty")}px` }} />
+            <col style={{ width: `${colGrid.getWidth("rate")}px` }} />
+            <col style={{ width: `${colGrid.getWidth("total")}px` }} />
+            {comparisonCols.map((comp) => (
+              <col key={comp.id} style={{ width: `${colGrid.getWidth(`comp_${comp.id}`, 125)}px` }} />
+            ))}
+            {!readOnly && <col style={{ width: "44px" }} />}
+          </colgroup>
           {/* Header Rows */}
           <thead>
             {comparisonCols.length === 0 ? (
               /* Single Header Row (Clean layout when no bulk comparison columns exist) */
               <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                 {/* Sr. No. */}
-                <th className="w-12 px-3 py-2.5 text-center border-r border-border">
+                <FormResizableTh
+                  colKey="sr_no"
+                  width={colGrid.getWidth("sr_no")}
+                  isResizing={colGrid.resizingKey === "sr_no"}
+                  onResizeStart={colGrid.startResize}
+                  onResetWidth={colGrid.resetWidth}
+                  className="px-2 py-2.5 text-center border-r border-border"
+                >
                   #
-                </th>
+                </FormResizableTh>
 
                 {/* Column 1: Item / Process Name */}
-                <th className="min-w-[260px] sm:min-w-[320px] px-3.5 py-2.5 border-r border-border">
+                <FormResizableTh
+                  colKey="item"
+                  width={colGrid.getWidth("item")}
+                  isResizing={colGrid.resizingKey === "item"}
+                  onResizeStart={colGrid.startResize}
+                  onResetWidth={colGrid.resetWidth}
+                  className="px-3.5 py-2.5 border-r border-border"
+                >
                   {editingHeaderKey === "item" ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -1124,11 +1196,19 @@ export function DetailedCostingGrid({
                       </span>
                     </div>
                   )}
-                </th>
+                </FormResizableTh>
 
                 {/* Custom Columns */}
                 {customCols.map((c) => (
-                  <th key={c.key} className="px-3 py-2.5 min-w-[130px] text-center border-r border-border">
+                  <FormResizableTh
+                    key={c.key}
+                    colKey={c.key}
+                    width={colGrid.getWidth(c.key, 135)}
+                    isResizing={colGrid.resizingKey === c.key}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-3 py-2.5 text-center border-r border-border"
+                  >
                     {editingHeaderKey === c.key ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -1171,11 +1251,18 @@ export function DetailedCostingGrid({
                         )}
                       </div>
                     )}
-                  </th>
+                  </FormResizableTh>
                 ))}
 
                 {/* Column 2: Qty. */}
-                <th className="w-28 px-3 py-2.5 text-right border-r border-border">
+                <FormResizableTh
+                  colKey="qty"
+                  width={colGrid.getWidth("qty")}
+                  isResizing={colGrid.resizingKey === "qty"}
+                  onResizeStart={colGrid.startResize}
+                  onResetWidth={colGrid.resetWidth}
+                  className="px-3 py-2.5 text-right border-r border-border"
+                >
                   {editingHeaderKey === "qty" ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -1209,10 +1296,17 @@ export function DetailedCostingGrid({
                       </span>
                     </div>
                   )}
-                </th>
+                </FormResizableTh>
 
                 {/* Column 3: Rate */}
-                <th className="w-32 px-3 py-2.5 text-right border-r border-border">
+                <FormResizableTh
+                  colKey="rate"
+                  width={colGrid.getWidth("rate")}
+                  isResizing={colGrid.resizingKey === "rate"}
+                  onResizeStart={colGrid.startResize}
+                  onResetWidth={colGrid.resetWidth}
+                  className="px-3 py-2.5 text-right border-r border-border"
+                >
                   {editingHeaderKey === "rate" ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -1246,10 +1340,17 @@ export function DetailedCostingGrid({
                       </span>
                     </div>
                   )}
-                </th>
+                </FormResizableTh>
 
                 {/* Column 4: Total Amount */}
-                <th className="w-36 px-3 py-2.5 text-right border-r border-border">
+                <FormResizableTh
+                  colKey="total"
+                  width={colGrid.getWidth("total")}
+                  isResizing={colGrid.resizingKey === "total"}
+                  onResizeStart={colGrid.startResize}
+                  onResetWidth={colGrid.resetWidth}
+                  className="px-3 py-2.5 text-right border-r border-border"
+                >
                   {editingHeaderKey === "total" ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -1283,11 +1384,11 @@ export function DetailedCostingGrid({
                       </span>
                     </div>
                   )}
-                </th>
+                </FormResizableTh>
 
                 {/* Actions Header */}
                 {!readOnly && (
-                  <th className="w-10 px-2 py-2.5 text-center">
+                  <th className="w-11 px-2 py-2.5 text-center">
                     <span className="sr-only">Actions</span>
                   </th>
                 )}
@@ -1297,12 +1398,28 @@ export function DetailedCostingGrid({
               <>
                 <tr className="border-b border-border bg-surface-sunken/70 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                   {/* Sr. No. */}
-                  <th rowSpan={2} className="w-12 px-3 py-2.5 text-center border-r border-border">
+                  <FormResizableTh
+                    colKey="sr_no"
+                    rowSpan={2}
+                    width={colGrid.getWidth("sr_no")}
+                    isResizing={colGrid.resizingKey === "sr_no"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-2 py-2.5 text-center border-r border-border"
+                  >
                     #
-                  </th>
+                  </FormResizableTh>
 
                   {/* Column 1: Item / Process Name */}
-                  <th rowSpan={2} className="min-w-[220px] sm:min-w-[260px] px-3.5 py-2.5 border-r border-border">
+                  <FormResizableTh
+                    colKey="item"
+                    rowSpan={2}
+                    width={colGrid.getWidth("item")}
+                    isResizing={colGrid.resizingKey === "item"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-3.5 py-2.5 border-r border-border"
+                  >
                     {editingHeaderKey === "item" ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -1336,11 +1453,20 @@ export function DetailedCostingGrid({
                         </span>
                       </div>
                     )}
-                  </th>
+                  </FormResizableTh>
 
                   {/* Custom Columns */}
                   {customCols.map((c) => (
-                    <th key={c.key} rowSpan={2} className="px-3 py-2.5 min-w-[110px] text-center border-r border-border">
+                    <FormResizableTh
+                      key={c.key}
+                      colKey={c.key}
+                      rowSpan={2}
+                      width={colGrid.getWidth(c.key, 135)}
+                      isResizing={colGrid.resizingKey === c.key}
+                      onResizeStart={colGrid.startResize}
+                      onResetWidth={colGrid.resetWidth}
+                      className="px-3 py-2.5 text-center border-r border-border"
+                    >
                       {editingHeaderKey === c.key ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -1383,11 +1509,19 @@ export function DetailedCostingGrid({
                           )}
                         </div>
                       )}
-                    </th>
+                    </FormResizableTh>
                   ))}
 
                   {/* Column 2: Qty. */}
-                  <th rowSpan={2} className="w-24 px-3 py-2.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="qty"
+                    rowSpan={2}
+                    width={colGrid.getWidth("qty")}
+                    isResizing={colGrid.resizingKey === "qty"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-3 py-2.5 text-right border-r border-border"
+                  >
                     {editingHeaderKey === "qty" ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -1421,10 +1555,18 @@ export function DetailedCostingGrid({
                         </span>
                       </div>
                     )}
-                  </th>
+                  </FormResizableTh>
 
                   {/* Column 3: Rate / pc */}
-                  <th rowSpan={2} className="w-28 px-3 py-2.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="rate"
+                    rowSpan={2}
+                    width={colGrid.getWidth("rate")}
+                    isResizing={colGrid.resizingKey === "rate"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-3 py-2.5 text-right border-r border-border"
+                  >
                     {editingHeaderKey === "rate" ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -1458,10 +1600,18 @@ export function DetailedCostingGrid({
                         </span>
                       </div>
                     )}
-                  </th>
+                  </FormResizableTh>
 
                   {/* Column 4: Total Amount */}
-                  <th rowSpan={2} className="w-28 px-3 py-2.5 text-right border-r border-border">
+                  <FormResizableTh
+                    colKey="total"
+                    rowSpan={2}
+                    width={colGrid.getWidth("total")}
+                    isResizing={colGrid.resizingKey === "total"}
+                    onResizeStart={colGrid.startResize}
+                    onResetWidth={colGrid.resetWidth}
+                    className="px-3 py-2.5 text-right border-r border-border"
+                  >
                     {editingHeaderKey === "total" ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -1495,7 +1645,7 @@ export function DetailedCostingGrid({
                         </span>
                       </div>
                     )}
-                  </th>
+                  </FormResizableTh>
 
                   {/* Group Header: BULK RATES */}
                   <th
@@ -1517,27 +1667,38 @@ export function DetailedCostingGrid({
 
                 {/* Sub-Header Row: Only the added comparison quantities */}
                 <tr className="border-b border-border bg-emerald-50/40 text-[10.5px] font-bold uppercase tracking-wider text-emerald-950">
-                  {comparisonCols.map((comp) => (
-                    <th key={comp.id} className="w-28 px-2.5 py-1.5 text-right border-r border-border bg-emerald-50/60">
-                      <div className="flex items-center justify-between gap-1">
-                        {!readOnly && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteComparisonColumn(comp.id)}
-                            className="p-0.5 rounded text-neutral-400 hover:text-red-600 hover:bg-white transition cursor-pointer"
-                            title={`Remove ${comp.qty} pcs column`}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                        <div className="flex items-center gap-1 ml-auto">
-                          <span className="font-mono font-black text-emerald-900">
-                            {Number(comp.qty).toLocaleString()}
-                          </span>
+                  {comparisonCols.map((comp) => {
+                    const cKey = `comp_${comp.id}`;
+                    return (
+                      <FormResizableTh
+                        key={comp.id}
+                        colKey={cKey}
+                        width={colGrid.getWidth(cKey, 125)}
+                        isResizing={colGrid.resizingKey === cKey}
+                        onResizeStart={colGrid.startResize}
+                        onResetWidth={colGrid.resetWidth}
+                        className="px-2.5 py-1.5 text-right border-r border-border bg-emerald-50/60"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteComparisonColumn(comp.id)}
+                              className="p-0.5 rounded text-neutral-400 hover:text-red-600 hover:bg-white transition cursor-pointer"
+                              title={`Remove ${comp.qty} pcs column`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                          <div className="flex items-center gap-1 ml-auto">
+                            <span className="font-mono font-black text-emerald-900">
+                              {Number(comp.qty).toLocaleString()}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </th>
-                  ))}
+                      </FormResizableTh>
+                    );
+                  })}
                 </tr>
               </>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -41,7 +41,8 @@ import { PageHeader, RowActionButton } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { StatusPill, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, QUOTATION_STATUS_OPTIONS, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
@@ -50,6 +51,7 @@ import { useTableGrid } from "@/lib/useTableGrid";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter, SortButton } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn, useDynamicColumnFilters } from "@/lib/useDynamicColumnFilters";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { ExportColumn } from "@/lib/export-utils";
 
 const QUOTATIONS_EXPORT_COLUMNS: ExportColumn<any>[] = [
@@ -116,7 +118,15 @@ const QUOTATIONS_PAGE_COLUMNS: ColumnDef[] = [
 export default function QuotationsPage() {
   const { can, isClientUser } = useAuth();
   const toast = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState(
+    isClientUser ? "crm_filter_search_portal_quotations" : "crm_filter_search_quotations",
+    ""
+  );
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search");
+    if (q) setSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const grid = useTableGrid({
     tableKey: "quotations",
     defaultColumns: QUOTATIONS_PAGE_COLUMNS,
@@ -144,8 +154,14 @@ export default function QuotationsPage() {
   const { items: clientGroups, reload: reloadGroups } = useList<ClientGroup>("/api/client-groups/");
   const { items: allClients, reload: reloadClients } = useList<Client>("/api/clients/?page_size=200");
   const { items: allSuppliers } = useList<Supplier>("/api/suppliers/?page_size=300");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");
+  const [selectedClient, setSelectedClient] = usePersistentState<Client | null>(
+    isClientUser ? "crm_filter_client_portal_quotations" : "crm_filter_client_quotations",
+    null
+  );
+  const [selectedGroup, setSelectedGroup] = usePersistentState<number | "all">(
+    "crm_filter_group_quotations",
+    "all"
+  );
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
@@ -259,6 +275,7 @@ export default function QuotationsPage() {
     appendQueryParams,
   } = useDynamicColumnFilters({
     module: "quotation_item",
+    persistKey: isClientUser ? "portal_quotations" : "quotations",
     baseColumns: baseFilterColumns,
     initialOrdering: "-date",
   });
@@ -277,6 +294,7 @@ export default function QuotationsPage() {
 
   const {
     items: quotations,
+    setItems: setQuotations,
     count: totalCount,
     loading,
     loadingMore,
@@ -367,6 +385,7 @@ export default function QuotationsPage() {
             resetFilters();
             setSearch("");
             setSelectedClient(null);
+            setSelectedGroup("all");
           }}
           clientSuggestions={allClients}
           selectedClient={selectedClient}
@@ -707,7 +726,26 @@ export default function QuotationsPage() {
                             case "status":
                               return (
                                 <td key="status" className={TD}>
-                                  <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
+                                  <EditableStatusPill
+                                    value={q.status}
+                                    options={QUOTATION_STATUS_OPTIONS}
+                                    canEdit={canEdit}
+                                    title={canEdit ? "Click to update quotation status" : undefined}
+                                    onChange={async (newStatus) => {
+                                      try {
+                                        const updated = await apiFetch<QuotationSummary>(`/api/quotations/${q.id}/`, {
+                                          method: "PATCH",
+                                          body: JSON.stringify({ status: newStatus }),
+                                        });
+                                        setQuotations((prev) =>
+                                          prev.map((row) => (row.id === q.id ? { ...row, ...updated } : row))
+                                        );
+                                        toast.success(`Quotation ${q.quotation_no} marked as ${labelize(newStatus)}.`);
+                                      } catch (e) {
+                                        toast.error(e instanceof ApiError ? e.message : "Couldn't update quotation status.");
+                                      }
+                                    }}
+                                  />
                                 </td>
                               );
                             case "subtotal":

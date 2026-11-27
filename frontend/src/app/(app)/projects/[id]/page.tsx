@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { ArrowLeft, Eye, Loader2, Plus, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, Paginated } from "@/lib/api";
+import { apiFetch, ApiError, Paginated } from "@/lib/api";
 import { CostingDetail, OrderSummary, ProjectSummary, QuotationSummary } from "@/lib/types";
 import { formatCurrency, formatDate, mediaUrl } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
@@ -15,13 +15,16 @@ import { Button } from "@/components/ui/Button";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { Tabs } from "@/components/ui/Tabs";
 import { LoadingState } from "@/components/ui/LoadingState";
-import { StatusPill, DELIVERY_STATUS_TONE, PAYMENT_STATUS_TONE, PROJECT_STATUS_TONE, QUOTATION_STATUS_TONE, labelize } from "@/components/ui/StatusPill";
+import { StatusPill, DELIVERY_STATUS_OPTIONS, PAYMENT_STATUS_TONE, PROJECT_STATUS_OPTIONS, QUOTATION_STATUS_OPTIONS, labelize } from "@/components/ui/StatusPill";
+import { EditableStatusPill } from "@/components/ui/EditableStatusPill";
+import { QuickPaymentModal } from "@/components/orders/QuickPaymentModal";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { ExportDropdown } from "@/components/ui/ExportDropdown";
 import { ProjectForm } from "../page";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { ColumnHeaderFilter } from "@/components/ui/ColumnHeaderFilter";
 import { DynamicFilterColumn } from "@/lib/useDynamicColumnFilters";
+import { usePersistentFilterMap } from "@/lib/usePersistentState";
 import { CostingViewModal } from "@/app/(app)/costing/CostingViewModal";
 import { AttachmentDropdown } from "@/components/ui/AttachmentDropdown";
 
@@ -83,7 +86,24 @@ export default function ProjectDetailPage() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-extrabold text-ink">{project.name}</h1>
-            <StatusPill label={labelize(project.status)} tone={PROJECT_STATUS_TONE[project.status]} />
+            <EditableStatusPill
+              value={project.status}
+              options={PROJECT_STATUS_OPTIONS}
+              canEdit={canEdit}
+              title={canEdit ? "Click to update project status" : undefined}
+              onChange={async (newStatus) => {
+                try {
+                  const updated = await apiFetch<ProjectSummary>(`/api/projects/${project.id}/`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ status: newStatus }),
+                  });
+                  setProject((prev) => (prev ? { ...prev, ...updated } : prev));
+                  toast.success(`Project "${project.name}" marked as ${labelize(newStatus)}.`);
+                } catch (e) {
+                  toast.error(e instanceof ApiError ? e.message : "Couldn't update project status.");
+                }
+              }}
+            />
           </div>
           <p className="mt-1 text-[13px] text-ink-muted">
             {project.client_name}
@@ -166,12 +186,19 @@ const ORDER_FILTER_CONFIGS: DynamicFilterColumn[] = [
 
 function OrdersTab({ projectId }: { projectId: number }) {
   const { can } = useAuth();
+  const toast = useToast();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [deliveryStatus, setDeliveryStatus] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState("");
+  const { getValue: getF, setValue: setF } = usePersistentFilterMap(`crm_filters_project_${projectId}_orders`);
+  const search = getF("search");
+  const setSearch = (v: string) => setF("search", v);
+  const deliveryStatus = getF("deliveryStatus");
+  const setDeliveryStatus = (v: string) => setF("deliveryStatus", v);
+  const paymentStatus = getF("paymentStatus");
+  const setPaymentStatus = (v: string) => setF("paymentStatus", v);
+  const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
   const canAdd = can("orders", "add");
+  const canEdit = can("orders", "edit");
 
   useEffect(() => {
     apiFetch<Paginated<OrderSummary>>(`/api/orders/?project=${projectId}`)
@@ -298,10 +325,44 @@ function OrdersTab({ projectId }: { projectId: number }) {
                   <td className={`${TD} text-ink-muted`}>{formatDate(o.date)}</td>
                   <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(o.grand_total, o.currency_code)}</td>
                   <td className={TD}>
-                    <StatusPill label={labelize(o.delivery_status)} tone={DELIVERY_STATUS_TONE[o.delivery_status]} />
+                    <EditableStatusPill
+                      value={o.delivery_status}
+                      options={DELIVERY_STATUS_OPTIONS}
+                      canEdit={canEdit}
+                      title={canEdit ? "Click to update delivery status" : undefined}
+                      onChange={async (newStatus) => {
+                        try {
+                          const updated = await apiFetch<OrderSummary>(`/api/orders/${o.id}/`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ delivery_status: newStatus }),
+                          });
+                          setOrders((prev) =>
+                            prev.map((row) => (row.id === o.id ? { ...row, ...updated } : row))
+                          );
+                          toast.success(`Order ${o.order_no} marked as ${labelize(newStatus)}.`);
+                        } catch (e) {
+                          toast.error(e instanceof ApiError ? e.message : "Couldn't update delivery status.");
+                        }
+                      }}
+                    />
                   </td>
                   <td className={TD}>
-                    <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                    <button
+                      type="button"
+                      onClick={() => canEdit && setPaymentOrder(o)}
+                      title={canEdit ? "Click to record / update payment" : undefined}
+                      className={clsx(
+                        "group inline-flex items-center gap-1.5 text-left transition-all",
+                        canEdit && "cursor-pointer hover:opacity-90 active:scale-95"
+                      )}
+                    >
+                      <StatusPill label={labelize(o.payment_status)} tone={PAYMENT_STATUS_TONE[o.payment_status]} />
+                      {canEdit && (
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-primary-600 underline font-semibold">
+                          Edit
+                        </span>
+                      )}
+                    </button>
                   </td>
                 </tr>
               );
@@ -309,6 +370,18 @@ function OrdersTab({ projectId }: { projectId: number }) {
           </tbody>
         </table>
       </div>
+
+      {paymentOrder && (
+        <QuickPaymentModal
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSuccess={(updated) => {
+            setOrders((prev) =>
+              prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row))
+            );
+          }}
+        />
+      )}
     </Card>
   );
 }
@@ -329,11 +402,16 @@ const QUOTATION_FILTER_CONFIGS: DynamicFilterColumn[] = [
 
 function QuotationsTab({ projectId }: { projectId: number }) {
   const { can } = useAuth();
+  const toast = useToast();
   const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const { getValue: getF, setValue: setF } = usePersistentFilterMap(`crm_filters_project_${projectId}_quotations`);
+  const search = getF("search");
+  const setSearch = (v: string) => setF("search", v);
+  const statusFilter = getF("statusFilter");
+  const setStatusFilter = (v: string) => setF("statusFilter", v);
   const canAdd = can("quotations", "add");
+  const canEdit = can("quotations", "edit");
 
   useEffect(() => {
     apiFetch<Paginated<QuotationSummary>>(`/api/quotations/?project=${projectId}`)
@@ -434,7 +512,26 @@ function QuotationsTab({ projectId }: { projectId: number }) {
                 <td className={`${TD} text-ink-muted`}>{formatDate(q.quotation_date)}</td>
                 <td className={`${TD} text-ink-muted`}>{q.subject || "—"}</td>
                 <td className={TD}>
-                  <StatusPill label={labelize(q.status)} tone={QUOTATION_STATUS_TONE[q.status]} />
+                  <EditableStatusPill
+                    value={q.status}
+                    options={QUOTATION_STATUS_OPTIONS}
+                    canEdit={canEdit}
+                    title={canEdit ? "Click to update quotation status" : undefined}
+                    onChange={async (newStatus) => {
+                      try {
+                        const updated = await apiFetch<QuotationSummary>(`/api/quotations/${q.id}/`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ status: newStatus }),
+                        });
+                        setQuotations((prev) =>
+                          prev.map((row) => (row.id === q.id ? { ...row, ...updated } : row))
+                        );
+                        toast.success(`Quotation ${q.quotation_no} marked as ${labelize(newStatus)}.`);
+                      } catch (e) {
+                        toast.error(e instanceof ApiError ? e.message : "Couldn't update quotation status.");
+                      }
+                    }}
+                  />
                 </td>
                 <td className={`${TD} tnum text-right font-semibold text-ink`}>{formatCurrency(q.subtotal, q.currency_code)}</td>
               </tr>
