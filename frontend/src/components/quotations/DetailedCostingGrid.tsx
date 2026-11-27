@@ -391,17 +391,11 @@ export function DetailedCostingGrid({
     const baseClientSubtotal = totalCost * (1 + marginPct / 100);
 
     const savedBulkQuotes = nextData.bulk_quotes || [];
-    const bulkQuotesTotal = savedBulkQuotes.reduce(
-      (sum, bq) => sum + (parseFloat(bq.client_subtotal || bq.total_cost || "0") || 0),
-      0
-    );
-
-    const combinedClientSubtotal = baseClientSubtotal + bulkQuotesTotal;
     nextData.total_qty = "";
     nextData.cost_per_unit = "0.00";
     nextData.client_rate = "0.00";
     nextData.client_subtotal =
-      combinedClientSubtotal > 0 ? combinedClientSubtotal.toFixed(2) : nextData.total_cost;
+      baseClientSubtotal > 0 ? baseClientSubtotal.toFixed(2) : nextData.total_cost;
 
     // Sync saved bulk quotes to quantity_tiers so WhatsApp, Print PDF & Portal views stay accurate
     nextData.quantity_tiers = savedBulkQuotes.map((bq) => ({
@@ -609,11 +603,6 @@ export function DetailedCostingGrid({
   const totalCostNumber = parseFloat(data.total_cost || "0") || 0;
   const marginPctNumber = parseFloat(data.margin_percent || "0") || 0;
   const baseClientSubtotalNumber = totalCostNumber * (1 + marginPctNumber / 100);
-  const bulkQuotesTotalNumber = bulkQuotes.reduce(
-    (sum, bq) => sum + (parseFloat(bq.client_subtotal || bq.total_cost || "0") || 0),
-    0
-  );
-  const clientSubtotalNumber = baseClientSubtotalNumber + bulkQuotesTotalNumber;
 
   // Active non-empty processes for distribution analytics
   const activeProcesses = useMemo(() => {
@@ -1431,21 +1420,6 @@ export function DetailedCostingGrid({
               })}
             </div>
           )}
-        </div>
-
-        {/* Right Cluster: Combined Total of All Quotes */}
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          {bulkQuotes.length > 0 && (
-            <span className="text-[11px] font-medium text-ink-muted">
-              ({bulkQuotes.length} bulk {bulkQuotes.length === 1 ? "quote" : "quotes"} included)
-            </span>
-          )}
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-primary-700">Client Subtotal:</span>
-            <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
-              {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
-            </span>
-          </div>
         </div>
       </div>
 
