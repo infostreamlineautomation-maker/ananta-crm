@@ -835,14 +835,18 @@ export default function QuotationPrintPage() {
                           </>
                         );
                       }
-                      if (parseFloat(dData.margin_percent || "0") > 0) {
+                      const hasBulkQuotes = (dData.bulk_quotes || []).length > 0;
+                      const hasMargin = parseFloat(dData.margin_percent || "0") > 0;
+                      if (hasBulkQuotes || hasMargin) {
                         return (
                           <tr className="border-t-2 border-black font-bold text-[13px] print:text-[12.5px] bg-neutral-100/50 print:bg-transparent">
                             <td
                               colSpan={2 + (dData.custom_columns?.length || 0) + 2}
                               className="border-r border-black px-3 py-2 print:py-1.5 text-right uppercase tracking-wider font-black text-black"
                             >
-                              CLIENT QUOTATION SUBTOTAL (+{dData.margin_percent}%):
+                              {hasBulkQuotes
+                                ? `COMBINED CLIENT SUBTOTAL${hasMargin ? ` (MAIN +${dData.margin_percent}% & BULK QUOTES)` : " (MAIN + BULK QUOTES)"}:`
+                                : `CLIENT QUOTATION SUBTOTAL (+${dData.margin_percent}%):`}
                             </td>
                             <td className="px-3 py-2 print:py-1.5 text-right font-black tnum text-black text-sm">
                               {formatCurrency(

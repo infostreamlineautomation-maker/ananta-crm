@@ -20,9 +20,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
+  DetailedCostingBulkQuote,
   DetailedCostingCustomColumn,
-  DetailedCostingComparisonColumn,
-  DetailedCostingRowComparisonItem,
   DetailedCostingData,
   DetailedCostingRow,
   DetailedCostingQuantityTier,
@@ -31,6 +30,7 @@ import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { useFormColumnWidths } from "@/lib/useFormColumnWidths";
 import { FormResizableTh } from "@/components/ui/FormResizableTh";
+import { BulkQuoteModal } from "./BulkQuoteModal";
 
 const DETAILED_DEFAULT_WIDTHS: Record<string, number> = {
   sr_no: 52,
@@ -247,8 +247,8 @@ export function DetailedCostingGrid({
   const [headerTempText, setHeaderTempText] = useState("");
   const [newColName, setNewColName] = useState("");
   const [isAddingCol, setIsAddingCol] = useState(false);
-  const [isAddingCompQty, setIsAddingCompQty] = useState(false);
-  const [newCompQtyInput, setNewCompQtyInput] = useState("");
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [editingBulkQuote, setEditingBulkQuote] = useState<DetailedCostingBulkQuote | null>(null);
 
   // Quick Add Common Process Rows state (customizable: add/remove/persist)
   const [quickProcesses, setQuickProcesses] = useState<string[]>(() => {
@@ -345,14 +345,13 @@ export function DetailedCostingGrid({
   }
 
   const customCols = data.custom_columns || [];
-  const comparisonCols = data.comparison_columns || [];
+  const bulkQuotes = data.bulk_quotes || [];
   const rows = data.rows?.length > 0 ? data.rows : [createBlankDetailedRow()];
   const isCustomQtyMode = data.qty_mode === "custom";
   const colGrid = useFormColumnWidths("detailed_costing_grid", DETAILED_DEFAULT_WIDTHS, 50);
 
   const detailedTotalWidth = useMemo(() => {
     const customSum = customCols.reduce((sum, c) => sum + colGrid.getWidth(c.key, 135), 0);
-    const compSum = comparisonCols.reduce((sum, c) => sum + colGrid.getWidth(`comp_${c.id}`, 125), 0);
     return (
       colGrid.getWidth("sr_no") +
       colGrid.getWidth("item") +
@@ -360,17 +359,15 @@ export function DetailedCostingGrid({
       colGrid.getWidth("qty") +
       colGrid.getWidth("rate") +
       colGrid.getWidth("total") +
-      compSum +
       (readOnly ? 0 : 44)
     );
-  }, [customCols, comparisonCols, colGrid, readOnly]);
+  }, [customCols, colGrid, readOnly]);
 
   // Recalculate totals helper
   function updateDataAndRecalculate(partial: Partial<DetailedCostingData>) {
     const nextData: DetailedCostingData = { ...data, ...partial };
 
     let totalCost = 0;
-    const compCols = nextData.comparison_columns || [];
 
     const computedRows = (nextData.rows || []).map((r) => {
       const q = parseFloat(r.qty) || 0;
@@ -378,105 +375,44 @@ export function DetailedCostingGrid({
       const rowTotal = q * rate;
       totalCost += rowTotal;
 
-      const updatedComparisons: Record<string, DetailedCostingRowComparisonItem> = {
-        ...(r.comparisons || {}),
-      };
-
-      compCols.forEach((col) => {
-        const cItem = updatedComparisons[col.id] || { qty: col.qty, rate: "", total: "0.00", is_custom: false };
-        const colQtyNum = parseFloat(col.qty) || 1;
-
-        let activeAmountStr = cItem.rate;
-        // If not custom-edited by user, auto-calculate:
-        // unitRate = rate entered, or rowTotal / q (e.g. 100 / 10 = 10 rs per pc)
-        // Then for colQtyNum (e.g. 1000): colQtyNum * unitRate = 1000 * 10 = 10,000 rs
-        if (!cItem.is_custom) {
-          const unitRate = parseFloat(r.rate) || (q > 0 ? rowTotal / q : 0);
-          if (unitRate > 0 && colQtyNum > 0) {
-            const calculated = colQtyNum * unitRate;
-            activeAmountStr = calculated.toFixed(2);
-          } else {
-            activeAmountStr = "";
-          }
-        }
-
-        const cellAmount = parseFloat(activeAmountStr) || 0;
-
-        updatedComparisons[col.id] = {
-          ...cItem,
-          qty: col.qty,
-          rate: activeAmountStr,
-          total: cellAmount > 0 ? cellAmount.toFixed(2) : "0.00",
-          is_custom: Boolean(cItem.is_custom),
-        };
-      });
-
       return {
         ...r,
         total: rowTotal > 0 ? rowTotal.toFixed(2) : "0.00",
-        comparisons: updatedComparisons,
       };
     });
 
     nextData.rows = computedRows;
     nextData.total_cost = totalCost.toFixed(2);
+    // Clear legacy horizontal comparison columns format
+    nextData.comparison_columns = [];
+    nextData.selected_comparison_id = null;
 
     const marginPct = parseFloat(nextData.margin_percent || "0") || 0;
     const baseClientSubtotal = totalCost * (1 + marginPct / 100);
 
-    // Recalculate each comparison column's summary metrics
-    const computedCompCols = compCols.map((col) => {
-      let colTotalCost = 0;
-      computedRows.forEach((r) => {
-        const cellTot = parseFloat(r.comparisons?.[col.id]?.total || "0") || 0;
-        colTotalCost += cellTot;
-      });
+    const savedBulkQuotes = nextData.bulk_quotes || [];
+    const bulkQuotesTotal = savedBulkQuotes.reduce(
+      (sum, bq) => sum + (parseFloat(bq.client_subtotal || bq.total_cost || "0") || 0),
+      0
+    );
 
-      const colQty = parseFloat(col.qty || "0") || 1;
-      const colUnitCost = colQty > 0 ? colTotalCost / colQty : 0;
-      const colClientRate = colUnitCost * (1 + marginPct / 100);
-      const colClientSubtotal = colQty * colClientRate;
+    const combinedClientSubtotal = baseClientSubtotal + bulkQuotesTotal;
+    nextData.total_qty = "";
+    nextData.cost_per_unit = "0.00";
+    nextData.client_rate = "0.00";
+    nextData.client_subtotal =
+      combinedClientSubtotal > 0 ? combinedClientSubtotal.toFixed(2) : nextData.total_cost;
 
-      return {
-        ...col,
-        total_cost: colTotalCost.toFixed(2),
-        cost_per_unit: colUnitCost.toFixed(2),
-        client_rate: colClientRate.toFixed(2),
-        client_subtotal: colClientSubtotal.toFixed(2),
-      };
-    });
-    nextData.comparison_columns = computedCompCols;
-
-    // Sync active bulk column selection & summary metrics
-    if (computedCompCols.length > 0) {
-      const existingSelected = computedCompCols.find((c) => c.id === nextData.selected_comparison_id);
-      const activeCol = existingSelected || computedCompCols[0];
-      nextData.selected_comparison_id = activeCol.id;
-      nextData.total_qty = activeCol.qty;
-      nextData.cost_per_unit = activeCol.cost_per_unit || "0.00";
-      nextData.client_rate = activeCol.client_rate || "0.00";
-      nextData.client_subtotal = activeCol.client_subtotal || "0.00";
-
-      const existingTiers = nextData.quantity_tiers || [];
-      nextData.quantity_tiers = computedCompCols.map((col) => {
-        const existing = existingTiers.find((t) => t.id === `tier_${col.id}`);
-        return {
-          id: `tier_${col.id}`,
-          qty: col.qty,
-          total_amount: col.client_subtotal || "0.00",
-          unit_rate: col.client_rate || "0.00",
-          include_in_whatsapp: existing ? existing.include_in_whatsapp : true,
-          notes: existing?.notes || `${Number(col.qty).toLocaleString()} pcs Bulk Tier`,
-        };
-      });
-    } else {
-      nextData.selected_comparison_id = null;
-      nextData.total_qty = "";
-      nextData.cost_per_unit = "0.00";
-      nextData.client_rate = "0.00";
-      nextData.client_subtotal = baseClientSubtotal > 0 ? baseClientSubtotal.toFixed(2) : nextData.total_cost;
-      nextData.quantity_tiers = [];
-    }
+    // Sync saved bulk quotes to quantity_tiers so WhatsApp, Print PDF & Portal views stay accurate
+    nextData.quantity_tiers = savedBulkQuotes.map((bq) => ({
+      id: bq.id,
+      qty: bq.target_qty,
+      total_amount: bq.client_subtotal || bq.total_cost || "0.00",
+      unit_rate: bq.client_rate || bq.cost_per_unit || "0.00",
+      margin_percent: bq.margin_percent,
+      include_in_whatsapp: true,
+      notes: bq.notes || bq.label || `${Number(bq.target_qty || 0).toLocaleString()} pcs Bulk Quote`,
+    }));
 
     onChange(nextData);
   }
@@ -526,38 +462,6 @@ export function DetailedCostingGrid({
     updateDataAndRecalculate({ rows: updatedRows });
   }
 
-  function handleComparisonRateChange(
-    rowIndex: number,
-    colId: string,
-    val: string
-  ) {
-    const updatedRows = [...rows];
-    const currentRow = updatedRows[rowIndex];
-    const compCol = comparisonCols.find((c) => c.id === colId);
-    const colQty = compCol ? compCol.qty : "1000";
-
-    const enteredAmount = parseFloat(val) || 0;
-    // If user cleared the input (empty string), revert is_custom to false so it can auto-recalculate from base
-    const isCustom = val.trim() !== "";
-
-    const updatedCompItem: DetailedCostingRowComparisonItem = {
-      qty: colQty,
-      rate: val,
-      total: enteredAmount > 0 ? enteredAmount.toFixed(2) : "0.00",
-      is_custom: isCustom,
-    };
-
-    updatedRows[rowIndex] = {
-      ...currentRow,
-      comparisons: {
-        ...(currentRow.comparisons || {}),
-        [colId]: updatedCompItem,
-      },
-    };
-
-    updateDataAndRecalculate({ rows: updatedRows });
-  }
-
   function handleCustomFieldChange(
     rowIndex: number,
     colKey: string,
@@ -576,12 +480,6 @@ export function DetailedCostingGrid({
   }
 
   function handleAddRow(itemName: string = "") {
-    const compCols = data.comparison_columns || [];
-    const initialComparisons: Record<string, DetailedCostingRowComparisonItem> = {};
-    compCols.forEach((col) => {
-      initialComparisons[col.id] = { qty: col.qty, rate: "", total: "0.00", is_custom: false };
-    });
-
     if (itemName) {
       const firstEmptyIdx = rows.findIndex(
         (r) =>
@@ -594,10 +492,6 @@ export function DetailedCostingGrid({
         updatedRows[firstEmptyIdx] = {
           ...updatedRows[firstEmptyIdx],
           item_name: itemName,
-          comparisons: {
-            ...initialComparisons,
-            ...(updatedRows[firstEmptyIdx].comparisons || {}),
-          },
         };
         updateDataAndRecalculate({ rows: updatedRows });
         toast.success(`Added "${itemName}" row to costing sheet.`);
@@ -605,7 +499,6 @@ export function DetailedCostingGrid({
       }
     }
     const newRow = createBlankDetailedRow(itemName);
-    newRow.comparisons = initialComparisons;
     const updatedRows = [...rows, newRow];
     updateDataAndRecalculate({ rows: updatedRows });
     if (itemName) {
@@ -622,78 +515,32 @@ export function DetailedCostingGrid({
     updateDataAndRecalculate({ rows: updatedRows });
   }
 
-  function handleAddComparisonColumn(presetQty?: string) {
-    const rawQty = presetQty !== undefined ? presetQty : newCompQtyInput.trim();
-    const cleanQty = rawQty.replace(/[^0-9.]/g, "");
-    const numQty = parseFloat(cleanQty);
+  function handleSaveBulkQuote(saved: DetailedCostingBulkQuote) {
+    const existing = data.bulk_quotes || [];
+    const exists = existing.some((bq) => bq.id === saved.id);
+    const nextBulkQuotes = exists
+      ? existing.map((bq) => (bq.id === saved.id ? saved : bq))
+      : [...existing, saved];
 
-    if (!cleanQty || isNaN(numQty) || numQty <= 0) {
-      toast.error("Please enter a valid comparison quantity (e.g. 2000).");
-      return;
-    }
-
-    const currentCompCols = data.comparison_columns || [];
-    if (currentCompCols.some((c) => parseFloat(c.qty) === numQty)) {
-      toast.error(`${Number(cleanQty).toLocaleString()} pcs bulk rate column already exists.`);
-      return;
-    }
-
-    const newColId = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    const newCompCol: DetailedCostingComparisonColumn = {
-      id: newColId,
-      qty: cleanQty,
-      label: `${Number(cleanQty).toLocaleString()} pcs`,
-    };
-
-    const updatedRows = rows.map((r) => {
-      const q = parseFloat(r.qty) || 0;
-      const rate = parseFloat(r.rate) || 0;
-      const rowTotal = q * rate;
-      const unitRate = rate > 0 ? rate : (q > 0 ? rowTotal / q : 0);
-      const autoAmount = unitRate > 0 && numQty > 0 ? (numQty * unitRate).toFixed(2) : "";
-
-      return {
-        ...r,
-        comparisons: {
-          ...(r.comparisons || {}),
-          [newColId]: {
-            qty: cleanQty,
-            rate: autoAmount,
-            total: autoAmount || "0.00",
-            is_custom: false,
-          },
-        },
-      };
-    });
-
-    setNewCompQtyInput("");
-    setIsAddingCompQty(false);
-    updateDataAndRecalculate({
-      comparison_columns: [...currentCompCols, newCompCol],
-      rows: updatedRows,
-    });
-    toast.success(`Added ${Number(cleanQty).toLocaleString()} pcs bulk rate column.`);
+    updateDataAndRecalculate({ bulk_quotes: nextBulkQuotes });
+    setBulkModalOpen(false);
+    setEditingBulkQuote(null);
+    toast.success(
+      exists
+        ? `Updated bulk quote (${Number(saved.target_qty).toLocaleString()} pcs).`
+        : `Saved bulk quote (${Number(saved.target_qty).toLocaleString()} pcs).`
+    );
   }
 
-  function handleDeleteComparisonColumn(colId: string) {
-    const currentCompCols = data.comparison_columns || [];
-    const targetCol = currentCompCols.find((c) => c.id === colId);
-    const updatedCompCols = currentCompCols.filter((c) => c.id !== colId);
-
-    const updatedRows = rows.map((r) => {
-      const copy = { ...(r.comparisons || {}) };
-      delete copy[colId];
-      return { ...r, comparisons: copy };
-    });
-
-    updateDataAndRecalculate({
-      comparison_columns: updatedCompCols,
-      rows: updatedRows,
-    });
-
+  function handleDeleteBulkQuote(id: string) {
+    const existing = data.bulk_quotes || [];
+    const target = existing.find((bq) => bq.id === id);
+    const nextBulkQuotes = existing.filter((bq) => bq.id !== id);
+    updateDataAndRecalculate({ bulk_quotes: nextBulkQuotes });
+    setBulkModalOpen(false);
+    setEditingBulkQuote(null);
     toast.success(
-      `Removed ${targetCol?.qty ? Number(targetCol.qty).toLocaleString() + " pcs" : ""} comparison column.`
+      `Removed ${target?.target_qty ? Number(target.target_qty).toLocaleString() + " pcs " : ""}bulk quote.`
     );
   }
 
@@ -762,16 +609,11 @@ export function DetailedCostingGrid({
   const totalCostNumber = parseFloat(data.total_cost || "0") || 0;
   const marginPctNumber = parseFloat(data.margin_percent || "0") || 0;
   const baseClientSubtotalNumber = totalCostNumber * (1 + marginPctNumber / 100);
-  const activeCompCol =
-    comparisonCols.find((c) => c.id === data.selected_comparison_id) ??
-    comparisonCols[0] ??
-    null;
-  const clientSubtotalNumber = activeCompCol
-    ? parseFloat(activeCompCol.client_subtotal || activeCompCol.total_cost || "0") || 0
-    : baseClientSubtotalNumber;
-  const clientRateNumber = activeCompCol
-    ? parseFloat(activeCompCol.client_rate || activeCompCol.cost_per_unit || "0") || 0
-    : 0;
+  const bulkQuotesTotalNumber = bulkQuotes.reduce(
+    (sum, bq) => sum + (parseFloat(bq.client_subtotal || bq.total_cost || "0") || 0),
+    0
+  );
+  const clientSubtotalNumber = baseClientSubtotalNumber + bulkQuotesTotalNumber;
 
   // Active non-empty processes for distribution analytics
   const activeProcesses = useMemo(() => {
@@ -1025,69 +867,21 @@ export function DetailedCostingGrid({
               </Button>
             )}
 
-            {/* Add Bulk Qty Button & Popover Input */}
-            {isAddingCompQty ? (
-              <div className="flex items-center gap-1.5 bg-white border border-emerald-500 rounded-md p-1 shadow-xs">
-                <input
-                  type="number"
-                  value={newCompQtyInput}
-                  onChange={(e) => setNewCompQtyInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddComparisonColumn();
-                    if (e.key === "Escape") {
-                      setIsAddingCompQty(false);
-                      setNewCompQtyInput("");
-                    }
-                  }}
-                  autoFocus
-                  placeholder="Qty (e.g. 2000)"
-                  className="text-xs px-2 py-1 text-ink focus:outline-none w-28 font-mono"
-                />
-                <div className="hidden sm:flex items-center gap-1">
-                  {[2000, 3000, 5000].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleAddComparisonColumn(String(preset))}
-                      className="text-[10.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-                    >
-                      +{preset.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleAddComparisonColumn()}
-                  className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer"
-                  title="Add bulk quantity column"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingCompQty(false);
-                    setNewCompQtyInput("");
-                  }}
-                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-sunken transition cursor-pointer"
-                  title="Cancel"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsAddingCompQty(true)}
-                className="text-xs h-8 gap-1.5 border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-800 font-bold"
-                title="Add a bulk rate column for 2000, 3000, 5000 pcs"
-              >
-                <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                <span>+ Add Bulk Qty</span>
-              </Button>
-            )}
+            {/* Add Bulk Quote Modal Trigger */}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setEditingBulkQuote(null);
+                setBulkModalOpen(true);
+              }}
+              className="text-xs h-8 gap-1.5 border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-800 font-bold"
+              title="Open full Detailed Costing sheet for a bulk quantity quote"
+            >
+              <Layers className="h-3.5 w-3.5 text-emerald-600" />
+              <span>+ Add Bulk Quote</span>
+            </Button>
 
             <Button
               type="button"
@@ -1132,15 +926,10 @@ export function DetailedCostingGrid({
             <col style={{ width: `${colGrid.getWidth("qty")}px` }} />
             <col style={{ width: `${colGrid.getWidth("rate")}px` }} />
             <col style={{ width: `${colGrid.getWidth("total")}px` }} />
-            {comparisonCols.map((comp) => (
-              <col key={comp.id} style={{ width: `${colGrid.getWidth(`comp_${comp.id}`, 125)}px` }} />
-            ))}
             {!readOnly && <col style={{ width: "44px" }} />}
           </colgroup>
-          {/* Header Rows */}
+          {/* Header Row */}
           <thead>
-            {comparisonCols.length === 0 ? (
-              /* Single Header Row (Clean layout when no bulk comparison columns exist) */
               <tr className="border-b border-border bg-surface-sunken/60 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                 {/* Sr. No. */}
                 <FormResizableTh
@@ -1393,315 +1182,6 @@ export function DetailedCostingGrid({
                   </th>
                 )}
               </tr>
-            ) : (
-              /* Two-Tier Grouped Header (When Comparison Columns Exist) */
-              <>
-                <tr className="border-b border-border bg-surface-sunken/70 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                  {/* Sr. No. */}
-                  <FormResizableTh
-                    colKey="sr_no"
-                    rowSpan={2}
-                    width={colGrid.getWidth("sr_no")}
-                    isResizing={colGrid.resizingKey === "sr_no"}
-                    onResizeStart={colGrid.startResize}
-                    onResetWidth={colGrid.resetWidth}
-                    className="px-2 py-2.5 text-center border-r border-border"
-                  >
-                    #
-                  </FormResizableTh>
-
-                  {/* Column 1: Item / Process Name */}
-                  <FormResizableTh
-                    colKey="item"
-                    rowSpan={2}
-                    width={colGrid.getWidth("item")}
-                    isResizing={colGrid.resizingKey === "item"}
-                    onResizeStart={colGrid.startResize}
-                    onResetWidth={colGrid.resetWidth}
-                    className="px-3.5 py-2.5 border-r border-border"
-                  >
-                    {editingHeaderKey === "item" ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={headerTempText}
-                          onChange={(e) => setHeaderTempText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveHeaderEdit("item");
-                            if (e.key === "Escape") setEditingHeaderKey(null);
-                          }}
-                          autoFocus
-                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveHeaderEdit("item")}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between group">
-                        <span
-                          onClick={() => handleStartEditHeader("item", colItemLabel)}
-                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1.5"
-                          title="Click to rename column header"
-                        >
-                          {colItemLabel}
-                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                        </span>
-                      </div>
-                    )}
-                  </FormResizableTh>
-
-                  {/* Custom Columns */}
-                  {customCols.map((c) => (
-                    <FormResizableTh
-                      key={c.key}
-                      colKey={c.key}
-                      rowSpan={2}
-                      width={colGrid.getWidth(c.key, 135)}
-                      isResizing={colGrid.resizingKey === c.key}
-                      onResizeStart={colGrid.startResize}
-                      onResetWidth={colGrid.resetWidth}
-                      className="px-3 py-2.5 text-center border-r border-border"
-                    >
-                      {editingHeaderKey === c.key ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={headerTempText}
-                            onChange={(e) => setHeaderTempText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveHeaderEdit(c.key);
-                              if (e.key === "Escape") setEditingHeaderKey(null);
-                            }}
-                            autoFocus
-                            className="bg-white text-ink text-xs px-1.5 py-0.5 rounded border border-primary-500 font-medium w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveHeaderEdit(c.key)}
-                            className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between group">
-                          <span
-                            onClick={() => handleStartEditHeader(c.key, c.label)}
-                            className="cursor-pointer hover:text-primary-700"
-                            title="Click to rename column header"
-                          >
-                            {c.label}
-                          </span>
-                          {!readOnly && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCustomColumn(c.key)}
-                              className="p-1 text-ink-muted hover:text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Delete column"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </FormResizableTh>
-                  ))}
-
-                  {/* Column 2: Qty. */}
-                  <FormResizableTh
-                    colKey="qty"
-                    rowSpan={2}
-                    width={colGrid.getWidth("qty")}
-                    isResizing={colGrid.resizingKey === "qty"}
-                    onResizeStart={colGrid.startResize}
-                    onResetWidth={colGrid.resetWidth}
-                    className="px-3 py-2.5 text-right border-r border-border"
-                  >
-                    {editingHeaderKey === "qty" ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={headerTempText}
-                          onChange={(e) => setHeaderTempText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveHeaderEdit("qty");
-                            if (e.key === "Escape") setEditingHeaderKey(null);
-                          }}
-                          autoFocus
-                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveHeaderEdit("qty")}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1.5 group">
-                        <span
-                          onClick={() => handleStartEditHeader("qty", colQtyLabel)}
-                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                          title="Click to rename column header"
-                        >
-                          {colQtyLabel}
-                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                        </span>
-                      </div>
-                    )}
-                  </FormResizableTh>
-
-                  {/* Column 3: Rate / pc */}
-                  <FormResizableTh
-                    colKey="rate"
-                    rowSpan={2}
-                    width={colGrid.getWidth("rate")}
-                    isResizing={colGrid.resizingKey === "rate"}
-                    onResizeStart={colGrid.startResize}
-                    onResetWidth={colGrid.resetWidth}
-                    className="px-3 py-2.5 text-right border-r border-border"
-                  >
-                    {editingHeaderKey === "rate" ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={headerTempText}
-                          onChange={(e) => setHeaderTempText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveHeaderEdit("rate");
-                            if (e.key === "Escape") setEditingHeaderKey(null);
-                          }}
-                          autoFocus
-                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveHeaderEdit("rate")}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1.5 group">
-                        <span
-                          onClick={() => handleStartEditHeader("rate", colRateLabel)}
-                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                          title="Click to rename column header"
-                        >
-                          {colRateLabel}
-                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                        </span>
-                      </div>
-                    )}
-                  </FormResizableTh>
-
-                  {/* Column 4: Total Amount */}
-                  <FormResizableTh
-                    colKey="total"
-                    rowSpan={2}
-                    width={colGrid.getWidth("total")}
-                    isResizing={colGrid.resizingKey === "total"}
-                    onResizeStart={colGrid.startResize}
-                    onResetWidth={colGrid.resetWidth}
-                    className="px-3 py-2.5 text-right border-r border-border"
-                  >
-                    {editingHeaderKey === "total" ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={headerTempText}
-                          onChange={(e) => setHeaderTempText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveHeaderEdit("total");
-                            if (e.key === "Escape") setEditingHeaderKey(null);
-                          }}
-                          autoFocus
-                          className="bg-white text-ink text-xs px-2 py-0.5 rounded border border-primary-500 font-medium w-full text-right"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveHeaderEdit("total")}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1.5 group">
-                        <span
-                          onClick={() => handleStartEditHeader("total", colTotalLabel)}
-                          className="cursor-pointer hover:text-primary-700 flex items-center gap-1"
-                          title="Click to rename column header"
-                        >
-                          {colTotalLabel}
-                          {!readOnly && <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary-600" />}
-                        </span>
-                      </div>
-                    )}
-                  </FormResizableTh>
-
-                  {/* Group Header: BULK RATES */}
-                  <th
-                    colSpan={comparisonCols.length}
-                    className="px-3 py-2 text-center border-r border-border bg-emerald-50/80 text-emerald-950 border-b border-emerald-300"
-                  >
-                    <span className="font-extrabold uppercase tracking-wide text-emerald-900 text-[11px]">
-                      Bulk Rates
-                    </span>
-                  </th>
-
-                  {/* Actions Header */}
-                  {!readOnly && (
-                    <th rowSpan={2} className="w-10 px-2 py-2.5 text-center">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  )}
-                </tr>
-
-                {/* Sub-Header Row: Only the added comparison quantities */}
-                <tr className="border-b border-border bg-emerald-50/40 text-[10.5px] font-bold uppercase tracking-wider text-emerald-950">
-                  {comparisonCols.map((comp) => {
-                    const cKey = `comp_${comp.id}`;
-                    return (
-                      <FormResizableTh
-                        key={comp.id}
-                        colKey={cKey}
-                        width={colGrid.getWidth(cKey, 125)}
-                        isResizing={colGrid.resizingKey === cKey}
-                        onResizeStart={colGrid.startResize}
-                        onResetWidth={colGrid.resetWidth}
-                        className="px-2.5 py-1.5 text-right border-r border-border bg-emerald-50/60"
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          {!readOnly && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteComparisonColumn(comp.id)}
-                              className="p-0.5 rounded text-neutral-400 hover:text-red-600 hover:bg-white transition cursor-pointer"
-                              title={`Remove ${comp.qty} pcs column`}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                          <div className="flex items-center gap-1 ml-auto">
-                            <span className="font-mono font-black text-emerald-900">
-                              {Number(comp.qty).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      </FormResizableTh>
-                    );
-                  })}
-                </tr>
-              </>
-            )}
           </thead>
 
           {/* Table Body in CRM theme */}
@@ -1804,37 +1284,6 @@ export function DetailedCostingGrid({
                     />
                   </td>
 
-                  {/* Bulk Rate Columns for Comparison Quantities (ONLY if added!) */}
-                  {comparisonCols.map((col) => {
-                    const compAmount = row.comparisons?.[col.id]?.rate ?? "";
-                    const colQtyNum = parseFloat(col.qty) || 1;
-                    const numAmount = parseFloat(compAmount) || 0;
-                    const perPcRate = colQtyNum > 0 && numAmount > 0 ? numAmount / colQtyNum : 0;
-
-                    return (
-                      <td key={col.id} className="p-1.5 border-r border-border bg-emerald-50/10 align-top">
-                        <div className="flex flex-col items-end gap-0.5">
-                          <input
-                            type="number"
-                            step="any"
-                            value={compAmount}
-                            disabled={readOnly}
-                            onChange={(e) => handleComparisonRateChange(index, col.id, e.target.value)}
-                            placeholder="0.00"
-                            className="w-full text-right font-mono text-emerald-900 font-semibold bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-emerald-300 focus:border-emerald-500 rounded px-2 py-1 text-xs focus:outline-none transition shadow-none focus:shadow-2xs focus:ring-1 focus:ring-emerald-100"
-                            title={`Total cost for ${Number(col.qty).toLocaleString()} pcs`}
-                          />
-                          <span
-                            className="text-[10px] font-mono font-bold text-emerald-700/90 pr-1 tracking-tight"
-                            title={`Per piece rate: ${formatCurrency(perPcRate, currencyCode, 2)} / pc`}
-                          >
-                            {perPcRate > 0 ? `${formatCurrency(perPcRate, currencyCode, 2)}/pc` : "— /pc"}
-                          </span>
-                        </div>
-                      </td>
-                    );
-                  })}
-
                   {/* Delete Row Button */}
                   {!readOnly && (
                     <td className="p-1 text-center">
@@ -1853,7 +1302,7 @@ export function DetailedCostingGrid({
             })}
           </tbody>
           <tfoot>
-            {/* Footer Row 1: Total Cost (& Cost/pc under Bulk Columns) */}
+            {/* Footer Row 1: Total Cost */}
             <tr className="border-t-2 border-border bg-surface-sunken/70 text-xs">
               <td
                 colSpan={4 + customCols.length}
@@ -1864,55 +1313,21 @@ export function DetailedCostingGrid({
               <td className="px-2.5 py-2 text-right font-extrabold font-mono text-red-700 border-r border-border tnum">
                 {formatCurrency(totalCostNumber, currencyCode, 2)}
               </td>
-              {comparisonCols.map((col) => {
-                const colCost = parseFloat(col.total_cost || "0") || 0;
-                const colPerPc = parseFloat(col.cost_per_unit || "0") || 0;
-                return (
-                  <td
-                    key={col.id}
-                    className="px-2.5 py-2 text-right border-r border-border bg-emerald-50/30 align-middle"
-                  >
-                    <div className="font-extrabold font-mono text-ink tnum">
-                      {formatCurrency(colCost, currencyCode, 2)}
-                    </div>
-                    <div className="text-[10.5px] font-bold font-mono text-emerald-700 tnum">
-                      {colPerPc > 0 ? `${formatCurrency(colPerPc, currencyCode, 2)} / pc` : "— / pc"}
-                    </div>
-                  </td>
-                );
-              })}
               {!readOnly && <td className="px-2 py-2" />}
             </tr>
 
-            {/* Footer Row 2: Client Quote with Margin (only displayed when Margin % > 0) */}
+            {/* Footer Row 2: Main Sheet Client Quote with Margin (only displayed when Margin % > 0) */}
             {marginPctNumber > 0 && (
               <tr className="border-t border-border bg-primary-50/40 text-xs">
                 <td
                   colSpan={4 + customCols.length}
                   className="px-3 py-2 text-right font-extrabold uppercase tracking-wide text-primary-700 border-r border-border"
                 >
-                  Client Quote (+{marginPctNumber}%)
+                  Main Client Quote (+{marginPctNumber}%)
                 </td>
                 <td className="px-2.5 py-2 text-right font-extrabold font-mono text-primary-700 border-r border-border tnum">
                   {formatCurrency(baseClientSubtotalNumber, currencyCode, 2)}
                 </td>
-                {comparisonCols.map((col) => {
-                  const colClientTot = parseFloat(col.client_subtotal || "0") || 0;
-                  const colClientPc = parseFloat(col.client_rate || "0") || 0;
-                  return (
-                    <td
-                      key={col.id}
-                      className="px-2.5 py-2 text-right border-r border-border bg-emerald-50/60 align-middle"
-                    >
-                      <div className="font-black font-mono text-primary-700 tnum">
-                        {formatCurrency(colClientTot, currencyCode, 2)}
-                      </div>
-                      <div className="text-[10.5px] font-bold font-mono text-emerald-800 tnum">
-                        {colClientPc > 0 ? `${formatCurrency(colClientPc, currencyCode, 2)} / pc` : "— / pc"}
-                      </div>
-                    </td>
-                  );
-                })}
                 {!readOnly && <td className="px-2 py-2" />}
               </tr>
             )}
@@ -1920,8 +1335,8 @@ export function DetailedCostingGrid({
         </table>
       </div>
 
-      {/* Compact 1-Row Bulk & Margin Summary Bar */}
-      <div className="rounded-xl border border-border bg-surface-sunken/60 px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 text-xs">
+      {/* Summary Bar: Base Cost, Margin %, Saved Bulk Quote Chips & Combined Client Subtotal */}
+      <div className="rounded-xl border border-border bg-surface-sunken/60 px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 text-xs">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-1.5 font-extrabold uppercase tracking-wide text-ink">
             <Calculator className="h-4 w-4 text-primary-600 shrink-0" />
@@ -1951,70 +1366,86 @@ export function DetailedCostingGrid({
               className="w-16 text-right font-mono text-xs text-ink bg-white border border-border rounded px-2 py-1 focus:border-primary-500 focus:outline-none"
             />
           </div>
-        </div>
 
-        {/* Right Cluster: Individual Bulk Qty Pills (when added) + Active Quote Subtotal */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {comparisonCols.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {comparisonCols.map((col) => {
-                const isSelected = activeCompCol?.id === col.id;
-                const cTot = parseFloat(col.client_subtotal || col.total_cost || "0") || 0;
-                const cPc = parseFloat(col.client_rate || col.cost_per_unit || "0") || 0;
+          {/* Saved Bulk Quote Chips */}
+          {bulkQuotes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pl-2 border-l border-border">
+              {bulkQuotes.map((bq, idx) => {
+                const qtyNum = parseFloat(bq.target_qty || "0") || 0;
+                const bqTotal = parseFloat(bq.client_subtotal || bq.total_cost || "0") || 0;
+                const bqRate = parseFloat(bq.client_rate || bq.cost_per_unit || "0") || 0;
+                const chipLabel =
+                  bq.label?.trim() ||
+                  (qtyNum > 0 ? `${qtyNum.toLocaleString()} pcs` : `Bulk #${idx + 1}`);
+
                 return (
-                  <button
-                    key={col.id}
-                    type="button"
-                    disabled={readOnly}
-                    onClick={() => updateDataAndRecalculate({ selected_comparison_id: col.id })}
-                    className={clsx(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs",
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-950 font-bold ring-1 ring-emerald-200"
-                        : "border-border bg-white text-ink hover:border-emerald-300 hover:bg-emerald-50/40"
-                    )}
-                    title={`Select ${Number(col.qty).toLocaleString()} pcs as active client quote`}
+                  <div
+                    key={bq.id}
+                    className="group/chip inline-flex items-center rounded-lg border border-emerald-300 bg-white hover:border-emerald-500 hover:bg-emerald-50/40 shadow-2xs transition"
                   >
-                    <span className="font-mono font-extrabold text-emerald-800">
-                      {Number(col.qty).toLocaleString()} pcs
-                    </span>
-                    <span className="text-ink-faint">·</span>
-                    <span className="font-mono tnum">
-                      {formatCurrency(cPc, currencyCode, 2)}/pc
-                    </span>
-                    <span className="text-ink-faint">·</span>
-                    <span className="font-mono font-bold text-primary-700 tnum">
-                      {formatCurrency(cTot, currencyCode, 2)}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => {
+                        setEditingBulkQuote(bq);
+                        setBulkModalOpen(true);
+                      }}
+                      className={clsx(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-ink",
+                        readOnly ? "cursor-default" : "cursor-pointer"
+                      )}
+                      title={
+                        readOnly
+                          ? `${chipLabel}: ${formatCurrency(bqTotal, currencyCode, 2)}`
+                          : `Click to view / edit ${chipLabel} bulk quote`
+                      }
+                    >
+                      <span className="font-mono font-extrabold text-emerald-800">
+                        {chipLabel}
+                      </span>
+                      {bqRate > 0 && (
+                        <>
+                          <span className="text-ink-faint">·</span>
+                          <span className="font-mono text-ink-muted tnum">
+                            {formatCurrency(bqRate, currencyCode, 2)}/pc
+                          </span>
+                        </>
+                      )}
+                      <span className="text-ink-faint">·</span>
+                      <span className="font-mono font-extrabold text-primary-700 tnum">
+                        {formatCurrency(bqTotal, currencyCode, 2)}
+                      </span>
+                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBulkQuote(bq.id)}
+                        className="pr-2 pl-0.5 py-1 text-ink-faint hover:text-red-600 transition cursor-pointer"
+                        title={`Remove ${chipLabel} bulk quote`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
           )}
+        </div>
 
-          {activeCompCol ? (
-            <div className="flex items-center gap-3 pl-2 border-l border-border">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-ink-muted">Active Rate:</span>
-                <span className="font-mono font-bold text-emerald-700 tnum">
-                  {formatCurrency(clientRateNumber, currencyCode, 2)}/pc
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-primary-700">Client Quote:</span>
-                <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
-                  {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-primary-700">Client Subtotal:</span>
-              <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
-                {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
-              </span>
-            </div>
+        {/* Right Cluster: Combined Total of All Quotes */}
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
+          {bulkQuotes.length > 0 && (
+            <span className="text-[11px] font-medium text-ink-muted">
+              ({bulkQuotes.length} bulk {bulkQuotes.length === 1 ? "quote" : "quotes"} included)
+            </span>
           )}
+          <div className="flex items-center gap-1.5">
+            <span className="font-extrabold text-primary-700">Client Subtotal:</span>
+            <span className="font-mono font-extrabold text-primary-700 text-sm tnum">
+              {formatCurrency(clientSubtotalNumber, currencyCode, 2)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -2035,6 +1466,31 @@ export function DetailedCostingGrid({
           className="w-full rounded-lg border border-border bg-white px-3 py-2 text-xs text-ink placeholder:italic placeholder:text-ink-faint focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-100 transition shadow-2xs resize-y"
         />
       </div>
+
+      {/* Full Detailed Costing Sheet Modal for Adding / Editing Bulk Quotes */}
+      {!readOnly && (
+        <BulkQuoteModal
+          open={bulkModalOpen}
+          initialQuote={editingBulkQuote}
+          mainRows={rows}
+          mainCustomColumns={customCols}
+          mainMarginPercent={data.margin_percent || "0"}
+          colLabels={{
+            item: colItemLabel,
+            qty: colQtyLabel,
+            rate: colRateLabel,
+            total: colTotalLabel,
+          }}
+          quickProcesses={quickProcesses}
+          currencyCode={currencyCode}
+          onClose={() => {
+            setBulkModalOpen(false);
+            setEditingBulkQuote(null);
+          }}
+          onSave={handleSaveBulkQuote}
+          onDelete={handleDeleteBulkQuote}
+        />
+      )}
     </div>
   );
 }

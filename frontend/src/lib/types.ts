@@ -326,6 +326,24 @@ export interface DetailedCostingQuantityTier {
   notes?: string;
 }
 
+export interface DetailedCostingBulkQuote {
+  id: string;
+  label?: string;
+  target_qty: string;
+  margin_percent: string;
+  col_item_label?: string;
+  col_qty_label?: string;
+  col_rate_label?: string;
+  col_total_label?: string;
+  custom_columns?: DetailedCostingCustomColumn[];
+  rows: DetailedCostingRow[];
+  total_cost: string;
+  cost_per_unit: string;
+  client_rate: string;
+  client_subtotal: string;
+  notes?: string;
+}
+
 export interface DetailedCostingData {
   job_title?: string;
   total_qty: string;
@@ -345,6 +363,7 @@ export interface DetailedCostingData {
   client_subtotal?: string;
   costing_notes?: string;
   quantity_tiers?: DetailedCostingQuantityTier[];
+  bulk_quotes?: DetailedCostingBulkQuote[];
   custom_process_templates?: string[];
 }
 
