@@ -472,8 +472,6 @@ function UserForm({
   const [lastName, setLastName] = useState(user?.last_name ?? "");
   const [email, setEmail] = useState(user?.email ?? (defaultValues?.email || ""));
   const [phone, setPhone] = useState(user?.phone ?? (defaultValues?.phone || ""));
-  const [role, setRole] = useState<number | "">(user?.role ?? (initialRoleId || ""));
-
   const isInitialClient = Boolean(
     user?.user_type === "portal_user" ||
     user?.is_portal_client ||
@@ -484,6 +482,16 @@ function UserForm({
   const [userType, setUserType] = useState<"system_user" | "portal_user">(
     user?.user_type ?? (isInitialClient ? "portal_user" : "system_user")
   );
+  const clientDefaultRoleId = roles.find((r) => r.name.toLowerCase() === "client")?.id || "";
+  const [role, setRole] = useState<number | "">(
+    user?.role ?? (initialRoleId || (isInitialClient ? clientDefaultRoleId : ""))
+  );
+
+  useEffect(() => {
+    if (!user && userType === "portal_user" && !role && clientDefaultRoleId) {
+      setRole(clientDefaultRoleId);
+    }
+  }, [user, userType, role, clientDefaultRoleId]);
   const [linkedClient, setLinkedClient] = useState<number | "">(
     user?.linked_client ?? (initialClientId || "")
   );
@@ -499,7 +507,7 @@ function UserForm({
   const [addRoleOpen, setAddRoleOpen] = useState(false);
 
   useEffect(() => {
-    apiFetch<any>("/api/clients/?page_size=250")
+    apiFetch<any>("/api/clients/?page_size=1000")
       .then((res) => {
         const list = Array.isArray(res) ? res : res.results || [];
         setClients(list);
@@ -635,6 +643,13 @@ function UserForm({
                 required
               >
                 <option value="">-- Choose Client Profile --</option>
+                {user?.linked_client &&
+                  !clients.some((c) => c.id === user.linked_client) && (
+                    <option value={user.linked_client}>
+                      {user.linked_client_name || `Client #${user.linked_client}`}
+                      {user.linked_client_company_name ? ` (${user.linked_client_company_name})` : ""}
+                    </option>
+                  )}
                 {clients.map((c) => {
                   const companyLabel = c.company_name || c.organization_name;
                   return (

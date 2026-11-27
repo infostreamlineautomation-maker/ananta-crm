@@ -26,6 +26,11 @@ class NotificationViewSet(ModuleViewSet):
         ).prefetch_related(
             Prefetch("reads", queryset=NotificationRead.objects.filter(user=user), to_attr="my_reads")
         )
+        if getattr(user, "is_portal_client", False):
+            client = getattr(user, "linked_client", None)
+            if not client:
+                return qs.none()
+            return qs.filter(order__client=client)
         if can_view_all_orders(user):
             return qs
         return qs.filter(order__created_by=user) | qs.filter(order__is_visible_to_staff=True)

@@ -50,10 +50,14 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["date_joined", "is_portal_client"]
 
     def get_organization_id(self, obj):
+        if getattr(obj, "is_portal_client", False) and getattr(obj, "linked_client", None) and obj.linked_client.organization_id:
+            return obj.linked_client.organization_id
         mem = obj.organization_memberships.first()
         return mem.organization_id if mem else None
 
     def get_organization_name(self, obj):
+        if getattr(obj, "is_portal_client", False) and getattr(obj, "linked_client", None) and getattr(obj.linked_client, "organization", None):
+            return obj.linked_client.organization.name
         mem = obj.organization_memberships.first()
         return mem.organization.name if mem else None
 
@@ -94,24 +98,5 @@ class MeSerializer(serializers.ModelSerializer):
         ]
 
     def get_permissions(self, user):
-        if user.is_superuser:
-            from apps.core.modules import ACTIONS, MODULES
-
-            return {module: {action: True for action in ACTIONS} for module in MODULES}
-        if not user.role_id:
-            return {}
-        return {
-            rp.module: {
-                "view": rp.can_view,
-                "add": rp.can_add,
-                "edit": rp.can_edit,
-                "delete": rp.can_delete,
-                "submit": rp.can_submit,
-                "cancel": rp.can_cancel,
-                "print": rp.can_print,
-                "export": rp.can_export,
-                "apply_user_permissions": rp.apply_user_permissions,
-                "permlevel": rp.permlevel,
-            }
-            for rp in user.role.permissions.all()
-        }
+        from .permissions import get_effective_permissions_dict
+        return get_effective_permissions_dict(user)

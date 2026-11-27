@@ -59,6 +59,7 @@ interface ClientQuotation {
 export function ClientPortalDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [quotations, setQuotations] = useState<ClientQuotation[]>([]);
   const [totals, setTotals] = useState({
@@ -72,6 +73,7 @@ export function ClientPortalDashboard() {
 
     async function loadData() {
       setLoading(true);
+      setLoadError(null);
       try {
         const [ordersRes, quotesRes] = await Promise.all([
           apiFetch<any>("/api/orders/?page_size=100"),
@@ -97,8 +99,12 @@ export function ClientPortalDashboard() {
             : quotesRes.results || [];
           setQuotations(qList);
         }
-      } catch {
-        // Handled silently
+      } catch (err: any) {
+        if (!cancelled) {
+          setLoadError(
+            err?.message || "Unable to load your orders and quotations right now. Please contact support."
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -182,6 +188,25 @@ export function ClientPortalDashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Warning Banner if Unlinked or API Permission/Fetch Error */}
+      {(!user?.linked_client || loadError) && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-900 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">
+              {!user?.linked_client
+                ? "Client Profile Not Linked"
+                : "Could Not Load Account Data"}
+            </p>
+            <p className="mt-0.5 text-rose-800">
+              {!user?.linked_client
+                ? "Your portal login is not currently linked to a client profile. Please ask your administrator to link your account."
+                : loadError}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Primary Financial Overview KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -499,11 +524,19 @@ export function ClientPortalDashboard() {
               For billing queries, proof approvals, or urgent delivery dispatch requests, please contact our support team.
             </p>
             <div className="mt-3 flex items-center gap-2">
-              <Link href="/companies">
-                <Button variant="secondary" size="sm" className="w-full text-xs font-semibold">
-                  View Company Profile
-                </Button>
-              </Link>
+              {user?.linked_client_company_name ? (
+                <Link href="/companies">
+                  <Button variant="secondary" size="sm" className="w-full text-xs font-semibold">
+                    View Company Profile
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/orders">
+                  <Button variant="secondary" size="sm" className="w-full text-xs font-semibold">
+                    Track All Orders
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>

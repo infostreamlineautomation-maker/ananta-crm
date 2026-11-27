@@ -66,7 +66,11 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         role = serializer.save()
-        sync_role_permissions()
+        if role.name.strip().lower() in ("client", "customer"):
+            from .permissions import seed_client_role_permissions
+            seed_client_role_permissions(role)
+        else:
+            sync_role_permissions()
         return role
 
     def destroy(self, request, *args, **kwargs):
@@ -132,27 +136,32 @@ class UserViewSet(viewsets.ModelViewSet):
         user = serializer.save()
         from apps.organizations.models import Organization, OrganizationMembership
 
-        org_id = (
-            getattr(user, "_initial_org_id", None)
-            or self.request.data.get("organization")
-            or self.request.data.get("organization_id")
-        )
-        if not org_id and getattr(user, "linked_client", None):
-            org_id = user.linked_client.organization_id
-
         is_portal = getattr(user, "is_portal_client", False) or getattr(user, "user_type", "") == "portal_user"
+        if is_portal and not user.role_id:
+            client_role = Role.objects.filter(name__iexact="Client").first()
+            if client_role:
+                user.role = client_role
+                user.save(update_fields=["role"])
+
+        org_id = None
+        if is_portal and getattr(user, "linked_client", None) and user.linked_client.organization_id:
+            # Portal clients must always belong to their linked client's organization
+            org_id = user.linked_client.organization_id
+        else:
+            org_id = (
+                getattr(user, "_initial_org_id", None)
+                or self.request.data.get("organization")
+                or self.request.data.get("organization_id")
+            )
 
         if is_portal or org_id:
-            chosen_org = None
-            if org_id:
-                chosen_org = Organization.objects.filter(id=org_id).first()
+            chosen_org = Organization.objects.filter(id=org_id).first() if org_id else None
             if not chosen_org and getattr(user, "linked_client", None):
                 chosen_org = user.linked_client.organization
 
             if chosen_org:
                 OrganizationMembership.objects.get_or_create(user=user, organization=chosen_org)
                 if is_portal:
-                    # External client users are strictly scoped to only one organization
                     OrganizationMembership.objects.filter(user=user).exclude(organization=chosen_org).delete()
             return user
 
@@ -167,11 +176,17 @@ class UserViewSet(viewsets.ModelViewSet):
         user = serializer.save()
         from apps.organizations.models import Organization, OrganizationMembership
 
-        org_id = self.request.data.get("organization") or self.request.data.get("organization_id")
         is_portal = getattr(user, "is_portal_client", False) or getattr(user, "user_type", "") == "portal_user"
+        if is_portal and not user.role_id:
+            client_role = Role.objects.filter(name__iexact="Client").first()
+            if client_role:
+                user.role = client_role
+                user.save(update_fields=["role"])
 
-        if not org_id and getattr(user, "linked_client", None) and is_portal:
+        if is_portal and getattr(user, "linked_client", None) and user.linked_client.organization_id:
             org_id = user.linked_client.organization_id
+        else:
+            org_id = self.request.data.get("organization") or self.request.data.get("organization_id")
 
         if org_id:
             chosen_org = Organization.objects.filter(id=org_id).first()
