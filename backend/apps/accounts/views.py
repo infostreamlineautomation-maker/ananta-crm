@@ -137,9 +137,9 @@ class UserViewSet(viewsets.ModelViewSet):
         from apps.organizations.models import Organization, OrganizationMembership
 
         is_portal = getattr(user, "is_portal_client", False) or getattr(user, "user_type", "") == "portal_user"
-        if is_portal and not user.role_id:
+        if is_portal:
             client_role = Role.objects.filter(name__iexact="Client").first()
-            if client_role:
+            if client_role and user.role_id != client_role.id:
                 user.role = client_role
                 user.save(update_fields=["role"])
 
@@ -177,9 +177,9 @@ class UserViewSet(viewsets.ModelViewSet):
         from apps.organizations.models import Organization, OrganizationMembership
 
         is_portal = getattr(user, "is_portal_client", False) or getattr(user, "user_type", "") == "portal_user"
-        if is_portal and not user.role_id:
+        if is_portal:
             client_role = Role.objects.filter(name__iexact="Client").first()
-            if client_role:
+            if client_role and user.role_id != client_role.id:
                 user.role = client_role
                 user.save(update_fields=["role"])
 

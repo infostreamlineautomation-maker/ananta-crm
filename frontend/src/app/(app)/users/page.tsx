@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { Combobox, ComboboxOption } from "@/components/ui/Combobox";
 import { TD, TH, TR, TableState } from "@/components/ui/Table";
 import { LoadMorePagination } from "@/components/ui/Pagination";
 import { ColumnDef, ColumnSelector } from "@/components/ui/ColumnSelector";
@@ -488,14 +489,24 @@ function UserForm({
   );
 
   useEffect(() => {
-    if (!user && userType === "portal_user" && !role && clientDefaultRoleId) {
+    if (userType === "portal_user" && clientDefaultRoleId && role !== clientDefaultRoleId) {
       setRole(clientDefaultRoleId);
     }
-  }, [user, userType, role, clientDefaultRoleId]);
+  }, [userType, role, clientDefaultRoleId]);
   const [linkedClient, setLinkedClient] = useState<number | "">(
     user?.linked_client ?? (initialClientId || "")
   );
-  const [clients, setClients] = useState<Array<{ id: number; client_name: string; company_name?: string | null; organization?: number; organization_name?: string }>>([]);
+  const [clients, setClients] = useState<
+    Array<{
+      id: number;
+      client_name: string;
+      company_name?: string | null;
+      organization?: number;
+      organization_name?: string;
+      phone?: string;
+      email?: string;
+    }>
+  >([]);
   const [organizations, setOrganizations] = useState<Array<{ id: number; name: string; slug: string }>>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<number | "">(
     user?.organization_id ?? (initialOrgId || "")
@@ -527,17 +538,56 @@ function UserForm({
       .catch(() => {});
   }, [user, initialOrgId]);
 
+  function applyClientProfileFields(match: (typeof clients)[number]) {
+    if (match.organization) {
+      setSelectedOrgId(match.organization);
+    }
+    const nameParts = (match.client_name || "").trim().split(/\s+/).filter(Boolean);
+    const first = nameParts[0] || "";
+    const last = nameParts.slice(1).join(" ");
+    const suggestedUsername = (match.client_name || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 20);
+
+    setUsername(suggestedUsername || `client${match.id}`);
+    setFirstName(first);
+    setLastName(last);
+    setEmail(match.email || "");
+    setPhone(match.phone || "");
+  }
+
+  useEffect(() => {
+    if (!user && userType === "portal_user" && linkedClient && clients.length > 0 && !username && !email && !phone) {
+      const match = clients.find((c) => c.id === linkedClient);
+      if (match) {
+        applyClientProfileFields(match);
+      }
+    }
+  }, [user, userType, linkedClient, clients, username, email, phone]);
+
   function handleClientSelect(clientId: number | "") {
     setLinkedClient(clientId);
     if (clientId) {
       const match = clients.find((c) => c.id === clientId);
-      if (match?.organization) {
-        setSelectedOrgId(match.organization);
+      if (match) {
+        if (!user || clientId !== user.linked_client) {
+          applyClientProfileFields(match);
+        } else if (match.organization) {
+          setSelectedOrgId(match.organization);
+        }
       }
+    } else if (!user) {
+      setUsername("");
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
     }
   }
 
   function handleRoleChange(newRoleId: number | "") {
+    if (userType === "portal_user") return;
     setRole(newRoleId);
     const chosenRole = roles.find((r) => r.id === newRoleId);
     if (chosenRole?.name?.toLowerCase() === "client") {
@@ -545,8 +595,35 @@ function UserForm({
     }
   }
 
+  const clientOptions = useMemo<ComboboxOption[]>(() => {
+    const opts: ComboboxOption[] = [];
+    if (user?.linked_client && !clients.some((c) => c.id === user.linked_client)) {
+      opts.push({
+        value: user.linked_client,
+        label: user.linked_client_name || `Client #${user.linked_client}`,
+        sublabel: user.linked_client_company_name || undefined,
+      });
+    }
+    clients.forEach((c) => {
+      const companyLabel = c.company_name || c.organization_name || "";
+      const contactDetail = c.phone || c.email || "";
+      const sublabel = [companyLabel, contactDetail].filter(Boolean).join(" • ");
+      opts.push({
+        value: c.id,
+        label: companyLabel ? `${c.client_name} (${companyLabel})` : c.client_name,
+        sublabel: contactDetail || undefined,
+        keywords: [c.client_name, companyLabel, c.organization_name, c.phone, c.email, sublabel].filter(Boolean).join(" "),
+      });
+    });
+    return opts;
+  }, [clients, user?.linked_client, user?.linked_client_name, user?.linked_client_company_name]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (userType === "portal_user" && !linkedClient) {
+      setError("Please select a Linked Client profile for this External Client Portal User.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -556,7 +633,7 @@ function UserForm({
         last_name: lastName,
         email,
         phone,
-        role: role || null,
+        role: userType === "portal_user" ? (clientDefaultRoleId ? Number(clientDefaultRoleId) : role || null) : role || null,
         user_type: userType,
         linked_client: userType === "portal_user" && linkedClient ? Number(linkedClient) : null,
         organization_id: selectedOrgId ? Number(selectedOrgId) : null,
@@ -612,7 +689,7 @@ function UserForm({
               onClick={() => {
                 setUserType("portal_user");
                 const clientRole = roles.find((r) => r.name.toLowerCase() === "client");
-                if (clientRole && !role) setRole(clientRole.id);
+                if (clientRole) setRole(clientRole.id);
               }}
               className={clsx(
                 "flex flex-col items-start rounded-lg border p-2.5 text-left text-xs transition-all cursor-pointer",
@@ -637,28 +714,14 @@ function UserForm({
               required
               hint="This login will strictly be restricted to quotations and orders belonging to this client."
             >
-              <Select
-                value={linkedClient}
-                onChange={(e) => handleClientSelect(e.target.value ? Number(e.target.value) : "")}
-                required
-              >
-                <option value="">-- Choose Client Profile --</option>
-                {user?.linked_client &&
-                  !clients.some((c) => c.id === user.linked_client) && (
-                    <option value={user.linked_client}>
-                      {user.linked_client_name || `Client #${user.linked_client}`}
-                      {user.linked_client_company_name ? ` (${user.linked_client_company_name})` : ""}
-                    </option>
-                  )}
-                {clients.map((c) => {
-                  const companyLabel = c.company_name || c.organization_name;
-                  return (
-                    <option key={c.id} value={c.id}>
-                      {c.client_name} {companyLabel ? `(${companyLabel})` : ""}
-                    </option>
-                  );
-                })}
-              </Select>
+              <Combobox
+                value={linkedClient || null}
+                onChange={(val) => handleClientSelect(val === "" ? "" : Number(val))}
+                options={clientOptions}
+                placeholder="-- Choose Client Profile --"
+                searchPlaceholder="Search client by name, company, phone, or email..."
+                clearable
+              />
             </Field>
           </div>
         )}
@@ -732,16 +795,27 @@ function UserForm({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-xs font-bold text-ink">User Role</label>
-            <button
-              type="button"
-              onClick={() => setAddRoleOpen(true)}
-              className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add New Role</span>
-            </button>
+            {userType === "portal_user" ? (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10.5px] font-bold text-emerald-800">
+                Fixed to Client Portal
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddRoleOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add New Role</span>
+              </button>
+            )}
           </div>
-          <Select value={role} onChange={(e) => handleRoleChange(e.target.value ? Number(e.target.value) : "")}>
+          <Select
+            value={role}
+            disabled={userType === "portal_user"}
+            onChange={(e) => handleRoleChange(e.target.value ? Number(e.target.value) : "")}
+            className={userType === "portal_user" ? "cursor-not-allowed font-semibold text-ink-muted" : undefined}
+          >
             <option value="">No role (Read-only)</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
@@ -750,7 +824,11 @@ function UserForm({
             ))}
           </Select>
           <div className="mt-1.5 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>Roles control access permissions across all modules</span>
+            <span>
+              {userType === "portal_user"
+                ? "Locked to Client role for External Client Portal Users"
+                : "Roles control access permissions across all modules"}
+            </span>
             <Link href="/roles" target="_blank" className="font-semibold text-primary-600 hover:underline">
               Roles & Permissions →
             </Link>

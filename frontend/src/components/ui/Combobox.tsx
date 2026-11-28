@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import clsx from "clsx";
 
 export interface ComboboxOption {
   value: number | string;
   label: string;
   sublabel?: string;
+  keywords?: string;
 }
 
 export function Combobox({
@@ -15,17 +16,21 @@ export function Combobox({
   onChange,
   options,
   placeholder = "Select...",
+  searchPlaceholder = "Type to search...",
   onAddNew,
   addNewLabel = "Add new",
   disabled,
+  clearable = false,
 }: {
   value: number | string | null;
   onChange: (value: number | string) => void;
   options: ComboboxOption[];
   placeholder?: string;
+  searchPlaceholder?: string;
   onAddNew?: () => void;
   addNewLabel?: string;
   disabled?: boolean;
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -42,7 +47,10 @@ export function Combobox({
     if (!query.trim()) return options;
     const q = query.toLowerCase();
     return options.filter(
-      (o) => o.label.toLowerCase().includes(q) || o.sublabel?.toLowerCase().includes(q)
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.sublabel?.toLowerCase().includes(q) ||
+        o.keywords?.toLowerCase().includes(q)
     );
   }, [options, query]);
 
@@ -141,35 +149,56 @@ export function Combobox({
 
   return (
     <div className="relative" ref={rootRef}>
-      <button
-        ref={buttonRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={handleButtonKeyDown}
-        className={clsx(
-          "flex h-10 w-full items-center gap-2 rounded-md border border-border bg-white px-3 text-left text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:bg-surface-sunken disabled:text-ink-faint",
-          !selected && "text-ink-faint",
+      <div className="relative flex items-center">
+        <button
+          ref={buttonRef}
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen((v) => !v)}
+          onKeyDown={handleButtonKeyDown}
+          className={clsx(
+            "flex h-10 w-full items-center gap-2 rounded-md border border-border bg-white px-3 text-left text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:bg-surface-sunken disabled:text-ink-faint",
+            clearable && selected ? "pr-14" : "pr-3",
+            !selected && "text-ink-faint",
+          )}
+        >
+          <Search className="h-4 w-4 flex-none text-ink-faint" />
+          <span className="min-w-0 flex-1 truncate">{selected ? selected.label : placeholder}</span>
+          <ChevronDown className="h-4 w-4 flex-none text-ink-faint" />
+        </button>
+        {clearable && selected && !disabled && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange("");
+              setQuery("");
+            }}
+            className="absolute right-8 flex h-5 w-5 items-center justify-center rounded text-ink-faint hover:bg-surface-sunken hover:text-ink"
+            title="Clear selection"
+            aria-label="Clear selection"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         )}
-      >
-        <Search className="h-4 w-4 flex-none text-ink-faint" />
-        <span className="min-w-0 flex-1 truncate">{selected ? selected.label : placeholder}</span>
-        <ChevronDown className="h-4 w-4 flex-none text-ink-faint" />
-      </button>
+      </div>
 
       {open && (
-        <div className="absolute left-0 right-0 z-30 mt-1.5 rounded-md border border-border bg-surface shadow-[var(--shadow-pop)]">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setHighlightedIndex(0);
-            }}
-            onKeyDown={handleInputKeyDown}
-            placeholder="Type to search..."
-            className="w-full border-b border-border px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none bg-surface"
-          />
+        <div className="absolute left-0 right-0 z-50 mt-1.5 rounded-md border border-border bg-surface shadow-[var(--shadow-pop)]">
+          <div className="flex items-center gap-2 border-b border-border bg-surface px-3">
+            <Search className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setHighlightedIndex(0);
+              }}
+              onKeyDown={handleInputKeyDown}
+              placeholder={searchPlaceholder}
+              className="w-full py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none bg-surface"
+            />
+          </div>
           <div ref={listRef} className="max-h-56 overflow-y-auto py-1">
             {filtered.length === 0 && (
               <p className="px-3 py-4 text-center text-[13px] text-ink-faint">No matches found.</p>
