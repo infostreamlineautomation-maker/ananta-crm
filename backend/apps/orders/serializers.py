@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -88,7 +90,6 @@ class OrderSerializer(SameOrganizationFieldsMixin, serializers.ModelSerializer):
         items = list(obj.items.all())
         if not items:
             return 0
-        from decimal import Decimal
         return sum((item.qty for item in items if item.qty is not None), Decimal("0"))
 
     def get_rates_preview(self, obj):
